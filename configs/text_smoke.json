@@ -1,0 +1,52 @@
+{
+  "seed": 20261015,
+  "model": "/home/MCEC_ADAS/kdz/models/Qwen2.5-Coder-3B-Instruct",
+  "dataset": "Salesforce/wikitext",
+  "subset": "wikitext-2-raw-v1",
+  "prompt_tokens": 50,
+  "tokens": 128,
+  "context_width": 4,
+  "temperature": 1,
+  "max_model_len": 1024,
+  "max_num_seqs": 8,
+  "key_id": "public-research-v1",
+  "roles": {
+    "calibration": 8,
+    "dev": 4,
+    "test": 8,
+    "null_cal": 32,
+    "null_test": 32,
+    "pool": 8
+  },
+  "switch_ranges": [
+    [
+      0.2,
+      0.7
+    ]
+  ],
+  "edits": [
+    {
+      "kind": "replace",
+      "rate": 0.1
+    },
+    {
+      "kind": "replace",
+      "rate": 0.3
+    },
+    {
+      "kind": "insert",
+      "rate": 0.1
+    },
+    {
+      "kind": "delete",
+      "rate": 0.1
+    }
+  ],
+  "bins": 25,
+  "pseudocount": 0.5,
+  "alpha": 0.05,
+  "fixed_e": 0.5,
+  "fixed_rho": 0.95,
+  "window": 20,
+  "bootstrap": 1000
+}

@@ -1,0 +1,22 @@
+{
+  "seed": 20261015,
+  "tokens": 500,
+  "scenario": "markov",
+  "epsilon": 0.3,
+  "rho": 0.95,
+  "signal_p": [
+    0.5,
+    0.5
+  ],
+  "cal_pivots": 50000,
+  "test_documents": 200,
+  "null_cal": 2000,
+  "null_test": 2000,
+  "bins": 50,
+  "pseudocount": 0.5,
+  "alpha": 0.05,
+  "fixed_e": 0.5,
+  "fixed_rho": 0.95,
+  "window": 20,
+  "bootstrap": 2000
+}
