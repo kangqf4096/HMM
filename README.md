@@ -32,23 +32,30 @@
 
     python scripts/run.py simulate --config configs/sim_smoke.json --output runs/sim0
 
-再跑真实模型小试，可以一条脚本顺序完成准备、生成和评价：
+再跑真实模型小试，可以一条脚本顺序完成清理旧 WikiText 数据、下载和准备 arXiv、生成和评价：
 
-    bash scripts/smoke.sh /home/MCEC_ADAS/kdz/models/Qwen2.5-Coder-3B-Instruct text0
+    bash scripts/smoke.sh /home/MCEC_ADAS/kdz/models/Qwen2.5-Coder-3B-Instruct arxiv0
 
 等价的分步命令：
 
-    python scripts/run.py prepare --config configs/text_smoke.json --output data/text0
-    python scripts/run.py generate --config configs/text_smoke.json --prompts data/text0 --output runs/text0-gen
-    python scripts/run.py evaluate --input runs/text0-gen --output runs/text0-eval
+    python scripts/clean_wiki.py
+    python scripts/run.py prepare --config configs/text_smoke.json --output data/arxiv0
+    python scripts/run.py generate --config configs/text_smoke.json --prompts data/arxiv0 --output runs/arxiv0-gen
+    python scripts/run.py evaluate --input runs/arxiv0-gen --output runs/arxiv0-eval
 
 模型默认路径已写入配置，也可以为 prepare 和 generate 同时传入相同的 --model 路径。安装包还提供 opt-hmm 命令，与 python scripts/run.py 相同。
 
+clean_wiki.py 先清理项目 .cache/hf 下可识别的 WikiText 缓存，包括处理后的数据、Hub 数据仓库、旧版下载记录对应的文件及解压数据，并删除 data 下清单明确标记为 WikiText 的旧提示词目录。脚本打印实际删除路径；清理失败时 smoke.sh 会停止，不会开始下载 arXiv。重复运行时已不存在的缓存直接跳过。清理范围限定在当前项目，生成实验结果仍保存在 runs 中。
+
 ## 首轮数据与规模
 
-选择 [Salesforce/wikitext](https://huggingface.co/datasets/Salesforce/wikitext) 的 wikitext-2-raw-v1。官方卡片给出的该子集下载大小约 4.72 MB，适合先验收；没有下载整个 C4 或 WikiText-103。
+使用 **Scientific Papers 的 arXiv 论文语料**，来源于 [Cohan 等人的 NAACL 2018 数据集](https://aclanthology.org/N18-2097/)。原始 [armanc/scientific_papers](https://huggingface.co/datasets/armanc/scientific_papers) 包含 arxiv 和 pubmed 两个子集；这里选择 arXiv 英文科研论文。每条样本包含正文和摘要，原始版本另有章节信息。文本已经过句子切分、空格分词和公式/引用占位符处理，例如 @xmath、@xcite，不是原始 PDF。
 
-程序将行恢复成完整文章，以一级文章标题分组，并对官方 train/validation/test 中的重复标题去重，然后将文章随机分配给实验角色。这些官方 split 仅作为数据来源记录，实验角色独立重新划分。每篇文章只生成一个提示词，禁止同一文章跨角色；标题和二级标题不会分别当作独立文档。
+实际加载 [ccdv/arxiv-summarization](https://huggingface.co/datasets/ccdv/arxiv-summarization) 的 **document** 配置：这是同一批论文的 Parquet 整理版，兼容项目的 datasets 3/4，无需执行原始仓库的旧版数据加载脚本。两份文本配置固定了该 Parquet 版本。官方 train/validation/test 分别为 203037 / 6436 / 6440 篇，共 215913 篇。document 配置首次下载约 **3.61 GB**，生成数据约 **7.55 GB**；项目内缓存建议预留至少约 **12 GB**，另留生成日志空间。smoke 也会缓存该配置的完整语料，之后的运行复用缓存。
+
+只使用 **article 正文**：取前 50 个模型 token 作为原文续写提示词，摘要不参与提示词或评价目标，编辑 token 池也来自独立论文的正文。实验仍然是续写水印定位。
+
+程序以固定 seed 随机遍历三个官方 split 的行，跳过过短、空正文和重复正文，凑齐所需独立文档后停止分词，再分配实验角色；不会把所有长论文都分词并驻留内存。官方 split 仅记录来源，实验角色重新划分。每篇论文只生成一个提示词，章节不拆成独立样本。Parquet 版本没有论文 ID/标题，故按空白与大小写归一化后的完整正文去重，并保存 source_split/source_row；此规则识别重复正文，不能识别正文不同的同一论文版本。manifest 记录数据版本、正文列、抽样规则和来源/检查/选取篇数。
 
 | 配置 | 发射校准 | 开发 | 测试 | null 阈值校准 | null 独立测试 | 编辑 token 池 | 续写长度 |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -59,7 +66,9 @@
 
 开发集当前只输出诊断和逐篇指标，基础参数预先固定；代码不会根据测试标签自动选箱数或窗口。若调整开发参数，需要新配置和独立测试运行。
 
-smoke 和 pilot 是流程验收/预实验，32 或 128 篇 null 不足以精确验证 5% 的真实误报率。扩大正式实验时，建议将独立 null 校准和测试各增加到 2000；WikiText-2 可能没有足够独立文章。程序会明确报容量不足。此时主动选择 wikitext-103-raw-v1 并使用新配置/输出，而不是复用一篇文章凑样本。
+smoke 和 pilot 是流程验收/预实验，32 或 128 篇 null 不足以精确验证 5% 的真实误报率。扩大正式实验时，建议将独立 null 校准和测试各增加到 2000；arXiv 的语料规模支持这一数量级，实际合格容量由 prepare 检查，容量不足会明确报错。
+
+使用新的 data/runs 目录，从 prepare、generate 到 evaluate 完整运行。生成前会核对准备清单记录的数据集、子集和版本；缺少数据来源信息或与当前配置不一致时，需要重新 prepare。更换语料后重新拟合 density 并校准 threshold。
 
 ## 模型、水印与观测协议
 

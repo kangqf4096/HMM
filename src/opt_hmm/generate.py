@@ -6,6 +6,7 @@ from time import perf_counter
 import numpy as np
 
 from .config import validate_text
+from .data import DATASET, REVISION, SUBSET
 from .edits import edit
 from .io import new_output, provenance, read_json, read_jsonl, write_json, write_jsonl
 from .protocol import (PROTOCOL, PUBLIC_KEY, context_seed, extract_pivots,
@@ -31,15 +32,18 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
     validate_text(config)
     if tensor_parallel < 1 or not 0 < gpu_memory <= 1:
         raise ValueError('Invalid tensor parallelism or GPU memory fraction.')
-    runtime = check_runtime()
     if not Path(model).is_dir():
         raise ValueError(f"Local model directory does not exist: {model}")
     manifest = read_json(Path(prompts_dir) / "manifest.json")
+    for name, default in (("dataset", DATASET), ("subset", SUBSET), ("dataset_revision", REVISION)):
+        if manifest.get(name) != config.get(name, default):
+            raise ValueError(f"Preparation and generation differ on {name}. Prepare again.")
     for name in ("context_width", "prompt_tokens"):
         if manifest["config"].get(name) != config.get(name):
             raise ValueError(f"Preparation and generation differ on {name}. Prepare again.")
     if Path(manifest["model"]).resolve() != Path(model).resolve():
         raise ValueError("Tokenized prompts belong to a different model. Prepare again with the new model.")
+    runtime = check_runtime()
     output = new_output(output)
     trace_dir = output / "trace"
     trace_dir.mkdir()

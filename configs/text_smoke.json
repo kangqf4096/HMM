@@ -1,8 +1,9 @@
 {
   "seed": 20261015,
   "model": "/home/MCEC_ADAS/kdz/models/Qwen2.5-Coder-3B-Instruct",
-  "dataset": "Salesforce/wikitext",
-  "subset": "wikitext-2-raw-v1",
+  "dataset": "ccdv/arxiv-summarization",
+  "subset": "document",
+  "dataset_revision": "240aaf1a969b3f8cd0ade6986bfad0cd730ee288",
   "prompt_tokens": 50,
   "tokens": 128,
   "context_width": 4,

@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from opt_hmm.config import validate_text
+from opt_hmm.data import DATASET, REVISION, SUBSET
 from opt_hmm.io import read_json
 
 
@@ -14,6 +15,8 @@ class ConfigTests(unittest.TestCase):
     def test_shipped_text_configs_and_insertion_null_lengths(self):
         for filename in ("text_smoke.json", "text_pilot.json"):
             config = read_json(ROOT / "configs" / filename)
+            self.assertEqual((config["dataset"], config["subset"], config["dataset_revision"]),
+                             (DATASET, SUBSET, REVISION))
             lengths = validate_text(config)
             n = config["tokens"]
             self.assertEqual(lengths, [n - int(n * .1), n, n + int(n * .1)])

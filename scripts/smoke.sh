@@ -3,7 +3,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 source scripts/env.sh
 MODEL_PATH="${1:-/home/MCEC_ADAS/kdz/models/Qwen2.5-Coder-3B-Instruct}"
-RUN_NAME="${2:-text0}"
+RUN_NAME="${2:-arxiv0}"
+python scripts/clean_wiki.py
 python scripts/test.py
 python scripts/run.py check-runtime
 python scripts/run.py prepare --config configs/text_smoke.json --model "$MODEL_PATH" --output "data/$RUN_NAME"

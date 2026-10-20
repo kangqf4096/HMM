@@ -34,12 +34,20 @@
 
 固定 20-token 水印岛和理论 P=(1,0) 的无信息对照也已经完成。后者 oracle 使用准确的 f1=f0，输出“不可辨识”并不标段；估计密度版本仍经完整的独立 null 校准，不向检测器泄露理论不可辨识标签。
 
+## 2026-10-17 arXiv 数据源替换验证
+
+本地 Windows / Python 3.12.14 验证：38 项 unittest 全部通过；新增检查覆盖完整论文的角色隔离、正文与摘要字段选择、跨来源 split 的正文去重、短/空文本过滤、固定 seed 抽样复现、提前停止分词及 token 池长度、数据源版本写入清单，以及在 GPU 启动前拒绝旧语料清单。准备流程测试使用小型内存语料和替代 tokenizer，不代表已经完成真实语料下载或模型分词。
+
+同日增加服务器迁移前的清理脚本后，共 40 项 unittest 全部通过。额外验证清理 WikiText 缓存、下载文件、解压数据及旧提示词，保留其他数据集/模型/实验结果，可重复运行，并在删除前拒绝解析到项目外的目标。清理测试仅使用项目 tmp 内创建的小型目录。
+
+2026-10-15 的 33 项测试及上方模拟数值为历史记录，validation.json 保留当时的结果。
+
 ## 仍需在服务器完成的验收
 
-本机没有 PyTorch、vLLM 或你的模型权重，没有下载完整 WikiText 数据，也没有执行真实 CUDA 生成。这些步骤没有用模拟结果替代：
+本机没有执行真实 arXiv 全量下载、实际模型分词或 CUDA 生成，以下步骤需在服务器运行：
 
 1. 在 Linux 的实际 vLLM 0.19.1 环境运行 check-runtime，验证 CUDA 和真实 AdapterLogitsProcessor 的 token 引用、批次交换及请求移除行为。
-2. prepare 下载 WikiText-2 raw、使用实际模型 tokenizer，核对文章容量和冻结角色。
+2. prepare 下载 ccdv/arxiv-summarization 的 document Parquet 配置、使用实际模型 tokenizer，核对论文容量和冻结角色；所有输出使用新的 arxiv 名称。
 3. generate 完成逐 token 审计：每个实际水印赢家必须与返回 token、上下文、seed 和枢轴量一致。
 4. evaluate 查看真实 null 均匀性/相关性、重复上下文比例、实际 any-FP、IoU 和可靠性，才能判断该基础方案在当前代码模型上是否适用。
 

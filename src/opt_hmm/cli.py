@@ -17,7 +17,7 @@ def main(argv=None):
     simulate.add_argument("--test-documents", type=int)
     simulate.add_argument("--signal-p", type=float, nargs="+")
     simulate.add_argument("--segment-length", type=int)
-    prepare = sub.add_parser("prepare", help="Download WikiText and freeze article-level prompt roles")
+    prepare = sub.add_parser("prepare", help="Download scientific arXiv papers and freeze document-level prompt roles")
     prepare.add_argument("--config", default="configs/text_smoke.json")
     prepare.add_argument("--model")
     prepare.add_argument("--output", required=True)

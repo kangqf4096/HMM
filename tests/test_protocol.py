@@ -6,7 +6,6 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from opt_hmm.data import articles
 from opt_hmm.edits import edit
 from opt_hmm.protocol import (context_seed, extract_pivots, generation_contexts,
                               gumbel_winner, operational_labels, pivot, uniforms)
@@ -71,14 +70,6 @@ class ProtocolTests(unittest.TestCase):
                     self.assertEqual(token, original[old])
             if kind == "replace":
                 self.assertEqual(sum(t != o for t, o in zip(final, original)), 20)
-
-    def test_article_reconstruction_keeps_subheadings(self):
-        rows = [{"text": t} for t in ["= First =\n", "paragraph", "", "= = Section = =", "body",
-                                     "= Second =", "other"]]
-        result = list(articles(rows, "train"))
-        self.assertEqual([r["title"] for r in result], ["First", "Second"])
-        self.assertIn("Section", result[0]["text"])
-        self.assertIn("body", result[0]["text"])
 
 
 if __name__ == "__main__":

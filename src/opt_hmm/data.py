@@ -1,5 +1,4 @@
-"""WikiText-2 raw, reconstructed and split by complete original article."""
-import re
+"""Scientific arXiv paper bodies, sampled and split by complete document."""
 from pathlib import Path
 
 import numpy as np
@@ -7,65 +6,60 @@ import numpy as np
 from .config import validate_text
 from .io import new_output, provenance, write_json, write_jsonl
 
-TITLE = re.compile(r"^\s*=\s*([^=]+?)\s*=\s*$")
+DATASET = "ccdv/arxiv-summarization"
+SUBSET = "document"
+REVISION = "240aaf1a969b3f8cd0ade6986bfad0cd730ee288"
+SPLITS = ("train", "validation", "test")
 ROLES = ("calibration", "dev", "test", "null_cal", "null_test", "pool")
 
 
-def articles(rows, split):
-    title, parts, ordinal = None, [], 0
-    for row in rows:
-        text = row["text"]
-        heading = TITLE.fullmatch(text)
-        if heading:
-            if title is not None:
-                yield {"group": f"{split}-{ordinal}", "title": title,
-                       "source_split": split, "text": "\n".join(parts)}
-                ordinal += 1
-            title, parts = heading.group(1).strip(), [text.strip()]
-        elif title is not None:
-            parts.append(text.rstrip())
-    if title is not None:
-        yield {"group": f"{split}-{ordinal}", "title": title,
-               "source_split": split, "text": "\n".join(parts)}
+def select_articles(raw, tokenizer, config):
+    """Visit a seeded permutation of source rows; tokenize only until roles fill.
 
-
-def prepare(config, model, output):
-    validate_text(config)
-    if not Path(model).is_dir():
-        raise ValueError(f"Local model directory does not exist: {model}")
-    from datasets import load_dataset
-    from transformers import AutoTokenizer
-    output = new_output(output)
-    tokenizer = AutoTokenizer.from_pretrained(model, local_files_only=True)
-    dataset = config.get("dataset", "Salesforce/wikitext")
-    subset = config.get("subset", "wikitext-2-raw-v1")
-    if dataset != "Salesforce/wikitext":
-        raise ValueError("v0 implements article-aware WikiText preparation only.")
-    raw = load_dataset(dataset, subset, cache_dir=str(Path(".cache/hf/datasets")))
-    candidates, seen = [], set()
+    The Parquet release has article/abstract columns, without paper IDs or titles.
+    Compare complete bodies with normalized whitespace/case to keep duplicate
+    documents out of different roles. This is content deduplication, not a file
+    integrity check or a guarantee against different versions of the same paper.
+    """
+    counts = config["roles"]
+    if any(type(counts.get(role)) is not int or counts[role] < 1 for role in ROLES):
+        raise ValueError(f"Need positive integer counts for each role: {ROLES}")
+    required = sum(counts[role] for role in ROLES)
+    ends = np.cumsum([len(raw[split]) for split in SPLITS])
+    total = int(ends[-1])
+    if required > total:
+        raise ValueError(f"Need {required} distinct articles, only {total} source rows exist.")
+    rng = np.random.default_rng(config.get("seed", 20261015))
     prompt_length = config.get("prompt_tokens", 50)
     minimum = prompt_length + max(config.get("context_width", 4), 64)
-    for split in ("train", "validation", "test"):
-        for article in articles(raw[split], split):
-            normalized = article["title"].casefold()
-            if normalized in seen:
-                continue
-            seen.add(normalized)
-            tokens = tokenizer.encode(article["text"], add_special_tokens=False)
-            if len(tokens) < minimum:
-                continue
-            article.pop("text")
-            article["prompt_ids"] = tokens[:prompt_length]
-            article["pool_ids"] = tokens[prompt_length:prompt_length + 2048]
-            candidates.append(article)
-    counts = config["roles"]
-    if any(int(counts.get(role, 0)) < 1 for role in ROLES):
-        raise ValueError(f"Need positive counts for each role: {ROLES}")
-    required = sum(counts[role] for role in ROLES)
-    if required > len(candidates):
+    limit = max(prompt_length + 2048, minimum)
+    candidates, seen = [], set()
+    examined = 0
+    for index in rng.permutation(total):
+        split_index = int(np.searchsorted(ends, index, side="right"))
+        split = SPLITS[split_index]
+        ordinal = int(index - (ends[split_index - 1] if split_index else 0))
+        text = raw[split][ordinal]["article"]
+        examined += 1
+        if not isinstance(text, str):
+            continue
+        normalized = " ".join(text.split()).casefold()
+        if not normalized or normalized in seen:
+            continue
+        tokens = tokenizer.encode(text, add_special_tokens=False,
+                                  truncation=True, max_length=limit)
+        if len(tokens) < minimum:
+            continue
+        seen.add(normalized)
+        candidates.append({"group": f"arxiv-{split}-{ordinal}",
+                           "source_split": split, "source_row": ordinal,
+                           "prompt_ids": tokens[:prompt_length],
+                           "pool_ids": tokens[prompt_length:prompt_length + 2048]})
+        if len(candidates) == required:
+            break
+    if len(candidates) < required:
         raise ValueError(f"Need {required} distinct articles, only {len(candidates)} qualify. "
-                         "Reduce counts or explicitly use wikitext-103-raw-v1; do not split one article across roles.")
-    rng = np.random.default_rng(config.get("seed", 20261015))
+                         "Reduce role counts; do not split one paper across roles.")
     rng.shuffle(candidates)
     records, cursor = [], 0
     for role in ROLES:
@@ -75,11 +69,35 @@ def prepare(config, model, output):
                 article.pop("pool_ids")
             records.append(article)
         cursor += counts[role]
+    return records, {"source_articles": total, "examined_articles": examined,
+                     "selected_articles": required}
+
+
+def prepare(config, model, output):
+    validate_text(config)
+    dataset = config.get("dataset", DATASET)
+    subset = config.get("subset", SUBSET)
+    revision = config.get("dataset_revision", REVISION)
+    if dataset != DATASET or subset != SUBSET:
+        raise ValueError(f"Use {DATASET}, subset={SUBSET}, for scientific arXiv paper bodies.")
+    if not Path(model).is_dir():
+        raise ValueError(f"Local model directory does not exist: {model}")
+    from datasets import load_dataset
+    from transformers import AutoTokenizer
+    output = new_output(output)
+    tokenizer = AutoTokenizer.from_pretrained(model, local_files_only=True)
+    raw = load_dataset(dataset, subset, revision=revision,
+                       cache_dir=str(Path(".cache/hf/datasets")))
+    records, stats = select_articles(raw, tokenizer, config)
     write_jsonl(output / "prompts.jsonl", records)
     write_json(output / "manifest.json", {"model": str(Path(model).resolve()), "config": config,
-                                        "provenance": provenance(),
-                                        "eligible_articles": len(candidates),
-                                        "selected_articles": required,
-                                        "grouping": "one article per role/prompt; titles deduplicated across official splits",
-                                        "dataset_url": "https://huggingface.co/datasets/Salesforce/wikitext"})
-    return {"eligible_articles": len(candidates), "selected_articles": required}
+                                        "provenance": provenance(), **stats,
+                                        "grouping": "one complete paper body per role/prompt; "
+                                                    "whitespace/case-normalized bodies deduplicated across official splits",
+                                        "sampling": "seeded random permutation of all official split rows; "
+                                                    "stop once enough distinct eligible papers are selected",
+                                        "dataset": dataset, "subset": subset,
+                                        "dataset_revision": revision, "text_field": "article",
+                                        "dataset_url": f"https://huggingface.co/datasets/{dataset}",
+                                        "original_dataset_url": "https://huggingface.co/datasets/armanc/scientific_papers"})
+    return stats
