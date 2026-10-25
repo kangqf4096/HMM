@@ -10,8 +10,8 @@ requires-python = ">=3.10"
 dependencies = ["numpy>=1.26,<3"]
 
 [project.optional-dependencies]
-data = ["datasets>=3,<5", "transformers>=4.57,<6"]
-inference = ["vllm==0.19.1", "datasets>=3,<5"]
+data = ["datasets>=3,<5", "transformers>=4.57,<6", "pyarrow>=21"]
+inference = ["vllm==0.19.1", "datasets>=3,<5", "pyarrow>=21"]
 
 [project.scripts]
 opt-hmm = "opt_hmm.cli:main"

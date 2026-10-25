@@ -116,6 +116,25 @@ class DataTests(unittest.TestCase):
             self.assertEqual(manifest["selected_articles"], stats["selected_articles"])
             self.assertEqual(len(read_jsonl(output / "prompts.jsonl")), 6)
 
+    def test_direct_reader_does_not_invoke_datasets_generation(self):
+        config = self.config()
+        config["dataset_loader"] = "parquet_file"
+        datasets = types.ModuleType("datasets")
+        datasets.load_dataset = Mock(side_effect=AssertionError("fragment path must not run"))
+        transformers = types.ModuleType("transformers")
+        transformers.AutoTokenizer = Mock()
+        transformers.AutoTokenizer.from_pretrained.return_value = WordTokenizer()
+        (ROOT / "tmp").mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=ROOT / "tmp", prefix="ax") as folder:
+            model, output = Path(folder) / "model", Path(folder) / "out"
+            model.mkdir()
+            with patch.dict(sys.modules, {"datasets": datasets, "transformers": transformers}), \
+                    patch("opt_hmm.arxiv_parquet.load_arxiv_parquet", return_value=self.raw()) as direct:
+                prepare(config, model, output)
+            datasets.load_dataset.assert_not_called()
+            direct.assert_called_once_with(DATASET, SUBSET, REVISION)
+            self.assertEqual(read_json(output / "manifest.json")["dataset_loader"], "parquet_file")
+
     def test_generation_rejects_stale_corpus_before_gpu_startup(self):
         (ROOT / "tmp").mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=ROOT / "tmp", prefix="ax") as folder:

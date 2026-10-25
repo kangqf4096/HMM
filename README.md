@@ -4,6 +4,8 @@
 
 可直接上传 [Colab Notebook](notebooks/colab_arxiv.ipynb)；先挂载 Google Drive，将项目、模型、数据和结果保存在 `/content/drive/MyDrive/opt-hmm`。Python 环境与进程临时文件在运行时的 `/content/opt-hmm` 中重建。第 4 步起显示阶段进度和实时日志，私有仓库通过每次输入 token 的 `github_sync()` 克隆或拉取更新，不保存凭据。
 
+Colab 配置采用 `dataset_loader=parquet_file`：通过 PyArrow ParquetFile 直接读取固定版本的原始分片，避免 datasets fragment 扫描路径；保持全体官方行上的随机抽样顺序，只读取正文列，按行组限制缓存。它复用约 3.61 GB 原始 Parquet，不另生成全语料 Arrow 缓存。下文保留的服务器配置仍使用 datasets 加载器。
+
 文献缓存见 [papers/README.md](papers/README.md)；零假设、备择发射分布与上下文密钥的核对见 [研究笔记](docs/watermark_hypotheses_and_keys_20261025.md)。后续先检索仓库内已有全文，再补充联网资料。
 
 按当前 smoke 配置测量备择分布条件性与编辑失配，运行 `bash scripts/pivot_smoke.sh`；完整命令、输出和 oracle 信息边界见 [真实模型枢轴分布实验](docs/pivot_experiment_20261025.md)。

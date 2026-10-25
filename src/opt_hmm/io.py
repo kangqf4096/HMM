@@ -50,7 +50,7 @@ def new_output(path):
 
 def provenance():
     packages = {}
-    for name in ("numpy", "vllm", "torch", "datasets", "transformers"):
+    for name in ("numpy", "vllm", "torch", "datasets", "transformers", "pyarrow", "huggingface_hub"):
         try:
             packages[name] = version(name)
         except PackageNotFoundError:

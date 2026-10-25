@@ -83,17 +83,24 @@ def prepare(config, model, output):
     revision = config.get("dataset_revision", REVISION)
     if dataset != DATASET or subset != SUBSET:
         raise ValueError(f"Use {DATASET}, subset={SUBSET}, for scientific arXiv paper bodies.")
+    loader = config.get("dataset_loader", "datasets")
+    if loader not in ("datasets", "parquet_file"):
+        raise ValueError("dataset_loader must be datasets or parquet_file.")
     if not Path(model).is_dir():
         raise ValueError(f"Local model directory does not exist: {model}")
     progress("加载数据准备依赖")
-    from datasets import load_dataset
     from transformers import AutoTokenizer
     output = new_output(output)
     progress("加载 tokenizer")
     tokenizer = AutoTokenizer.from_pretrained(model, local_files_only=True)
-    progress("下载并缓存 arXiv", detail="下载和 Arrow 处理进度由 datasets 报告")
-    raw = load_dataset(dataset, subset, revision=revision,
-                       cache_dir=str(Path(".cache/hf/datasets")))
+    if loader == "parquet_file":
+        from .arxiv_parquet import load_arxiv_parquet
+        raw = load_arxiv_parquet(dataset, subset, revision)
+    else:
+        from datasets import load_dataset
+        progress("下载并缓存 arXiv", detail="下载和 Arrow 处理进度由 datasets 报告")
+        raw = load_dataset(dataset, subset, revision=revision,
+                           cache_dir=str(Path(".cache/hf/datasets")))
     records, stats = select_articles(raw, tokenizer, config)
     progress("写入实验输入")
     model_source = Path(model) / "opt_hmm_source.json"
@@ -107,6 +114,7 @@ def prepare(config, model, output):
                                                     "stop once enough distinct eligible papers are selected",
                                         "dataset": dataset, "subset": subset,
                                         "dataset_revision": revision, "text_field": "article",
+                                        "dataset_loader": loader,
                                         "dataset_url": f"https://huggingface.co/datasets/{dataset}",
                                         "original_dataset_url": "https://huggingface.co/datasets/armanc/scientific_papers"})
     progress("arXiv 准备完成", stats["selected_articles"], stats["selected_articles"])

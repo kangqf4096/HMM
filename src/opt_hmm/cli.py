@@ -20,6 +20,8 @@ def main(argv=None):
     prepare = sub.add_parser("prepare", help="Download scientific arXiv papers and freeze document-level prompt roles")
     prepare.add_argument("--config", default="configs/text_smoke.json")
     prepare.add_argument("--model")
+    prepare.add_argument("--dataset-loader", choices=["datasets", "parquet_file"],
+                         help="Override the arXiv reader; parquet_file avoids datasets fragment scans")
     prepare.add_argument("--output", required=True)
     generate = sub.add_parser("generate", help="Local offline vLLM 0.19.1; requires Linux/CUDA")
     generate.add_argument("--config", default="configs/text_smoke.json")
@@ -73,6 +75,8 @@ def main(argv=None):
                       "paired_iou_difference_vs_independent": result["paired_iou_difference_vs_independent"]}
         elif args.command == "prepare":
             from .data import prepare as prepare_data
+            if args.dataset_loader:
+                config["dataset_loader"] = args.dataset_loader
             result = prepare_data(config, args.model or config["model"], args.output)
         else:
             from .generate import generate as generate_text

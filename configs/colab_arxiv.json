@@ -6,6 +6,7 @@
   "dataset": "ccdv/arxiv-summarization",
   "subset": "document",
   "dataset_revision": "240aaf1a969b3f8cd0ade6986bfad0cd730ee288",
+  "dataset_loader": "parquet_file",
   "prompt_tokens": 50,
   "tokens": 128,
   "context_width": 4,
