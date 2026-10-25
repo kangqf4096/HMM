@@ -6,6 +6,8 @@
 
 Colab 中资源路径统一从持久项目根目录解析，不依赖 Notebook 当前工作目录。arXiv 默认直接读取 `data/arxiv/数据版本/document/` 中的普通 Parquet 文件；`OPT_HMM_RUNTIME` 只设置运行环境和临时目录，不会把模型或语料加载路径切换到 `/content`。
 
+排查语料时先运行 `python scripts/check_arxiv.py`：只读检查全部分片与可恢复缓存，默认逐批解码全部列，结果保存到 `tmp/arxiv-check.json` 和 `.md`；不下载或修改数据。`--metadata-only` 可快速检查，`--offline` 使用固定 17 分片清单而不查询远端文件大小。
+
 Colab 配置采用 `dataset_loader=parquet_file`：固定版本的原始分片以普通文件保存在 Drive 项目内 `data/arxiv/版本/`，读取时准备运行时本地工作副本。它会尝试恢复旧 Hub 缓存的真实 blob，找不到时才下载普通文件，避免 Drive snapshot 链接读出文本路径的问题。约 3.61 GB 原始语料在 Drive 和运行时各保留一份；不另生成全语料 Arrow 缓存。PyArrow ParquetFile 保持全体官方行上的随机抽样顺序，只读取正文列，按行组限制缓存。下文保留的服务器配置仍使用 datasets 加载器。
 
 文献缓存见 [papers/README.md](papers/README.md)；零假设、备择发射分布与上下文密钥的核对见 [研究笔记](docs/watermark_hypotheses_and_keys_20261025.md)。后续先检索仓库内已有全文，再补充联网资料。

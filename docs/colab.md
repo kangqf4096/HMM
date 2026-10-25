@@ -285,3 +285,25 @@ repair_log = run_step(
 ```
 
 参考：[Colab 文件与 Drive 挂载](https://research.google.com/colaboratory/faq.html)。本地路径测试不代替真实挂载和 GPU 验收。
+
+## 数据集完整性检查（遇到 arXiv 错误时先运行）
+先检查现有数据，再判断是否需要重新下载。脚本只读访问当前固定版本的全部 17 个分片、旧 Hub snapshot/blob 及已有运行时副本，唯一写入是 tmp/arxiv-check.json 和 tmp/arxiv-check.md 报告；不调用任何下载、复制或删除数据的接口，不计算文件哈希。
+
+默认读取远程清单中的文件大小，再逐批解码每个可用分片的全部列，核对数据行数和当前版本的 train/validation/test 总行数（203037/6436/6440）。遇到坏文件继续检查剩余分片，避免只看到第一个错误。Drive 读取完整数据需要一定时间，可用进度面板查看当前分片。
+
+状态 ready：持久目录中的普通文件可用。recoverable：期望位置是链接/占位文件等，但已有其他可读字节，不需要立即重下。missing：期望文件缺失且未找到可读来源。unreadable：文件不可读且未找到可读来源，具体原因看报告。小文件会报告前 256 字节文本，便于识别 79 字节的 ../../blobs/... 占位内容。
+
+all_bytes_available 为 true 表示已有全部可读分片，可优先恢复普通文件；archive_ready 为 true 才表示当前持久目录可直接使用。检查结果不为正常时脚本仍成功结束并生成完整报告，这不代表数据集通过。
+
+给命令增加 --metadata-only 可以跳过全量解码；这时只能说明文件边界和元数据可读，不能证明所有数据页可读。增加 --offline 可以完全离线检查固定 17 分片与行数，但不对照远端字节大小。两种模式均会明确记录在报告中。
+
+```python
+check_log = run_step(
+    "scripts/check_arxiv.py", "--config", "configs/colab_arxiv.json",
+    title="检查 arXiv 数据集完整性", log_name="arxiv-check", root=PROJECT,
+)
+
+import json
+report = json.loads((PROJECT / "tmp/arxiv-check.json").read_text(encoding="utf-8"))
+print(json.dumps(report["summary"], ensure_ascii=False, indent=2))
+```
