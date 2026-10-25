@@ -3,7 +3,6 @@ from bisect import bisect_right
 from collections import OrderedDict
 from operator import index as integer_index
 from pathlib import Path
-import re
 
 from .progress import progress
 
@@ -20,7 +19,10 @@ class ParquetSplit:
         total = 0
         for path in paths:
             path = Path(path)
-            reader = pq.ParquetFile(str(path), memory_map=False, pre_buffer=False)
+            try:
+                reader = pq.ParquetFile(str(path), memory_map=False, pre_buffer=False)
+            except Exception as error:
+                raise RuntimeError(f"Cannot open arXiv Parquet metadata at {path}: {error}") from error
             try:
                 if "article" not in reader.schema_arrow.names:
                     raise ValueError(f"Missing article column: {path}")
@@ -70,24 +72,13 @@ class ParquetSplit:
 
 
 def load_arxiv_parquet(dataset, subset, revision):
-    """Resolve the pinned Hub files and expose all official rows for sampling."""
-    from huggingface_hub import HfApi, hf_hub_download
+    """Read local ordinary files; persistent originals remain in the project."""
+    from .arxiv_files import ensure_arxiv_files
 
     if (dataset, subset) != ("ccdv/arxiv-summarization", "document"):
         raise ValueError("ParquetFile reader requires ccdv/arxiv-summarization/document.")
     splits = ("train", "validation", "test")
-    pattern = re.compile(r"document/(train|validation|test)-\d+-of-\d+\.parquet")
-    progress("直接读取 arXiv Parquet 元数据", detail="复用已有分片，不生成全语料 Arrow 缓存")
-    names = sorted(name for name in HfApi().list_repo_files(dataset, repo_type="dataset", revision=revision)
-                   if pattern.fullmatch(name))
-    if {pattern.fullmatch(name)[1] for name in names} != set(splits):
-        raise ValueError("Pinned arXiv release is missing an official split.")
-    paths = {split: [] for split in splits}
-    for ordinal, name in enumerate(names, 1):
-        path = hf_hub_download(repo_id=dataset, filename=name, revision=revision,
-                               repo_type="dataset", cache_dir=str(Path(".cache/hf/hub").resolve()))
-        paths[pattern.fullmatch(name)[1]].append(path)
-        progress("准备 arXiv Parquet 分片", ordinal, len(names), name)
+    paths, _ = ensure_arxiv_files(dataset, subset, revision)
     raw = {}
     progress("读取 arXiv 行组元数据", 0, len(splits))
     for ordinal, split in enumerate(splits, 1):

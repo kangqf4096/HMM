@@ -4,16 +4,16 @@
 
 | 内容 | 位置 |
 |---|---|
-| Git checkout、模型、arXiv 原始分片、输入/输出、日志 | `/content/drive/MyDrive/opt-hmm`，持久保存 |
-| Python 虚拟环境、pip/vLLM 运行缓存、进程临时目录 | `/content/opt-hmm`，每次会话可重建 |
+| Git checkout、模型、普通 arXiv 原始分片、输入/输出、日志 | `/content/drive/MyDrive/opt-hmm`，持久保存 |
+| Python 虚拟环境、语料工作副本、pip/vLLM 缓存、进程临时目录 | `/content/opt-hmm`，每次会话可重建 |
 
-模型和实验资料直接存入 Drive；可重建的环境与进程临时文件留在运行时。Colab 的 arXiv 加载器直接读取原始 Parquet，不另生成约 7.55 GB 的全语料 Arrow 缓存。
+模型和实验资料持久存入 Drive；arXiv 普通原始分片放在 data/arxiv/数据版本/。读取时准备运行时本地副本，不依赖 Drive 上的 Hub snapshot 符号链接。
 
 Git 管理共享代码，Google Drive 保存项目、权重、语料缓存、实验输入、输出和日志，Colab 提供计算。先在菜单“运行时 → 更改运行时类型”选择 GPU，然后从第一个单元格开始执行。
 
 仓库需要先推送最新代码；GitHub token 每次通过隐藏输入框输入，不写入 Notebook、项目文件、remote URL 或凭据缓存。
 
-项目固定在 `/content/drive/MyDrive/opt-hmm`。Python 环境及进程临时文件使用 `/content/opt-hmm`，可在新会话重建。Drive 目录中的文件持续保留，但内存和正在执行的程序不会随着挂载恢复。
+项目固定在 `/content/drive/MyDrive/opt-hmm`。Python 环境、进程临时文件和原始语料的可重建工作副本使用 `/content/opt-hmm`，可在新会话重建。Drive 目录中的文件持续保留，但内存和正在执行的程序不会随着挂载恢复。
 
 ## 第 1 步：先挂载 Google Drive
 运行下格，按界面提示授权。确认打印的持久目录包含 `/drive/MyDrive/`。后续所有代码使用 PROJECT 变量；仅执行 mount 而继续向原 `/content/opt-hmm` 写文件不会使旧目录持久化。
@@ -148,14 +148,14 @@ model_log = run_step(
 )
 ```
 
-## 第 5 步：直接读取 arXiv Parquet，准备输入到 Drive
-Colab 配置使用 `dataset_loader=parquet_file`。它复用固定版本 document 的 17 个原始分片（约 3.61 GB），通过 ParquetFile 的文件路径接口读取正文列，不经过 datasets 的 fragment 扫描及全量 Arrow 生成。若之前已完成缓存修复，直接复用现有分片，不再强制下载。
+## 第 5 步：准备普通 arXiv 分片，再从本地副本抽样
+原始 Parquet 以普通文件持久保存在 PROJECT/data/arxiv/数据版本/document 下；运行时工作副本保存在 RUNTIME/.cache/arxiv/数据版本/document 下。数据量约 3.61 GB，Drive 和运行时各需要一份空间；旧 Hub/Arrow 缓存不自动删除。
 
-仍然在全部 215913 篇官方行上进行同一 seed 的随机排列，按整篇正文去重，凑齐 92 篇合格论文再分配角色。shard/row 顺序与原数据集一致，保留 source_split/source_row；缓存仅保留少量行组。模型权重约 2.63 GB，原始语料约 3.61 GB，另留缓存与结果空间；已有旧 Arrow 缓存不会自动删除。
+程序优先复用已准备的普通文件，再尝试从旧 Hub 缓存的文本链接中找回真实 blob；没有可用数据时才下载到本地普通文件，然后复制到 Drive，复制显示字节进度。后续 ParquetFile 只读取本地工作副本，避免直接读取 Drive 的 Hub snapshot 链接。新会话从 Drive 普通文件恢复本地副本即可。
 
-进度应显示“直接读取 arXiv Parquet 元数据”“准备 arXiv Parquet 分片”“读取 arXiv 行组元数据”和“抽取独立论文”；不会再出现 Generating train split。manifest 记录实际使用的 dataset_loader。
+抽样仍以全部 215913 篇官方论文的相同行顺序和随机种子进行，整篇去重后选择 92 篇，保留 source_split/source_row。不会重新构建完整 Arrow 语料；报告 tmp/arxiv-files.json 记录旧链接实际指向的内容、采用的源路径及本地/Drive 普通文件路径。
 
-只准备资源时，到此即可。已有完整 ax0 输入会复用，生成前校验配置和模型来源。新配置/实验用 ax1 等短名称，未完成目录不会自动删除。
+已有完整 ax0 输入可以继续使用；新的实验用 ax1 等短名称，未完成目录不会自动删除。只准备资源时到此即可。
 
 ```python
 if all((PROJECT / "data/ax0" / name).is_file()
@@ -238,17 +238,15 @@ PROJECT = github_sync(PROJECT)
 print((PROJECT / "tmp/prepare.log").read_text(encoding="utf-8")[-12000:])
 ```
 
-## 分片检查通过，prepare 仍报 Parquet magic bytes not found in footer
+## 已确认的故障：Drive 中的 Hub snapshot 读到了文本链接
 
-若缓存报告已经成功读出 train/validation/test 的 203037/6436/6440 行，说明各分片元数据可读，不应继续把重复失败归因于文件损坏。一次已观测的环境是 datasets 4.8.5、pyarrow 26.0.0、huggingface_hub 1.33.0、fsspec 2026.2.0：datasets 的 `_generate_tables → make_fragment(file object) → fragment.row_groups` 在 Drive 文件上报错。
+本次实际输出显示 train-00000-of-00015.parquet 虽为符号链接，但打开后大小只有 79 字节，内容是 `../../blobs/9b/...`，没有 PAR1 头尾。这确认了当前缓存路径没有读到真实的 Parquet 文件。先前“数据已坏”和“仅是 datasets fragment 扫描”的判断都不足以解释该证据；更换读取 API 不会把文本链接变成数据。
 
-当前 Colab 配置改用 ParquetFile 直接读取，绕过上述路径。这个改动不要求降级包，也不强制重新下载模型和语料。原始文件本身确有格式错误时，才运行下面的修复命令。
+当前第 5 步先准备普通文件：优先沿受限的旧缓存 blob 路径找回已有真实数据，找不到时下载到运行时的 local_dir；再复制普通字节文件到 Drive 的 data/arxiv/版本目录。读取时使用本地工作副本，Drive 继续作为持久存储。旧缓存保留；不需要重新下载模型，不做整文件哈希校验。
 
-pull 后必须重新运行“加载进度和复制工具”单元格，以更新内存中的 run_step。仅更新磁盘文件不会替换 Notebook 中已有的 Python 函数。可以用 `hasattr(run_step.__globals__["OutputState"](), "errors")` 检查是否加载了带异常摘要的类；inspect.getsource 读取的是磁盘源码，无法可靠判断旧函数是否已刷新。
+拉取代码后重新加载进度工具，再重跑第 5 步即可，无需先运行旧的缓存重下流程。下面 repair_arxiv 入口也已改为同一普通文件准备流程，可单独执行并查看 tmp/arxiv-cache.json；它不再把修复结果只写回 Drive 中的 Hub 链接缓存。
 
-若第 5 步仍显示 Generating train split，检查 config 中的 dataset_loader，或在 prepare 参数中显式增加 `--dataset-loader`, `parquet_file`。ParquetFile 入口成功时，manifest.json 中的 dataset_loader 应为 parquet_file。
-
-只有检查报告尚未成功或原始 Parquet 确有问题时，使用下格；它检查文件长度、PAR1 边界和元数据，仅刷新异常分片，报告保存在 tmp/arxiv-cache.json，不做整文件哈希校验。
+新版应出现“复制 arXiv 到本地工作目录”“保存普通 arXiv 分片到 Drive”“读取 arXiv 行组元数据”“抽取独立论文”等阶段。文件已经就绪时跳过复制。即使 Colab 断开，本地工作副本消失，Drive 中原始数据、实验输入和结果仍保留。
 
 ```python
 repair_log = run_step(
@@ -257,4 +255,4 @@ repair_log = run_step(
 )
 ```
 
-参考：[ParquetFile 接口](https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetFile.html)、[datasets 4.8.5 Parquet 加载器源码](https://github.com/huggingface/datasets/blob/4.8.5/src/datasets/packaged_modules/parquet/parquet.py)、[Colab Drive 与运行时说明](https://research.google.com/colaboratory/faq.html)。本地使用真实 PyArrow 26.0.0 验证了直接读取及抽样一致性；尚未在用户的 Drive 会话中复现原故障或验证云端修复。
+参考：[Hub 缓存与 local_dir 下载](https://huggingface.co/docs/huggingface_hub/package_reference/file_download)、[Colab Drive 读写建议](https://research.google.com/colaboratory/faq.html)、[ParquetFile](https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetFile.html)。本地使用真实 PyArrow 26.0.0 验证了文本链接恢复、普通文件保存和读取、重复运行及抽样一致性；尚需用户的 Colab 会话验收。

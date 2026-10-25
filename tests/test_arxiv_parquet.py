@@ -69,23 +69,19 @@ class ParquetReaderTests(unittest.TestCase):
             reference = select_articles(raw, WordTokenizer(), config)
             self.assertEqual(select_articles(direct, WordTokenizer(), config), reference)
 
-    def test_load_reuses_pinned_files_and_excludes_section_configuration(self):
+    def test_load_uses_staged_files_for_the_pinned_release(self):
         with self.folder() as folder:
             root = Path(folder)
             paths = {f"document/{split}-00000-of-00001.parquet":
                      self.write(root / f"{split}.parquet", [article(index)])
                      for index, split in enumerate(("train", "validation", "test"))}
-            hub = types.ModuleType("huggingface_hub")
-            hub.HfApi = Mock()
-            hub.HfApi.return_value.list_repo_files.return_value = [*reversed(paths), "section/train.parquet", "README.md"]
-            hub.hf_hub_download = Mock(side_effect=lambda **kwargs: str(paths[kwargs["filename"]]))
-            with patch.dict(sys.modules, {"huggingface_hub": hub}):
+            staged = {split: [paths[f"document/{split}-00000-of-00001.parquet"]]
+                      for split in ("train", "validation", "test")}
+            with patch("opt_hmm.arxiv_files.ensure_arxiv_files", return_value=(staged, {})) as ensure:
                 loaded = load_arxiv_parquet("ccdv/arxiv-summarization", "document", "pinned")
             self.assertEqual({key: len(value) for key, value in loaded.items()},
                              {"train": 1, "validation": 1, "test": 1})
-            for call in hub.hf_hub_download.call_args_list:
-                self.assertEqual(call.kwargs["revision"], "pinned")
-                self.assertNotIn("force_download", call.kwargs)
+            ensure.assert_called_once_with("ccdv/arxiv-summarization", "document", "pinned")
 
     def test_missing_article_column_fails_before_sampling(self):
         with self.folder() as folder:
