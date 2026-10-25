@@ -68,6 +68,7 @@ def project_environment(root):
     env.update({key: str(value) for key, value in paths.items()})
     env.update({"TMP": env["TMPDIR"], "TEMP": env["TMPDIR"],
                 "OPT_HMM_PROJECT": str(root), "OPT_HMM_RUNTIME": str(runtime),
+                "HF_HUB_CACHE": str(root / ".cache/hf/hub"),
                 "PYTHONPATH": str(root / "src") + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""),
                 "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8",
                 "VLLM_WORKER_MULTIPROC_METHOD": "spawn", "OPT_HMM_PROGRESS": "1",
@@ -87,11 +88,14 @@ class OutputState:
         self.detail = ""
         self.pending = ""
         self.lines = deque(maxlen=12)
+        self.errors = deque(maxlen=6)
 
     def _line(self, line):
         line = self.ansi.sub("", line).strip()
         if not line:
             return
+        if re.match(r"^[\w.]*?(?:Error|Exception|ArrowInvalid):", line):
+            self.errors.append(line)
         start = line.find(self.prefix)
         if start >= 0:
             try:
@@ -140,6 +144,8 @@ class Panel:
         value = f' value="{min(100, max(0, percent)):.2f}"' if percent is not None else ""
         caption = f"{percent:.1f}%" if percent is not None else "正在运行（当前阶段无总量）"
         tail = "\n".join(state.lines)
+        errors = "\n".join(state.errors)
+        error_markup = f'<pre style="color:#b42318;white-space:pre-wrap">{html.escape(errors)}</pre>' if errors else ""
         if state.pending:
             tail += "\n" + state.ansi.sub("", state.pending[-2000:])
         markup = (
@@ -148,6 +154,7 @@ class Panel:
             f'<div>{html.escape(state.stage)} · {caption}</div>'
             f'<progress max="100"{value} style="width:100%;height:20px"></progress>'
             f'<div>{html.escape(state.detail)}</div>'
+            f'{error_markup}'
             f'<pre style="max-height:250px;overflow:auto;white-space:pre-wrap">{html.escape(tail)}</pre>'
             f'<small>完整日志：{html.escape(str(self.log_path))}</small></div>')
         if self.handle is None:
@@ -232,7 +239,7 @@ def run_live(command, *, title, log_name, root=None, render=True):
             state.finish()
         if process.returncode:
             panel.draw(state, f"失败，退出码 {process.returncode}")
-            raise subprocess.CalledProcessError(process.returncode, command)
+            raise subprocess.CalledProcessError(process.returncode, command, output="\n".join(state.errors))
         state.percent = 100
         panel.draw(state, "已完成")
     except KeyboardInterrupt:

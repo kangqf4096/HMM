@@ -8,6 +8,7 @@ export TMPDIR="$OPT_HMM_RUNTIME/tmp"
 export TMP="$TMPDIR"
 export TEMP="$TMPDIR"
 export HF_HOME="$PWD/.cache/hf"
+export HF_HUB_CACHE="$HF_HOME/hub"
 export PIP_CACHE_DIR="$OPT_HMM_RUNTIME/.cache/pip"
 export VLLM_CACHE_ROOT="$OPT_HMM_RUNTIME/.cache/vllm"
 export VLLM_WORKER_MULTIPROC_METHOD=spawn

@@ -235,3 +235,20 @@ print((PROJECT / "tmp/prepare.log").read_text(encoding="utf-8")[-12000:])
 ```
 
 参考：[Colab 文件、Drive 与运行时说明](https://research.google.com/colaboratory/faq.html)、[Git 进程配置](https://git-scm.com/docs/git-config)。本地 CPU 测试不代替真实 Drive 挂载、Colab 前端与 GPU 实验验收。
+
+## 第 5 步报 Parquet magic bytes not found in footer
+
+这个错误说明读取对象没有正确的 Parquet 尾部。先检查缓存中的具体分片，避免把 datasets 最外层的 DatasetGenerationError 当成具体原因。新版进度面板会单独保留原始异常，完整日志仍在 PROJECT/tmp/prepare.log。
+
+将修复脚本的代码先推送到 GitHub，然后在 Colab 执行 github_sync(PROJECT)，重新运行“加载进度和复制工具”单元格，再运行下格。工具读取固定版本 document 的分片清单，检查文件大小、PAR1 边界和 Parquet 元数据，只重新下载检查失败的已有分片，缺失分片正常下载；其他缓存及模型不清理。不做整文件哈希校验，也不跳过错误分片继续抽样。
+
+报告保存在 PROJECT/tmp/arxiv-cache.json，包含具体文件、检查原因、处理结果以及 datasets/pyarrow/huggingface_hub/fsspec 版本。修复完成后，重新执行第 5 步；此次失败发生在写入 prompts 之前，data/ax0 通常仍为空。
+
+如果分片检查全部通过但 prepare 仍报同一错误，说明尚未证明是原始文件内容的问题；需要根据报告中的依赖版本、Failed to read file 对应路径和原始异常继续定位读取层，不能靠反复下载判定已修复。
+
+```python
+repair_log = run_step(
+    "scripts/repair_arxiv.py", "--config", "configs/colab_arxiv.json",
+    title="检查并修复 arXiv 缓存", log_name="arxiv-fix", root=PROJECT,
+)
+```

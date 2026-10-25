@@ -34,6 +34,14 @@ class ColabTests(unittest.TestCase):
         state.finish()
         self.assertEqual(state.lines[-1], "last partial line")
 
+    def test_original_arrow_error_survives_long_wrapping_traceback(self):
+        state = OutputState()
+        cause = "pyarrow.lib.ArrowInvalid: Parquet magic bytes not found in footer."
+        state.feed(cause + "\n" + "traceback frame\n" * 40)
+        state.feed("datasets.exceptions.DatasetGenerationError: An error occurred while generating the dataset\n")
+        self.assertNotIn(cause, state.lines)
+        self.assertIn(cause, state.errors)
+
     def test_pipe_updates_before_child_exits_and_preserves_log(self):
         with self.folder() as folder:
             root = Path(folder)
