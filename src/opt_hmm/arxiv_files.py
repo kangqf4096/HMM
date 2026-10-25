@@ -133,9 +133,12 @@ def ensure_arxiv_files(dataset, subset, revision, *, project=None, runtime=None,
                     row["action"] = "copied_existing"
                 else:
                     print(f"No readable existing bytes for {item.path}; downloading to {local}.", flush=True)
+                    # All existing sources were rejected above. Without forcing,
+                    # Hub local_dir mode can copy the same invalid snapshot text
+                    # back from its cache even when the destination is missing.
                     downloaded = hf_hub_download(repo_id=dataset, filename=item.path, revision=revision,
                                                  repo_type="dataset", local_dir=str(work),
-                                                 force_download=local.exists())
+                                                 force_download=True)
                     if Path(downloaded).resolve() != local.resolve():
                         copy_parquet(downloaded, local, item.size, "保存 arXiv 本地普通文件")
                     row["action"] = "downloaded"

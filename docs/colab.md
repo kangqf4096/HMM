@@ -5,7 +5,8 @@
 | 内容 | 默认位置 |
 |---|---|
 | 项目代码、配置、模型、普通 arXiv 分片、输入输出、日志 | `/content/drive/MyDrive/opt-hmm` |
-| Python 环境、pip/vLLM 缓存、进程临时文件 | `/content/opt-hmm` |
+| 依赖 wheel 安装包、pip 下载缓存 | `/content/drive/MyDrive/opt-hmm/.cache/` |
+| Python 环境、vLLM 缓存、进程临时文件 | `/content/opt-hmm` |
 
 相对资源路径由 opt_hmm.paths 统一按项目根目录解析，不依赖 Notebook 当前工作目录；Colab 中遗留的 /content 或 /content/opt-hmm 项目变量会自动纠正为持久目录。原始语料默认直接读取 Drive 中的普通 Parquet 文件；不会因为 OPT_HMM_RUNTIME 指向本地运行时就改读本地语料副本。
 
@@ -13,7 +14,7 @@ Git 管理共享代码，Google Drive 保存项目、权重、语料缓存、实
 
 仓库需要先推送最新代码；GitHub token 每次通过隐藏输入框输入，不写入 Notebook、项目文件、remote URL 或凭据缓存。
 
-项目固定在 `/content/drive/MyDrive/opt-hmm`。Python 环境和进程临时文件使用 `/content/opt-hmm`，模型和语料默认直接从 Drive 项目目录加载，可在新会话重建。Drive 目录中的文件持续保留，但内存和正在执行的程序不会随着挂载恢复。
+项目固定在 `/content/drive/MyDrive/opt-hmm`。Python 环境和进程临时文件使用 `/content/opt-hmm`，模型和语料默认直接从 Drive 项目目录加载。依赖安装包持久保存在 Drive，新会话从这些安装包重建 Python 环境。Drive 目录中的文件持续保留，但内存和正在执行的程序不会随着挂载恢复。
 
 ## 第 1 步：先挂载 Google Drive
 运行下格，按界面提示授权。确认打印的持久目录包含 `/drive/MyDrive/`。后续所有代码使用 PROJECT 变量；仅执行 mount 而继续向原 `/content/opt-hmm` 写文件不会使旧目录持久化。
@@ -151,7 +152,11 @@ migration = copy_runtime_assets("/content/opt-hmm", root=PROJECT)
 ```
 
 ## 第 3 步：安装本次运行环境
-依赖安装到运行时 `/content/opt-hmm/.venv`，源代码和持久资源仍在 Drive。避免将大量环境文件与 vLLM 进程通信文件放进 Drive 挂载目录。新会话需要重新安装环境，权重和数据可复用。
+首次运行将项目全部推理依赖及安装工具保存为 Drive 中 `.cache/wheels/当前Python及平台/` 下的 wheel 安装包，pip 下载缓存默认也保存在 Drive 的 `.cache/pip/`。首次准备需要联网和足够的 Drive 空间，包含 PyTorch/CUDA/vLLM 的完整依赖可能占用多 GB。若当前会话还保留旧 `/content/opt-hmm/.cache/pip`，首次准备会利用它导出 wheel 到 Drive；已经解压安装但没有可复用下载缓存的依赖仍需补齐安装包。
+
+安装后的 Python 环境位于 `/content/opt-hmm/.venv`。后续相同 Python/平台且 pyproject.toml 未变时，直接使用 Drive 安装包并通过 `--no-index` 安装，不访问软件源；仍需要从 Drive 读取并解压到本地环境，但无需另行复制 wheel 目录到 `/content`。同一会话重跑会复用已安装依赖。环境保留在本地，便于 Python 导入及 CUDA 共享库加载。
+
+Python/平台或依赖声明变化时，会准备对应安装包；已有 wheel 和 pip 缓存可继续复用。全部离线安装及 pip check 成功后才记录缓存就绪。已有缓存缺包时会报错，不会静默转为联网安装。若需显式强制离线，将下面的 setup_colab.py 命令加上 `--offline`。不做整文件哈希校验，也不复制或迁移完整 `.venv`。
 
 整块作为一个单元格执行，`%%bash` 位于第一行。它继承第 1 步设置的项目路径。
 
@@ -163,11 +168,7 @@ export OPT_HMM_RUNTIME=/content/opt-hmm
 cd "$OPT_HMM_PROJECT"
 source scripts/env.sh
 
-if ! python3 -m venv "$OPT_HMM_RUNTIME/.venv"; then
-    python3 -m pip install virtualenv
-    python3 -m virtualenv "$OPT_HMM_RUNTIME/.venv"
-fi
-"$OPT_HMM_RUNTIME/.venv/bin/python" -m pip install -e ".[inference]"
+python3 scripts/setup_colab.py
 "$OPT_HMM_RUNTIME/.venv/bin/python" scripts/test.py
 "$OPT_HMM_RUNTIME/.venv/bin/python" scripts/run.py check-runtime
 ```
@@ -276,6 +277,8 @@ print((PROJECT / "tmp/prepare.log").read_text(encoding="utf-8")[-12000:])
 拉取更新后重新运行“加载进度和复制工具”，清除旧的路径变量和已导入包。相对配置、模型、输入输出及日志全部按 Drive 项目解析；即使旧 OPT_HMM_PROJECT 值为 /content 或 /content/opt-hmm，在 Colab 中也会转回持久项目。Python 命令位于运行时 .venv 并不表示资源从运行时加载。
 
 repair_arxiv 使用相同的普通文件准备流程，报告 tmp/arxiv-cache.json 列出实际读取路径，不做整文件哈希，也不删除旧缓存。
+
+如果没有任何可读来源，下载调用会显式设置 force_download=True，避免 Hugging Face 将已检查为无效的旧 snapshot 占位文本再次复制到普通文件目录。已通过检查的分片会在调用下载接口前直接复用。若旧代码报出下载后文件仍为 79 字节的 missing PAR1 header，先更新代码再重跑本格；下载全部结束后，再运行下面的完整性检查。
 
 ```python
 repair_log = run_step(

@@ -58,7 +58,7 @@ def project_environment(root):
     root = project_root(root)
     runtime = runtime_root(root)
     paths = {"TMPDIR": runtime / "tmp", "HF_HOME": root / ".cache/hf",
-             "VLLM_CACHE_ROOT": runtime / ".cache/vllm", "PIP_CACHE_DIR": runtime / ".cache/pip"}
+             "VLLM_CACHE_ROOT": runtime / ".cache/vllm", "PIP_CACHE_DIR": root / ".cache/pip"}
     for path in paths.values():
         path.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()

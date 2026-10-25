@@ -121,6 +121,7 @@ class ColabTests(unittest.TestCase):
             self.assertEqual(Path(env["HF_HOME"]), root.resolve() / ".cache/hf")
             self.assertEqual(Path(env["TMPDIR"]), runtime.resolve() / "tmp")
             self.assertEqual(Path(env["VLLM_CACHE_ROOT"]), runtime.resolve() / ".cache/vllm")
+            self.assertEqual(Path(env["PIP_CACHE_DIR"]), root.resolve() / ".cache/pip")
             self.assertFalse((root / ".venv").exists())
 
     def test_asset_copy_keeps_sources_and_existing_targets(self):

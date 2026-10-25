@@ -110,6 +110,46 @@ class ArxivFilesTests(unittest.TestCase):
             hub.hf_hub_download.assert_not_called()
             self.assertEqual(report["refreshed"], 0)
 
+    def test_rejected_cached_placeholder_is_not_copied_back_by_downloader(self):
+        for destination_exists in (False, True):
+            with self.subTest(destination_exists=destination_exists), self.folder() as folder:
+                project, _, repo_cache, paths, payloads, hub = self.fixture(Path(folder))
+                # Only the 79-byte snapshot placeholders remain in the Hub cache.
+                for blob in (repo_cache / "blobs").rglob("*"):
+                    if blob.is_file():
+                        blob.unlink()
+                archive = project / "data/arxiv/pinned"
+                ready_name = "document/test-00000-of-00001.parquet"
+                ready_path = archive / ready_name
+                ready_path.parent.mkdir(parents=True, exist_ok=True)
+                ready_path.write_bytes(payloads[ready_name])
+                if destination_exists:
+                    for name, snapshot in paths.items():
+                        if name != ready_name:
+                            (archive / name).write_bytes(snapshot.read_bytes())
+
+                def download(**kwargs):
+                    path = Path(kwargs["local_dir"]) / kwargs["filename"]
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    # Hub local_dir mode reuses the rejected snapshot unless forced.
+                    payload = (payloads[kwargs["filename"]] if kwargs["force_download"]
+                               else paths[kwargs["filename"]].read_bytes())
+                    path.write_bytes(payload)
+                    return str(path)
+
+                hub.hf_hub_download = Mock(side_effect=download)
+                with patch.dict(sys.modules, {"huggingface_hub": hub}), redirect_stdout(io.StringIO()):
+                    _, report = ensure_arxiv_files("ccdv/arxiv-summarization", "document", "pinned",
+                                                   project=project)
+                self.assertEqual(report["refreshed"], 2)
+                self.assertEqual(hub.hf_hub_download.call_count, 2)
+                self.assertTrue(all(call.kwargs["force_download"]
+                                    for call in hub.hf_hub_download.call_args_list))
+                for row in report["files"]:
+                    self.assertEqual(Path(row["path"]).read_bytes(), payloads[row["file"]])
+                    self.assertTrue(row["after"]["ok"])
+                self.assertEqual(ready_path.read_bytes(), payloads[ready_name])
+
     def test_default_reads_persistent_files_even_with_runtime_environment_and_other_cwd(self):
         with self.folder() as folder:
             project, runtime, repo_cache, paths, payloads, hub = self.fixture(Path(folder))
