@@ -7,6 +7,7 @@ import os
 import queue
 import re
 import signal
+import shutil
 import subprocess
 import threading
 import time
@@ -15,9 +16,16 @@ from getpass import getpass
 from pathlib import Path
 
 
-def github_sync(root="/content/opt-hmm"):
+def project_root(root=None):
+    project = Path(root or os.environ.get("OPT_HMM_PROJECT", "/content/drive/MyDrive/opt-hmm")).resolve()
+    if project.as_posix().startswith("/content/drive/") and not Path("/content/drive/MyDrive").is_dir():
+        raise RuntimeError("先运行第 1 步 drive.mount('/content/drive')，再使用 Drive 项目目录。")
+    return project
+
+
+def github_sync(root=None):
     """Clone or fast-forward the current branch, prompting for a token each time."""
-    project = Path(root).resolve()
+    project = project_root(root)
     repo = "https://github.com/kangqf4096/HMM.git"
     if (project / ".git").is_dir():
         branch = subprocess.check_output(
@@ -50,14 +58,16 @@ def github_sync(root="/content/opt-hmm"):
 
 
 def project_environment(root):
-    root = Path(root).resolve()
-    paths = {"TMPDIR": root / "tmp", "HF_HOME": root / ".cache/hf",
-             "VLLM_CACHE_ROOT": root / ".cache/vllm", "PIP_CACHE_DIR": root / ".cache/pip"}
+    root = project_root(root)
+    runtime = Path(os.environ.get("OPT_HMM_RUNTIME", root)).resolve()
+    paths = {"TMPDIR": runtime / "tmp", "HF_HOME": root / ".cache/hf",
+             "VLLM_CACHE_ROOT": runtime / ".cache/vllm", "PIP_CACHE_DIR": runtime / ".cache/pip"}
     for path in paths.values():
         path.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env.update({key: str(value) for key, value in paths.items()})
     env.update({"TMP": env["TMPDIR"], "TEMP": env["TMPDIR"],
+                "OPT_HMM_PROJECT": str(root), "OPT_HMM_RUNTIME": str(runtime),
                 "PYTHONPATH": str(root / "src") + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""),
                 "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8",
                 "VLLM_WORKER_MULTIPROC_METHOD": "spawn", "OPT_HMM_PROGRESS": "1",
@@ -169,9 +179,10 @@ def _stop(process):
         process.wait()
 
 
-def run_live(command, *, title, log_name, root="/content/opt-hmm", render=True):
+def run_live(command, *, title, log_name, root=None, render=True):
     """Drain a byte pipe continuously; refresh one notebook panel twice a second."""
-    root = Path(root).resolve()
+    root = project_root(root)
+    (root / "tmp").mkdir(parents=True, exist_ok=True)
     env = project_environment(root)
     log_path = root / "tmp" / f"{Path(log_name).name}.log"
     state, chunks = OutputState(), queue.Queue()
@@ -237,9 +248,50 @@ def run_live(command, *, title, log_name, root="/content/opt-hmm", render=True):
     return log_path
 
 
-def run_step(*arguments, title, log_name, root="/content/opt-hmm"):
-    root = Path(root).resolve()
-    python = root / ".venv" / "bin" / "python"
+def run_step(*arguments, title, log_name, root=None):
+    root = project_root(root)
+    runtime = Path(os.environ.get("OPT_HMM_RUNTIME", root)).resolve()
+    python = runtime / ".venv" / "bin" / "python"
     if not python.is_file():
         raise FileNotFoundError("先运行安装环境单元格，创建项目内的 .venv。")
     return run_live([python, "-u", *arguments], title=title, log_name=log_name, root=root)
+
+
+def copy_runtime_assets(source="/content/opt-hmm", *, root=None):
+    """Copy existing assets into Drive; preserve source and existing target files."""
+    source, target = Path(source).resolve(), project_root(root)
+    if source == target:
+        raise ValueError("Source and persistent project directory must differ.")
+    paths = []
+    for name in ("models", "data", "runs", ".cache/hf"):
+        folder = source / name
+        if folder.is_dir():
+            paths.extend(path for path in folder.rglob("*") if path.is_file())
+    if (source / "tmp").is_dir():
+        paths.extend((source / "tmp").glob("*.log"))
+    state = OutputState()
+    state.stage = "复制已有资源（按文件计数）"
+    state.percent = 0 if paths else 100
+    state.detail = f"0/{len(paths)}"
+    panel = Panel("复制已有资源到 Drive", target, True)
+    panel.draw(state)
+    copied = skipped = 0
+    for index, path in enumerate(paths, 1):
+        relative = path.relative_to(source)
+        destination = target / relative
+        if destination.exists():
+            skipped += 1
+        else:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            # Leave an interrupted copy identifiable; never replace an existing asset.
+            partial = destination.with_name(destination.name + ".part")
+            shutil.copyfile(path, partial)
+            partial.replace(destination)
+            copied += 1
+        state.stage = "复制已有资源（按文件计数）"
+        state.percent = 100 * index / len(paths)
+        state.detail = f"{index}/{len(paths)} · {relative}"
+        panel.draw(state)
+    panel.draw(state, "复制完成")
+    print(f"已复制 {copied} 个文件，目标已存在而跳过 {skipped} 个文件。源文件保留：{source}")
+    return {"copied": copied, "skipped": skipped}

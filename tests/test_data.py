@@ -142,6 +142,29 @@ class DataTests(unittest.TestCase):
                     generate(config, model, folder, Path(folder) / "out")
                 runtime.assert_not_called()
 
+    def test_relocated_prompts_require_the_same_recorded_model_release(self):
+        (ROOT / "tmp").mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=ROOT / "tmp", prefix="ax") as folder:
+            root = Path(folder)
+            model = root / "new-model"
+            model.mkdir()
+            config = self.config()
+            source = {"repo_id": "facebook/opt-1.3b", "revision": "pinned-release"}
+            manifest = {"model": str(root / "old-model"), "model_source": source, "config": config,
+                        "dataset": DATASET, "subset": SUBSET, "dataset_revision": REVISION}
+            write_json(root / "manifest.json", manifest)
+            write_json(model / "opt_hmm_source.json", source)
+            with patch("opt_hmm.generate.check_runtime", side_effect=RuntimeError("GPU reached")) as runtime:
+                with self.assertRaisesRegex(RuntimeError, "GPU reached"):
+                    generate(config, model, root, root / "out")
+                runtime.assert_called_once()
+            for replacement in ({"repo_id": "facebook/opt-1.3b", "revision": "another-release"}, {}):
+                write_json(model / "opt_hmm_source.json", replacement)
+                with patch("opt_hmm.generate.check_runtime") as runtime:
+                    with self.assertRaisesRegex(ValueError, "different model"):
+                        generate(config, model, root, root / "out")
+                    runtime.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

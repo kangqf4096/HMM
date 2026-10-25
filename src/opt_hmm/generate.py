@@ -44,7 +44,13 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
         if manifest["config"].get(name) != config.get(name):
             raise ValueError(f"Preparation and generation differ on {name}. Prepare again.")
     if Path(manifest["model"]).resolve() != Path(model).resolve():
-        raise ValueError("Tokenized prompts belong to a different model. Prepare again with the new model.")
+        source_path = Path(model) / "opt_hmm_source.json"
+        source = read_json(source_path) if source_path.is_file() else {}
+        prepared_source = manifest.get("model_source") or {}
+        # Moving a pinned download from the runtime disk to Drive keeps its identity.
+        if not all(source.get(name) and source[name] == prepared_source.get(name)
+                   for name in ("repo_id", "revision")):
+            raise ValueError("Tokenized prompts belong to a different model. Prepare again with the new model.")
     progress("检查 GPU 运行环境")
     runtime = check_runtime()
     output = new_output(output)
