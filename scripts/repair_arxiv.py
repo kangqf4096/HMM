@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from opt_hmm.arxiv_cache import repair_arxiv
 from opt_hmm.io import read_json
+from opt_hmm.paths import project_path
 
 
 if __name__ == "__main__":
@@ -14,4 +15,4 @@ if __name__ == "__main__":
     parser.add_argument("--config", default="configs/colab_arxiv.json")
     parser.add_argument("--report", default="tmp/arxiv-cache.json")
     args = parser.parse_args()
-    repair_arxiv(read_json(args.config), args.report)
+    repair_arxiv(read_json(project_path(args.config)), project_path(args.report))

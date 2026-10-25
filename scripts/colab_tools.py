@@ -9,18 +9,15 @@ import re
 import signal
 import shutil
 import subprocess
+import sys
 import threading
 import time
 from collections import deque
 from getpass import getpass
 from pathlib import Path
 
-
-def project_root(root=None):
-    project = Path(root or os.environ.get("OPT_HMM_PROJECT", "/content/drive/MyDrive/opt-hmm")).resolve()
-    if project.as_posix().startswith("/content/drive/") and not Path("/content/drive/MyDrive").is_dir():
-        raise RuntimeError("先运行第 1 步 drive.mount('/content/drive')，再使用 Drive 项目目录。")
-    return project
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from opt_hmm.paths import project_root, runtime_root
 
 
 def github_sync(root=None):
@@ -59,7 +56,7 @@ def github_sync(root=None):
 
 def project_environment(root):
     root = project_root(root)
-    runtime = Path(os.environ.get("OPT_HMM_RUNTIME", root)).resolve()
+    runtime = runtime_root(root)
     paths = {"TMPDIR": runtime / "tmp", "HF_HOME": root / ".cache/hf",
              "VLLM_CACHE_ROOT": runtime / ".cache/vllm", "PIP_CACHE_DIR": runtime / ".cache/pip"}
     for path in paths.values():
@@ -69,6 +66,7 @@ def project_environment(root):
     env.update({"TMP": env["TMPDIR"], "TEMP": env["TMPDIR"],
                 "OPT_HMM_PROJECT": str(root), "OPT_HMM_RUNTIME": str(runtime),
                 "HF_HUB_CACHE": str(root / ".cache/hf/hub"),
+                "HF_DATASETS_CACHE": str(root / ".cache/hf/datasets"),
                 "PYTHONPATH": str(root / "src") + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""),
                 "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8",
                 "VLLM_WORKER_MULTIPROC_METHOD": "spawn", "OPT_HMM_PROGRESS": "1",
@@ -193,6 +191,7 @@ def run_live(command, *, title, log_name, root=None, render=True):
     env = project_environment(root)
     log_path = root / "tmp" / f"{Path(log_name).name}.log"
     state, chunks = OutputState(), queue.Queue()
+    state.detail = f"项目目录：{root}"
     panel = Panel(title, log_path, render)
     panel.draw(state)
     process = subprocess.Popen(
@@ -217,6 +216,7 @@ def run_live(command, *, title, log_name, root=None, render=True):
     try:
         with log_path.open("a", encoding="utf-8", newline="") as log:
             log.write(f"\n--- {title} ---\n")
+            log.write(f"Project: {root}\nPython: {command[0]}\n")
             while True:
                 try:
                     chunk = chunks.get(timeout=.2)
@@ -257,10 +257,10 @@ def run_live(command, *, title, log_name, root=None, render=True):
 
 def run_step(*arguments, title, log_name, root=None):
     root = project_root(root)
-    runtime = Path(os.environ.get("OPT_HMM_RUNTIME", root)).resolve()
+    runtime = runtime_root(root)
     python = runtime / ".venv" / "bin" / "python"
     if not python.is_file():
-        raise FileNotFoundError("先运行安装环境单元格，创建项目内的 .venv。")
+        raise FileNotFoundError(f"先运行安装环境单元格。缺少 Python：{python}")
     return run_live([python, "-u", *arguments], title=title, log_name=log_name, root=root)
 
 

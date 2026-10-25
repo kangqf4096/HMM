@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from opt_hmm.data import DATASET, REVISION, ROLES, SUBSET, prepare, select_articles
 from opt_hmm.generate import generate
 from opt_hmm.io import read_json, read_jsonl, write_json
+from opt_hmm.paths import project_path
 
 
 class WordTokenizer:
@@ -108,7 +109,7 @@ class DataTests(unittest.TestCase):
             with patch.dict(sys.modules, {"datasets": datasets, "transformers": transformers}):
                 stats = prepare(self.config(), model, output)
             datasets.load_dataset.assert_called_once_with(
-                DATASET, SUBSET, revision=REVISION, cache_dir=str(Path(".cache/hf/datasets")))
+                DATASET, SUBSET, revision=REVISION, cache_dir=str(project_path(".cache/hf/datasets")))
             manifest = read_json(output / "manifest.json")
             self.assertEqual(manifest["dataset"], DATASET)
             self.assertEqual(manifest["dataset_revision"], REVISION)

@@ -7,25 +7,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from opt_hmm.progress import progress
-
-ROOT = Path(__file__).resolve().parents[1]
+from opt_hmm.paths import project_path, project_root, runtime_root
 
 
 def download_model(config_path, model=None):
-    config_path = Path(config_path)
-    if not config_path.is_absolute():
-        config_path = ROOT / config_path
+    root = project_root()
+    config_path = project_path(config_path, root)
     config = json.loads(config_path.read_text(encoding="utf-8"))
     repo, revision = config["model_repo"], config["model_revision"]
     if repo != "facebook/opt-1.3b":
         raise ValueError("This downloader selects the PyTorch files for facebook/opt-1.3b.")
-    destination = Path(model or config["model"])
-    if not destination.is_absolute():
-        destination = ROOT / destination
+    destination = project_path(model or config["model"], root)
     destination.mkdir(parents=True, exist_ok=True)
-    os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "hf"))
-    os.environ.setdefault("TMPDIR", str(ROOT / "tmp"))
-    (ROOT / "tmp").mkdir(exist_ok=True)
+    os.environ["HF_HOME"] = str(root / ".cache" / "hf")
+    os.environ["HF_HUB_CACHE"] = str(root / ".cache" / "hf/hub")
+    temp = runtime_root(root) / "tmp"
+    temp.mkdir(parents=True, exist_ok=True)
+    os.environ["TMPDIR"] = str(temp)
     progress("加载模型下载工具")
     from huggingface_hub import snapshot_download
 

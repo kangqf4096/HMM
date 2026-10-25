@@ -72,7 +72,7 @@ class ParquetSplit:
 
 
 def load_arxiv_parquet(dataset, subset, revision):
-    """Read local ordinary files; persistent originals remain in the project."""
+    """Read ordinary files from the persistent project directory."""
     from .arxiv_files import ensure_arxiv_files
 
     if (dataset, subset) != ("ccdv/arxiv-summarization", "document"):

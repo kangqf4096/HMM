@@ -4,9 +4,11 @@ import json
 from pathlib import Path
 
 from .io import new_output, read_json, read_jsonl
+from .paths import on_colab, project_path
 
 
 def main(argv=None):
+    text_config = "configs/colab_arxiv.json" if on_colab() else "configs/text_smoke.json"
     parser = argparse.ArgumentParser(prog="opt-hmm")
     sub = parser.add_subparsers(dest="command", required=True)
     simulate = sub.add_parser("simulate", help="CPU synthetic experiments with independent null calibration")
@@ -18,13 +20,13 @@ def main(argv=None):
     simulate.add_argument("--signal-p", type=float, nargs="+")
     simulate.add_argument("--segment-length", type=int)
     prepare = sub.add_parser("prepare", help="Download scientific arXiv papers and freeze document-level prompt roles")
-    prepare.add_argument("--config", default="configs/text_smoke.json")
+    prepare.add_argument("--config", default=text_config)
     prepare.add_argument("--model")
     prepare.add_argument("--dataset-loader", choices=["datasets", "parquet_file"],
                          help="Override the arXiv reader; parquet_file avoids datasets fragment scans")
     prepare.add_argument("--output", required=True)
     generate = sub.add_parser("generate", help="Local offline vLLM 0.19.1; requires Linux/CUDA")
-    generate.add_argument("--config", default="configs/text_smoke.json")
+    generate.add_argument("--config", default=text_config)
     generate.add_argument("--model")
     generate.add_argument("--prompts", required=True)
     generate.add_argument("--output", required=True)
@@ -43,6 +45,11 @@ def main(argv=None):
     evaluate.add_argument("--config", help="Optional detector configuration; protocol settings must match")
     sub.add_parser("check-runtime", help="Check actual vLLM version, CUDA, and batch adapter")
     args = parser.parse_args(argv)
+    # Resolve resource paths against the project even when a notebook is in /content.
+    for name in ("config", "model", "input", "output", "prompts"):
+        value = getattr(args, name, None)
+        if value is not None:
+            setattr(args, name, project_path(value))
     if args.command == "check-runtime":
         from .runtime import adapter_selftest, check_runtime
         result = {**check_runtime(), **adapter_selftest()}
@@ -77,10 +84,10 @@ def main(argv=None):
             from .data import prepare as prepare_data
             if args.dataset_loader:
                 config["dataset_loader"] = args.dataset_loader
-            result = prepare_data(config, args.model or config["model"], args.output)
+            result = prepare_data(config, args.model or project_path(config["model"]), args.output)
         else:
             from .generate import generate as generate_text
-            result = generate_text(config, args.model or config["model"], args.prompts, args.output,
+            result = generate_text(config, args.model or project_path(config["model"]), args.prompts, args.output,
                                    args.tensor_parallel, args.gpu_memory, args.dtype, args.pivot_diagnostics)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 

@@ -6,6 +6,7 @@ import numpy as np
 from .config import validate_text
 from .io import new_output, provenance, read_json, write_json, write_jsonl
 from .progress import progress
+from .paths import project_path
 
 DATASET = "ccdv/arxiv-summarization"
 SUBSET = "document"
@@ -77,6 +78,7 @@ def select_articles(raw, tokenizer, config):
 
 
 def prepare(config, model, output):
+    model, output = project_path(model), project_path(output)
     validate_text(config)
     dataset = config.get("dataset", DATASET)
     subset = config.get("subset", SUBSET)
@@ -100,7 +102,7 @@ def prepare(config, model, output):
         from datasets import load_dataset
         progress("下载并缓存 arXiv", detail="下载和 Arrow 处理进度由 datasets 报告")
         raw = load_dataset(dataset, subset, revision=revision,
-                           cache_dir=str(Path(".cache/hf/datasets")))
+                           cache_dir=str(project_path(".cache/hf/datasets")))
     records, stats = select_articles(raw, tokenizer, config)
     progress("写入实验输入")
     model_source = Path(model) / "opt_hmm_source.json"

@@ -1,12 +1,12 @@
 """Keep ordinary Parquet files on persistent storage and read local working copies."""
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-import os
 import re
 
 from .arxiv_cache import inspect_parquet
 from .io import write_json
 from .progress import progress
+from .paths import project_root
 
 DATASET = "ccdv/arxiv-summarization"
 PATTERN = re.compile(r"document/(train|validation|test)-\d+-of-\d+\.parquet")
@@ -80,9 +80,11 @@ def ensure_arxiv_files(dataset, subset, revision, *, project=None, runtime=None,
         raise ValueError("Ordinary Parquet storage requires ccdv/arxiv-summarization/document.")
     from huggingface_hub import HfApi, hf_hub_download, try_to_load_from_cache
 
-    project = Path(project or os.environ.get("OPT_HMM_PROJECT", Path.cwd())).resolve()
-    runtime = Path(runtime or os.environ.get("OPT_HMM_RUNTIME", project)).resolve()
+    project = project_root(project)
     archive = project / "data" / "arxiv" / revision
+    # Runtime temp/venv settings do not relocate dataset reads. A working copy is
+    # used only when a caller explicitly requests it with the runtime argument.
+    runtime = Path(runtime).resolve() if runtime is not None else project
     work = runtime / ".cache" / "arxiv" / revision if runtime != project else archive
     hub_cache = project / ".cache/hf/hub"
     repo_cache = hub_cache / "datasets--ccdv--arxiv-summarization"
@@ -127,10 +129,10 @@ def ensure_arxiv_files(dataset, subset, revision, *, project=None, runtime=None,
             try:
                 if source is not None:
                     row["source"] = str(source)
-                    copy_parquet(source, local, item.size, "复制 arXiv 到本地工作目录")
+                    copy_parquet(source, local, item.size, "准备 arXiv 普通分片")
                     row["action"] = "copied_existing"
                 else:
-                    print(f"No readable existing bytes for {item.path}; downloading a regular local file.", flush=True)
+                    print(f"No readable existing bytes for {item.path}; downloading to {local}.", flush=True)
                     downloaded = hf_hub_download(repo_id=dataset, filename=item.path, revision=revision,
                                                  repo_type="dataset", local_dir=str(work),
                                                  force_download=local.exists())

@@ -7,6 +7,8 @@ from pathlib import Path
 
 import numpy as np
 
+from .paths import project_root
+
 
 def _default(value):
     if isinstance(value, np.ndarray):
@@ -57,7 +59,7 @@ def provenance():
             pass
     try:
         commit = subprocess.check_output(["git", "rev-parse", "HEAD"],
-                                         stderr=subprocess.DEVNULL, text=True).strip()
+                                         cwd=project_root(), stderr=subprocess.DEVNULL, text=True).strip()
     except (OSError, subprocess.CalledProcessError):
         commit = None
     return {"python": platform.python_version(), "platform": platform.platform(),

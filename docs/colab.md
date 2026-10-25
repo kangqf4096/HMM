@@ -1,19 +1,19 @@
-# Colab：先挂载 Drive，再运行 OPT-1.3B 与 arXiv
+# Colab：从持久目录运行 OPT-1.3B 与 arXiv
 
-可直接上传 [Notebook](../notebooks/colab_arxiv.ipynb)，也可以将下列单元格逐个复制到 Colab。
+可直接上传 [Notebook](../notebooks/colab_arxiv.ipynb)，也可将下列单元格逐个复制到 Colab。
 
-| 内容 | 位置 |
+| 内容 | 默认位置 |
 |---|---|
-| Git checkout、模型、普通 arXiv 原始分片、输入/输出、日志 | `/content/drive/MyDrive/opt-hmm`，持久保存 |
-| Python 虚拟环境、语料工作副本、pip/vLLM 缓存、进程临时目录 | `/content/opt-hmm`，每次会话可重建 |
+| 项目代码、配置、模型、普通 arXiv 分片、输入输出、日志 | `/content/drive/MyDrive/opt-hmm` |
+| Python 环境、pip/vLLM 缓存、进程临时文件 | `/content/opt-hmm` |
 
-模型和实验资料持久存入 Drive；arXiv 普通原始分片放在 data/arxiv/数据版本/。读取时准备运行时本地副本，不依赖 Drive 上的 Hub snapshot 符号链接。
+相对资源路径由 opt_hmm.paths 统一按项目根目录解析，不依赖 Notebook 当前工作目录；Colab 中遗留的 /content 或 /content/opt-hmm 项目变量会自动纠正为持久目录。原始语料默认直接读取 Drive 中的普通 Parquet 文件；不会因为 OPT_HMM_RUNTIME 指向本地运行时就改读本地语料副本。
 
 Git 管理共享代码，Google Drive 保存项目、权重、语料缓存、实验输入、输出和日志，Colab 提供计算。先在菜单“运行时 → 更改运行时类型”选择 GPU，然后从第一个单元格开始执行。
 
 仓库需要先推送最新代码；GitHub token 每次通过隐藏输入框输入，不写入 Notebook、项目文件、remote URL 或凭据缓存。
 
-项目固定在 `/content/drive/MyDrive/opt-hmm`。Python 环境、进程临时文件和原始语料的可重建工作副本使用 `/content/opt-hmm`，可在新会话重建。Drive 目录中的文件持续保留，但内存和正在执行的程序不会随着挂载恢复。
+项目固定在 `/content/drive/MyDrive/opt-hmm`。Python 环境和进程临时文件使用 `/content/opt-hmm`，模型和语料默认直接从 Drive 项目目录加载，可在新会话重建。Drive 目录中的文件持续保留，但内存和正在执行的程序不会随着挂载恢复。
 
 ## 第 1 步：先挂载 Google Drive
 运行下格，按界面提示授权。确认打印的持久目录包含 `/drive/MyDrive/`。后续所有代码使用 PROJECT 变量；仅执行 mount 而继续向原 `/content/opt-hmm` 写文件不会使旧目录持久化。
@@ -52,10 +52,21 @@ import subprocess
 from getpass import getpass
 from pathlib import Path
 
+COLAB_PROJECT = "/content/drive/MyDrive/opt-hmm"
+COLAB_RUNTIME = "/content/opt-hmm"
+CHECKOUT_ROOT = Path(COLAB_PROJECT)
+
+def on_colab():
+    return os.name == "posix" and Path("/content").is_dir()
+
 def project_root(root=None):
-    project = Path(root or os.environ.get("OPT_HMM_PROJECT", "/content/drive/MyDrive/opt-hmm")).resolve()
+    selected = root or os.environ.get("OPT_HMM_PROJECT")
+    if on_colab():
+        if not selected or str(selected).rstrip("/") in ("/content", COLAB_RUNTIME):
+            selected = COLAB_PROJECT
+    project = Path(selected or CHECKOUT_ROOT).expanduser().resolve()
     if project.as_posix().startswith("/content/drive/") and not Path("/content/drive/MyDrive").is_dir():
-        raise RuntimeError("先运行第 1 步 drive.mount('/content/drive')，再使用 Drive 项目目录。")
+        raise RuntimeError("先运行 drive.mount('/content/drive')，再使用持久项目目录。")
     return project
 
 def github_sync(root=None):
@@ -91,20 +102,41 @@ def github_sync(root=None):
     print("代码已同步：", project)
     return project
 
-PROJECT = github_sync(PROJECT)
+PROJECT = github_sync()
+os.environ["OPT_HMM_PROJECT"] = str(PROJECT)
 os.chdir(PROJECT)
+print("当前项目目录：", PROJECT)
 ```
 
 ## 加载进度和复制工具
 克隆成功后运行。后续 pull 更新辅助代码后，重新运行这一格。
 
 ```python
+import importlib
+import os
 import runpy
+import sys
+from pathlib import Path
 
+PROJECT = Path("/content/drive/MyDrive/opt-hmm")
+assert Path("/content/drive/MyDrive").is_dir(), "请先挂载 Google Drive"
+assert (PROJECT / "scripts/colab_tools.py").is_file(), "请先将新版仓库克隆或更新到 Drive"
+os.environ["OPT_HMM_PROJECT"] = str(PROJECT)
+os.environ["OPT_HMM_RUNTIME"] = "/content/opt-hmm"
+os.chdir(PROJECT)
+
+# Reload updated package code if this notebook previously imported it before pull.
+sys.path.insert(0, str(PROJECT / "src"))
+for name in list(sys.modules):
+    if name == "opt_hmm" or name.startswith("opt_hmm."):
+        del sys.modules[name]
+importlib.invalidate_caches()
 tools = runpy.run_path(str(PROJECT / "scripts/colab_tools.py"))
 run_step = tools["run_step"]
 github_sync = tools["github_sync"]
 copy_runtime_assets = tools["copy_runtime_assets"]
+print("项目目录：", tools["project_root"]())
+print("Python 环境：", Path("/content/opt-hmm/.venv/bin/python"))
 ```
 
 ## 当前会话已有下载文件时：复制到 Drive（仅首次切换需要）
@@ -126,6 +158,8 @@ migration = copy_runtime_assets("/content/opt-hmm", root=PROJECT)
 ```bash
 %%bash
 set -euo pipefail
+export OPT_HMM_PROJECT=/content/drive/MyDrive/opt-hmm
+export OPT_HMM_RUNTIME=/content/opt-hmm
 cd "$OPT_HMM_PROJECT"
 source scripts/env.sh
 
@@ -148,14 +182,12 @@ model_log = run_step(
 )
 ```
 
-## 第 5 步：准备普通 arXiv 分片，再从本地副本抽样
-原始 Parquet 以普通文件持久保存在 PROJECT/data/arxiv/数据版本/document 下；运行时工作副本保存在 RUNTIME/.cache/arxiv/数据版本/document 下。数据量约 3.61 GB，Drive 和运行时各需要一份空间；旧 Hub/Arrow 缓存不自动删除。
+## 第 5 步：从 Drive 普通 arXiv 分片抽样
+Parquet 普通文件位于 PROJECT/data/arxiv/数据版本/document 下，加载器默认直接读取这里；OPT_HMM_RUNTIME 仅指定 Python 环境和进程临时目录，不会切换资源加载路径。
 
-程序优先复用已准备的普通文件，再尝试从旧 Hub 缓存的文本链接中找回真实 blob；没有可用数据时才下载到本地普通文件，然后复制到 Drive，复制显示字节进度。后续 ParquetFile 只读取本地工作副本，避免直接读取 Drive 的 Hub snapshot 链接。新会话从 Drive 普通文件恢复本地副本即可。
+优先复用持久目录的普通 Parquet 文件，其次从旧 Hub 缓存中的链接目标找回真实 blob；没有可用文件时才下载为持久目录中的普通文件。数据约 3.61 GB，不再默认创建运行时工作副本；旧缓存和旧工作副本保留。
 
-抽样仍以全部 215913 篇官方论文的相同行顺序和随机种子进行，整篇去重后选择 92 篇，保留 source_split/source_row。不会重新构建完整 Arrow 语料；报告 tmp/arxiv-files.json 记录旧链接实际指向的内容、采用的源路径及本地/Drive 普通文件路径。
-
-已有完整 ax0 输入可以继续使用；新的实验用 ax1 等短名称，未完成目录不会自动删除。只准备资源时到此即可。
+抽样仍以全部 215913 篇论文的官方行顺序及相同随机种子进行，整篇去重后选取 92 篇。tmp/arxiv-files.json 中 archive 和 work 默认都是 Drive 目录。已有完整 ax0 输入可以复用；新实验用 ax1 等短名称，未完成目录不会自动删除。只准备资源时到此即可。
 
 ```python
 if all((PROJECT / "data/ax0" / name).is_file()
@@ -238,15 +270,12 @@ PROJECT = github_sync(PROJECT)
 print((PROJECT / "tmp/prepare.log").read_text(encoding="utf-8")[-12000:])
 ```
 
-## 已确认的故障：Drive 中的 Hub snapshot 读到了文本链接
+## Drive 中旧 Hub snapshot 的文本链接
+此前的错误缓存打开后是 ../../blobs/... 文本，没有 PAR1 头尾。加载器会优先从实际 blob 找回字节，保存成 PROJECT/data/arxiv/版本/document 下的普通文件，并默认直接读取持久目录。
 
-本次实际输出显示 train-00000-of-00015.parquet 虽为符号链接，但打开后大小只有 79 字节，内容是 `../../blobs/9b/...`，没有 PAR1 头尾。这确认了当前缓存路径没有读到真实的 Parquet 文件。先前“数据已坏”和“仅是 datasets fragment 扫描”的判断都不足以解释该证据；更换读取 API 不会把文本链接变成数据。
+拉取更新后重新运行“加载进度和复制工具”，清除旧的路径变量和已导入包。相对配置、模型、输入输出及日志全部按 Drive 项目解析；即使旧 OPT_HMM_PROJECT 值为 /content 或 /content/opt-hmm，在 Colab 中也会转回持久项目。Python 命令位于运行时 .venv 并不表示资源从运行时加载。
 
-当前第 5 步先准备普通文件：优先沿受限的旧缓存 blob 路径找回已有真实数据，找不到时下载到运行时的 local_dir；再复制普通字节文件到 Drive 的 data/arxiv/版本目录。读取时使用本地工作副本，Drive 继续作为持久存储。旧缓存保留；不需要重新下载模型，不做整文件哈希校验。
-
-拉取代码后重新加载进度工具，再重跑第 5 步即可，无需先运行旧的缓存重下流程。下面 repair_arxiv 入口也已改为同一普通文件准备流程，可单独执行并查看 tmp/arxiv-cache.json；它不再把修复结果只写回 Drive 中的 Hub 链接缓存。
-
-新版应出现“复制 arXiv 到本地工作目录”“保存普通 arXiv 分片到 Drive”“读取 arXiv 行组元数据”“抽取独立论文”等阶段。文件已经就绪时跳过复制。即使 Colab 断开，本地工作副本消失，Drive 中原始数据、实验输入和结果仍保留。
+repair_arxiv 使用相同的普通文件准备流程，报告 tmp/arxiv-cache.json 列出实际读取路径，不做整文件哈希，也不删除旧缓存。
 
 ```python
 repair_log = run_step(
@@ -255,4 +284,4 @@ repair_log = run_step(
 )
 ```
 
-参考：[Hub 缓存与 local_dir 下载](https://huggingface.co/docs/huggingface_hub/package_reference/file_download)、[Colab Drive 读写建议](https://research.google.com/colaboratory/faq.html)、[ParquetFile](https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetFile.html)。本地使用真实 PyArrow 26.0.0 验证了文本链接恢复、普通文件保存和读取、重复运行及抽样一致性；尚需用户的 Colab 会话验收。
+参考：[Colab 文件与 Drive 挂载](https://research.google.com/colaboratory/faq.html)。本地路径测试不代替真实挂载和 GPU 验收。

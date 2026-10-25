@@ -1,9 +1,10 @@
 import io
+import os
 import sys
 import tempfile
 import types
 import unittest
-from contextlib import redirect_stdout
+from contextlib import chdir, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -108,6 +109,23 @@ class ArxivFilesTests(unittest.TestCase):
                                                project=project, runtime=runtime)
             hub.hf_hub_download.assert_not_called()
             self.assertEqual(report["refreshed"], 0)
+
+    def test_default_reads_persistent_files_even_with_runtime_environment_and_other_cwd(self):
+        with self.folder() as folder:
+            project, runtime, repo_cache, paths, payloads, hub = self.fixture(Path(folder))
+            for name, payload in payloads.items():
+                path = project / "data/arxiv/pinned" / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(payload)
+            hub.try_to_load_from_cache.side_effect = AssertionError("persistent file must be used")
+            with chdir(ROOT.parent), patch.dict(sys.modules, {"huggingface_hub": hub}), \
+                    patch.dict(os.environ, {"OPT_HMM_PROJECT": str(project), "OPT_HMM_RUNTIME": str(runtime)}), \
+                    redirect_stdout(io.StringIO()):
+                loaded, report = ensure_arxiv_files("ccdv/arxiv-summarization", "document", "pinned")
+            self.assertEqual(report["work"], report["archive"])
+            self.assertTrue(all(path.is_relative_to(project) for split in loaded.values() for path in split))
+            self.assertFalse((runtime / ".cache/arxiv").exists())
+            hub.hf_hub_download.assert_not_called()
 
     def test_cyclic_text_links_stop_with_diagnostic_attempts(self):
         with self.folder() as folder:

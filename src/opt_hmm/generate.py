@@ -13,6 +13,7 @@ from .protocol import (PROTOCOL, PUBLIC_KEY, context_seed, extract_pivots,
                        generation_contexts, operational_labels, pivot)
 from .runtime import check_runtime
 from .progress import progress
+from .paths import project_path
 
 
 def _record(doc, original, tokens, origin, variant, config, key, actions=None):
@@ -31,6 +32,8 @@ def _record(doc, original, tokens, origin, variant, config, key, actions=None):
 
 def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.8, dtype="float16",
              pivot_diagnostics=False):
+    model, prompts_dir, output = (project_path(path) for path in (model, prompts_dir, output))
+    model = str(model)
     validate_text(config)
     if tensor_parallel < 1 or not 0 < gpu_memory <= 1:
         raise ValueError('Invalid tensor parallelism or GPU memory fraction.')
