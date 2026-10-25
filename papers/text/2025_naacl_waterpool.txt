@@ -1,0 +1,2292 @@
+=== PDF PAGE 1 ===
+Proceedings of the 2025 Conference of the Nations of the Americas Chapter of the Association for Computational Linguistics: Human Language Technologies
+(V olume 1: Long Papers), pages 4156–4182
+April 29 - May 4, 2025 ©2025 Association for Computational Linguistics
+WaterPool: A Language Model Watermark Mitigating Trade-Offs among
+Imperceptibility, Efficacy and Robustness
+Baizhou Huang♣♡Xiaojun Wan♣♡
+♣Wangxuan Institute of Computer Technology, Peking University
+♡State Key Laboratory of General Artificial Intelligence
+{hbz19,wanxiaojun}@pku.edu.cn
+Abstract
+Watermarking is a prominent technique to
+trace the usage of specific large language mod-
+els (LLMs) by injecting patterns into model-
+generated content. An ideal watermark should
+be imperceptible, easily detectable, and robust
+to text alterations, yet existing methods typi-
+cally face trade-offs among these properties.
+This paper utilizes a key-centered scheme to
+unify existing methods by decomposing a wa-
+termark into two components: a key module
+and a mark module. We show that the trade-off
+issue is the reflection of the conflict between
+the scale of the key sampling space during gen-
+eration and the complexity of key restoration
+during detection within the key module. To
+this end, we introduce WaterPool, a simple yet
+effective key module that preserves a complete
+key sampling space for imperceptibility while
+utilizing semantics-based search to improve the
+key restoration process. WaterPool can inte-
+grate seamlessly with existing watermarking
+techniques, significantly enhancing their per-
+formance, achieving near-optimal impercepti-
+bility, and markedly improving their detection
+efficacy and robustness (+12.73% for KGW,
++20.27% for EXP, +7.27% for ITS)1.
+1 Introduction
+The world has recently witnessed the great power
+of large language models (LLMs). However, the
+widespread use of these systems has raised signif-
+icant concerns about their potential misuse. For
+example, LLMs could be used to generate mas-
+sive amounts of fake news or automated comments
+to manipulate social media, posing threats to aca-
+demic integrity and intellectual property rights
+(Bender et al., 2021; Liu et al., 2023b).
+To address these issues, watermarking has been
+proposed to track the usage of specific models
+(Kirchenbauer et al., 2023a). It embeds a hidden
+1The code is available in https://github.com/skpig/
+waterpool.
+EXP-Pool
+KGW-Pool
+Unigram
+KGW
+ITS-Pool
+Gamma
+Delta
+ITS
+EXP
+Efﬁcacy & Robustness
+Imperceptibility Upperbound
+Trade-off Curve
+WaterPool
+WaterPool
+WaterPool
+Figure 1: Previous methods face trade-offs among im-
+perceptibility, efficacy and robustness. WaterPool mit-
+igates this problem to a significant extent. It can be
+integrated with other watermarking methods, improving
+them on all three aspects. This figure is based on the
+experiments on open-ended text generation presented in
+Table 1 and 2.
+pattern into generated contents of a specific LLM
+during decoding, which is conduct by sampling out-
+puts from a stochastic modified distribution instead
+of the original language modeling distribution. Ide-
+ally, the expectation of the modified distribution
+is nearly identical to the original one, making the
+watermarked text almost indistinguishable from the
+original (imperceptibility). This pattern can be re-
+liably detected by a detector (efficacy) and remains
+high detection rate even if the text is corrupted by
+semantic-preserving attacks (robustness).
+Prior works have made great progress towards
+these properties for an ideal watermark (Kirchen-
+bauer et al., 2023a,b; Kuditipudi et al., 2023; Zhao
+et al., 2023; Hu et al., 2023). However, none of
+them have achieved all three properties simultane-
+ously as illustrated in Figure 1. It is widely ac-
+cepted that there is a trade-off among impercepti-
+bility, efficacy, and robustness. Previous methods
+often use hyper-parameters to balance this trade-off
+issue, like theδin KGW controlling the degree of
+distribution shift.
+In this paper, we try to explore this issue. We
+4156
+
+=== PDF PAGE 2 ===
+begin by unifying existing watermarking methods
+with a key-centered scheme. It decomposes a water-
+marking technique into two independent modules,
+a key module and a mark module, as shown in Fig-
+ure 2. During generation, the key module samples
+a private key. It is then utilized by the mark module
+as a random seed to distort the next token distribu-
+tion, from which watermarked texts are sampled.
+During detection, the key module attempts to re-
+store the private key. Then the mark module aligns
+the text with the restored key to compute statis-
+tics, which imply the likelihood of watermark pres-
+ence. The decomposition separates requirements
+of imperceptibility, efficacy and robustness into the
+two modules. Subsequently, we show that the key
+module significantly contributes to the trade-off
+problem. Specifically, the trade-off problem ac-
+tually stems from the conflict between the scale
+of key sampling space during generation and the
+complexity of key restoration during detection.
+To overcome this trade-off, we introduce Water-
+Pool, a simple but effective key module. WaterPool
+maintains the complete key sampling space, crucial
+for imperceptibility, while leveraging a semantics-
+based search to significantly enhance the preci-
+sion and effectiveness of the key restoration pro-
+cess, thereby ensuring high robustness against at-
+tacks. We integrate WaterPool into three of the
+most renowned watermarking techniques, EXP
+(Kuditipudi et al., 2023)), KGW (Kirchenbauer
+et al., 2023a) and ITS (Kuditipudi et al., 2023)).
+WaterPool effectively mitigates the traditionally
+"inevitable" trade-offs, achieving superior perfor-
+mance as shown in Figure 1.
+Our experiments include two scale of large lan-
+guage models (LLMs) across tasks of open-ended
+generation and long-form question answering. Ex-
+perimental results demonstrate the supreme capa-
+bilities of our proposed WaterPool. On one hand,
+it elevates the imperceptibility of KGW, EXP and
+ITS to near-optimal levels. On the other hand, it
+significantly enhances the efficacy and robustness
+of previous watermarking techniques, yielding sub-
+stantial improvements across different experimen-
+tal settings (+12.73% for KGW, +20.27% for EXP,
++7.27% for ITS)2.
+2 Preliminary
+Problem Formulation. We begin by formalizing
+the process of watermarking. Given any prompt x,
+2The results are the performance of WaterPool with OPT-
+1.3B on the open-ended generation task
+a LLM will generate a sequence of output token
+yi∼PM(·|x, y<i) in an auto-regressive manner.
+A watermark will stochastically distort the distri-
+bution to a Modified Distribution ˆPM(·|x, y<i)∈
+∆(Σ) over the vocabulary Σ . The detection of
+watermarked texts is formulated as a hypothesis
+testing problem with an alternative hypothesis that
+the candidate is sampled from a modified distribu-
+tion. It is typically proved by gathering per-token
+statisticssi for significance test.
+Imperceptibility. An ideal watermark should
+maintain the output distribution of LLM as un-
+changed as possible (Christ et al., 2023; Hu et al.,
+2023; Kuditipudi et al., 2023; Liu et al., 2023b).
+Formally, we define the imperceptibility following
+"N-shot undetectable" from Hu et al. (2023): for
+all xn, yn∈Σ∗,
+N∏
+n
+PM(yn|xn) = E ˆPM [
+N∏
+n
+ˆPM(yn|xn)] (1)
+Here, superscriptsn indicates different rounds
+of generation. For LLMs, which model language
+in an auto-regressive manner, the equation above
+can be expressed as:
+∏
+i,n
+PM(yi|xn, yn
+<i) = E ˆPM [
+∏
+i,n
+ˆPM(yi|xn, yn
+<i)] (2)
+We want to highlight the importance of the prod-
+uct over multiple generations above. It indicates
+that it is infeasible to distinguish between the origi-
+nal and the watermarked texts without prior knowl-
+edge about the modified distribution, even when
+multiple queries are allowed (Christ et al., 2023).
+Efficacy. An ideal watermark technique should
+be able to distinguish watermarked texts from the
+others. Empirically, it is required to achieve high
+true positive rate with low false positive rate. Most
+watermarking techniques achieve this by ensuring a
+substantial difference between the per-token statis-
+tic under alternative hypothesis (H1: the candidate
+token is sampled from the modified distribution
+ˆPM(·|xn, yn
+<i)) and null hypothesis (H0: the can-
+didate token is sampled from other distributions).
+This can be formulated as,
+E[si|H1]−E[si|H0]≥ϕ(pi), (3)
+wheresi is the statistic ofi-th token. We denote
+the left-hand side as Statistical Difference. ϕ(pi)
+only depends on pi, the probability vector fori-th
+step distributionPM(·|x, y<i), remaining constant
+given x and y<i. It indicates the innate potential
+4157
+
+=== PDF PAGE 3 ===
+!𝑃!(𝐲"|𝐱,𝐲#")Key 𝐤!
+Restored Key '𝐤! Statistic𝑠"=𝑆('𝐤!,,𝐲")
+Key ModuleMark Module
+Modification/𝑃#=𝐹(𝐤!,𝑃#)
+(a) Watermark Generation
+(b) Watermark Detection
+WaterPool tries tobreak the tie betweenundetectability and<next-token?>  
+WaterPool tries to break the tie between undetectability and robustnessSample
+WaterPool      (𝑠#=1.1)	tries          (𝑠$=4.9)	...undetectability (𝑠%=3.3)	and            (𝑠&=0.5)robustness     (𝑠#'=2.9)
+Aggregate𝑝=0.002
+Prefix 𝐲#"Original distributionModified distributionNext token 𝐲" 
+Candidate text )𝐲 Per-token statistic 𝑠" p-value
+𝑃!(𝐲"|𝐱,𝐲#")
+WaterPool tries to break the tie between undetectability robustness and robustness undetectability.
+Figure 2: Overview of key-centered watermarking scheme. A watermark is decomposed into two modules, a key
+module and a mark module. (a) During generation, the LLM provides an next token distribution PM . The key
+module samples a private key ki as a random seed for the mark module to stochastically modify the distribution
+to ˆPM , from which watermarked texts are sampled. (b) During detection, the key module restores the key ˆki for
+each candidate token. The mark module then calculates the per-token statistic si based on the restored key and
+aggregates them forp-value.
+for watermark injection3. The statistical difference
+enables the application of statistical tests like per-
+mutation tests (Kuditipudi et al., 2023) or paramet-
+ric tests assuming specific distribution forms under
+the null hypothesis (Kirchenbauer et al., 2023a;
+Fernandez et al., 2023).
+Robustness. Robustness is a one-step-further re-
+quirement of efficacy. The statistical pattern of
+watermarked texts could be vulnerable to poten-
+tial attacks, including lexical modification or para-
+phrasing (Krishna et al., 2023; Kirchenbauer et al.,
+2023b). An ideal watermark technique should be
+resilient to removal and should maintain high effi-
+cacy even after such semantics-preserved attacks.
+3 Methods
+3.1 Decompose Watermark: a Key-centered
+Scheme
+As stated in Section 2, the critical part of water-
+marking falls in the modified distribution, which
+is stochastic and determined by a random seed, i.e.
+the Private Key (Christ et al., 2023; Kuditipudi
+et al., 2023). With private keys as connection, we
+decompose watermarks into two independent mod-
+ules: a Key Module and a Mark Module. The for-
+mer handles the sampling and restoration of private
+keys, while the latter is responsible for the mod-
+ification process and per-token statistic based on
+private keys. The overall scheme is illustrated in
+Figure 2.
+3ϕ(p) has different forms and names in previous works.
+(Kuditipudi et al., 2023) defines it as watermark potentials.
+(Kirchenbauer et al., 2023a) connects it with a special form of
+entropy.
+Specifically, during thei-th step of generation,
+the key module samples a private key ki from the
+possible key space Ξ⊂R to provide randomness.
+Then the mark module takes the sampled key as a
+random seed to stochastically modify the next to-
+ken distributionPi :=PM(·|xn, yn
+<i) toF (ki,Pi),
+whereF : R×∆(Σ) →∆(Σ) .
+During detection, a candidate textˆy is given. Wa-
+termarking techniques generally frame the detec-
+tion as a hypothesis testing problem, treating each
+token as an i.i.d sample. For each token ˆyi, the key
+module tries to restore the corresponding private
+key ˆki used in generation based on the context. The
+mark module then calculates the per-token statistic
+si = S(ˆyi, ˆki), where S : R×Σ →R. These
+statistics are then aggregated to indicate the likeli-
+hood of the entire sequence being watermarked.
+In this scheme, the key module and the mark
+module operate independently, which allows for
+the combination of any key module with any mark
+module to create new watermarking methods (Piet
+et al., 2023). We review several well-known wa-
+termarking techniques, list their designs of mark
+modules (i.e. F andS) and key modules in Ap-
+pendix A. In specific, we mainly focus on three
+renowned watermarking techniques in this work:
+• KGW (Kirchenbauer et al., 2023a). For the
+key module, KGW utilizes the hash value of
+thec-length context yi−c:i−1 as the private key
+ki. For the mark module, it randomly samples
+a partition of the vocabulary Σ , denoted as
+the green listGki
+4. The logits of green list
+4Thoughout the paper, we use the subscript ki to indicate
+a random variable seeded by the private key ki.
+4158
+
+=== PDF PAGE 4 ===
+tokens are added by a constantτto form the
+modified distribution.
+• EXP (Kuditipudi et al., 2023). For the key
+module, EXP limits the possible key space
+Ξ to a finite set sampled from R. With the
+finite key space, the key restoration process
+during detection can be estimated via greedy
+search. Specifically, EXP utilizes a edit dis-
+tance trickdedit to search for the key with high-
+est statistics, improving robustness in case of
+potential text alteration. For the mark module,
+EXP takes the private key as seed to sample
+a standard Gumbel vector gki. Gumbel-max
+sampling is then conduct to sample a token
+t∗. Finally, the degenerate distribution δ(t∗)
+is returned as modified distribution.
+• ITS (Kuditipudi et al., 2023). ITS utilizes
+the same key module as EXP. For the mark
+module, ITS takes the private key as seed to
+sample a standard uniform variable uki and a
+random permutationπki for a permutational
+inverse transform sampling. The degenerate
+distribution of the sampled token is then re-
+turned as the modified distribution.
+3.2 Behind Trade-offs: Conflicts within Key
+Module
+In this section, we examine how the key module af-
+fects imperceptibility, efficacy and robustness. As
+stated in Section 2, the statistical difference be-
+tween the null and alternative hypotheses is crucial
+for ensuring efficacy and robustness, i.e., whether
+the candidate token is sampled from a modified
+distribution. Regardless of the choice of statistic
+S(ˆki, ˆy), prior knowledge of the modified distribu-
+tion is essential. Since the modification process is
+stochastic and only dependent on the private key,
+successful detection requires that the restored key
+ˆki matches the true key used during generation.
+The key restoration process fundamentally in-
+volves searching through the potential key space
+Ξ. Both the ITS and EXP methods use a greedy
+search strategy, enumerating each potential key
+to identify the one exhibiting the highest statis-
+tic. While reliable in key restoration, it is markedly
+time-consuming. Moreover, the per-token statis-
+tic is now ˜s = maxs, potentially diminishing the
+statistical difference. To mitigate the issue, ITS
+and EXP limit the possible key space size. To the
+extreme, Unigram directly fixes the private key. Al-
+ternatively, methods like KGW, Delta, and Gamma
+take the context window through a hash function
+for key restoration, reducing time complexity com-
+pared to exhaustive searches. But there are risks
+of incorrect key restoration if context is altered by
+attacks, diminishing their robustness.
+As for imperceptibility under the key-centered
+scheme, Equation 2 can be rewritten as:
+∏
+i,n
+PM(yn
+i|xn,yn
+<i)=Ek1,...,kN [
+∏
+i,n
+F (kn
+i,Pn
+i )(yn
+i )]
+We then propose two requirements:
+Proposition 3.1. A watermark is imperceptible if
+(1) Independent condition: the sampled private
+key vectors for each generated output are mutu-
+ally independent, i.e. k1,...,kN i.i.d∼ U(RL)5; (2)
+Unbiased condition: the modification function F
+satisfiesPM(·|xn, yn
+<i) = Eki∼U(R)[F(ki,Pi)].
+The proposition describes separate requirements
+for key and mark modules. The detailed proof
+is presented in Appendix C.1. While many mark
+modules meet the unbiased condition (Kuditipudi
+et al., 2023; Hu et al., 2023), ensuring independent
+condition is challenging for key modules. The inde-
+pendence of private keys over the whole spaceR in
+successive generations indicates the search spaceΞ
+of key restoration grows linearly with the number
+of generations, as all previously used keys must be
+considered.
+The conflict within key modules now becomes
+apparent. Imperceptibility requires a large possible
+key space Ξ, which complicates the key restoration
+process during detection, thereby hindering both ef-
+ficacy and robustness. This trade-off within the key
+module is a critical factor underlying the broader
+trade-off among the three properties.
+3.3 WaterPool: Semantics-based Key Module
+The previous section highlights a conflict within
+the key module, which contributes to the trade-off
+issue in watermarking. A natural question arises:
+is it possible to break the conflict for mitigating the
+trade-off? To ensure imperceptibility, it is essential
+to maintain a sufficiently large key space, charac-
+terized by an i.i.d. sampling strategy. Thus, an effi-
+cient and precise search strategy for the private key
+is needed for efficacy. The context-hash strategy
+provides insights by leveraging contextual informa-
+tion, yet hash functions are fragile to attacks. We
+aim to find a robust signal within the candidate’s
+context that withstands semantic-preserved attacks.
+5L is the maximum output length of LLM.
+4159
+
+=== PDF PAGE 5 ===
+To this end, we propose WaterPool, a simple
+but effective key module empowered by semantic
+searching. Specifically, for each generation, Wa-
+terPool independently samples a private key vec-
+tor kn∼U(RL) to meet the independent condi-
+tion in Proposition 3.1. Each private key is then
+used for the mark module to modify the next to-
+ken distribution. We maintain a vector database
+[(Enc(y1), k1),...,(Enc(yN), kN)] to store the
+semantic embedding Enc(yn) of each output as
+keys and the corresponding private key vector kn
+as values6. For each candidate text ˆy during de-
+tection, regardless of whether it is watermarked,
+the most plausible private key vector ˆk is retrieved
+based on semantic similarity:
+ˆk=kn∗
+, wheren∗=argmax
+n
+sim(Enc(yn),Enc(ˆy))
+The restored key vector is then provided for the
+mark module to calculate the statistics. Given that
+the most similar text to the candidate is its own
+even under attacks, this method ensures accurate
+key restoration if the candidate is watermarked.
+As a key module, WaterPool is able to integrate
+with diverse mark modules. In this study, we inte-
+grate WaterPool with mark modules of three promi-
+nent watermarking techniques including EXP, ITS
+and KGW. These improved watermarks are referred
+to as EXP-Pool, ITS-Pool and KGW-Pool. Pseudo
+codes are presented in Appendix B.
+Building on Proposition 3.1, the imperceptibility
+of WaterPool is readily established with EXP and
+ITS satisfying the unbiased condition 7.
+Proposition 3.2. Both ITS-Pool and EXP-Pool are
+imperceptible.
+Furthermore, the efficacy of WaterPool can also
+be assured based on the efficacy of combined mark
+module. This can be formalized as,
+Proposition 3.3. The statistical difference in Wa-
+terPool is bounded from below, as expressed by:
+E[S(ˆki, yi)|H1]−E[S(ˆki, yi)|H0]≥precall·ϕ(pi)
+,whereϕ(p) is watermarking potentials of the cor-
+responding mark module depending on the prob-
+ability vector pi for the i-th token distribution
+PM(·|x, y<i).
+6Enc can be any semantic embedding models, e.g. BERT.
+7The mark module of KGW does not satisfy the unbi-
+ased condition. Therefore, WaterPool can only enhance its
+imperceptibility performance, but not achieve optimal imper-
+ceptibility.
+This proposition indicates that WaterPool can ef-
+fectively leverage the power of mark modules (i.e.
+the lower bound of its statistical difference with
+golden private key restoration), slightly modulated
+by the recall performance precall of WaterPool’s
+retriever. We will empirically demonstrate that the
+recall performance is near-optimal even in large
+scale database employing relatively weak retrievers
+in the following experiments. Proofs of proposi-
+tions above are presented in Appendix C.2 to C.6.
+3.4 Difference from Retrieval Watermark
+Krishna et al. (2023) proposed a retrieval water-
+mark to distinguish watermarked texts with se-
+mantic retrieval. Different from the key-centered
+scheme described in Section 3.1, they directly store
+every outputo generated by the specific LLM to
+be “watermarked" in a vector databaseD. During
+detection, they search over the database for simi-
+lar items, and utilize maxo∈D sim(o,o candidate) as
+confidence of the candidate being watermarked.
+WaterPool fundamentally differs from retrieval
+watermark, though they both leverage retrieval tech-
+niques. WaterPool’s efficacy and robustness rely
+primarily on the statistical difference guaranteed
+by the mark module. In specific, E[S(ki, yi)] is de-
+signed to be high if yi is sampled from ki-induced
+modified distribution and low if ki and yi are inde-
+pendent. Therefore, the retriever of WaterPool only
+needs to retrieve the correct private key for water-
+marked candidates, without concern for retrieval
+results of non-watermarked candidates, since all
+keys stored in the database are independent of all
+non-watermarked texts.
+In contrast, retrieval watermark directly uses sim-
+ilarity as score. For efficacy, it should ensure high
+similarity scores for watermarked texts and low
+similarity scores for non-watermarked ones. How-
+ever, due to the dense semantic space of human
+language, texts stored in the database often have
+similar non-watermarked neighbors (semantic colli-
+sions in Krishna et al. (2023)), and hence reducing
+efficacy. This issue will become more severe as the
+number of non-watermarked samples or the size of
+the vector database increases. We conduct an exper-
+iment to empirically demonstrate this by utilizing
+responses of other models to the same prompts as
+non-watermarked samples in Appendix E.2. In this
+scenario, the performance of retrieval watermark is
+over 40% worse than other watermarking methods.
+4160
+
+=== PDF PAGE 6 ===
+Glob-distinct2 Glob-distinct3 Group-distinct2 Group-distinct3 Perplexity
+value↑ ∆↑ value↑ ∆↑ value↑ ∆↑ value↑ ∆↑ value↓ ∆↓
+Open-Ended Text Generation
+Non-watermark 38.8±0.0 0.0±0.0 76.2±0.0 0.0±0.0 86.2±0.0 0.0±0.0 96.2±0.0 0.0±0.0 7.8±0.0 0.0±0.0
+Gamma 38.8±0.0 0.0±0.0 76.2±0.0 -0.0±0.0 86.2±0.0 -0.0±0.0 96.2±0.0 -0.0±0.0 7.8±0.0 0.0±0.0
+Delta 38.8±0.0 -0.0±0.0 76.2±0.0 -0.0±0.1 86.2±0.0 -0.0±0.1 96.2±0.0 -0.0±0.0 7.8±0.0 0.0±0.0
+Unigram 33.4±1.9 -5.3±1.9 69.9±2.8 -6.3±2.7 82.6±2.4 -3.6±2.4 95.1±0.6 -1.1±0.6 9.9±0.6 2.2±0.6
+KGW 36.7±0.1 -2.0±0.2 73.6±0.1 -2.7±0.1 85.5±0.1 -0.7±0.1 95.9±0.0 -0.3±0.1 9.6±0.0 1.8±0.0
+KGW-Pool 40.5±0.2 1.8±0.2 78.7±0.2 2.4±0.2 87.3±0.1 1.1±0.2 96.7±0.0 0.5±0.1 9.9±0.0 2.1±0.0
+EXP 30.2±0.0 -8.5±0.0 59.2±0.0 -17.0±0.0 73.4±0.1 -12.8±0.0 82.2±0.1 -14.0±0.0 7.8±0.0 0.0±0.0
+EXP-Pool 38.7±0.0 -0.0±0.0 76.2±0.0 -0.0±0.0 86.2±0.0 -0.0±0.1 96.2±0.0 -0.0±0.0 7.8±0.0 0.0±0.0
+ITS 34.4±0.7 -4.4±0.7 66.4±1.5 -9.8±1.5 75.2±1.8 -11.0±1.8 83.7±2.1 -12.6±2.1 7.5±0.0 -0.3±0.0
+ITS-Pool 38.8±0.0 0.0±0.0 76.2±0.0 -0.0±0.0 86.2±0.0 0.0±0.0 96.2±0.0 -0.0±0.0 7.8±0.0 0.0±0.0
+Long-Form Question Answering
+Non-watermark 31.5±0.0 0.0±0.0 70.0±0.0 0.0±0.0 86.7±0.0 0.0±0.0 97.0±0.0 0.0±0.0 9.5±0.0 0.0±0.0
+Gamma 31.5±0.0 0.0±0.0 70.0±0.0 0.0±0.1 86.7±0.0 0.0±0.0 97.0±0.0 0.0±0.0 9.5±0.0 0.0±0.0
+Delta 31.5±0.0 0.0±0.0 70.0±0.0 -0.0±0.1 86.8±0.0 0.0±0.0 97.0±0.0 0.0±0.0 9.5±0.0 0.0±0.0
+Unigram 26.4±2.0 -5.1±2.0 62.0±2.9 -7.9±2.9 81.2±2.5 -5.5±2.5 94.8±0.6 -2.2±0.6 10.9±1.4 1.4±1.4
+KGW 29.5±0.2 -2.0±0.2 66.2±0.3 -3.8±0.2 85.4±0.1 -1.3±0.1 96.4±0.0 -0.7±0.1 11.6±0.1 2.1±0.1
+KGW-Pool 32.9±0.2 1.4±0.2 71.6±0.3 1.6±0.3 83.8±0.3 -2.9±0.3 94.3±0.2 -2.8±0.2 10.9±0.1 1.4±0.1
+EXP 22.6±0.3 -8.9±0.3 50.0±0.7 -20.0±0.7 75.3±1.1 -11.4±1.1 85.1±1.4 -11.9±1.4 9.6±0.0 0.1±0.0
+EXP-Pool 31.5±0.0 0.0±0.0 70.0±0.0 0.0±0.0 86.8±0.0 0.1±0.0 97.1±0.0 0.0±0.0 9.5±0.0 0.0±0.0
+ITS 27.8±0.6 -3.7±0.6 60.7±1.4 -9.3±1.4 76.1±1.9 -10.6±1.9 84.7±2.3 -12.3±2.3 9.1±0.0 -0.4±0.0
+ITS-Pool 31.5±0.0 -0.0±0.0 69.9±0.0 -0.0±0.0 86.8±0.0 0.1±0.0 97.0±0.0 0.0±0.0 9.8±0.0 0.3±0.0
+Table 1: Imperceptibility of different watermarking methods on OPT-1.3B.∆ is the difference between watermarked
+and non-watermarked texts. The best and second-best results before rounding are highlighted in bold and underline.
+4 Experiments
+Datasets. Following Kirchenbauer et al. (2023a,b),
+we include two common used datasets, the C4
+dataset and "Explain Like I’m Five" (ELI5) (Fan
+et al., 2019) for open-ended text generation and
+long-form question answering, respectively. We
+randomly select about 3000 texts from both
+datasets as prompts for two LLMs, OPT-1.3b and
+OPT-6.7b, following Krishna et al. (2023).
+Metrics. We generate 20 watermarked outputs
+for each prompt, while considering outputs of
+the original LLM as non-watermarked. Subse-
+quently, 120,000 samples are used to evaluate each
+method. For both efficacy and robustness, we re-
+port true positive rate at 1% false positive rate, de-
+noted as TPR@FPR=1%. We also include ROC-
+AUC in Appendix E. To evaluate the robustness of
+watermarking techniques, we include three kinds
+of attacks, namely Lexical-Attack, Dipper-Attack
+and Translation-Attack. Lexical-attack randomly
+add/delete/replace 10% tokens of texts. Dipper
+is a paraphrasing model (Krishna et al., 2023).
+Translation-attack represents roundtrip-translation,
+which is a paraphrasing pipeline. For the evaluation
+of imperceptibility, we split the criteria into two
+aspects: (1) the distribution bias within each output
+(2) the independence among different outputs. The
+former can be evaluated with Perplexity while the
+latter can be roughly evaluated with n-gram distinc-
+tion (Kirchenbauer et al., 2023b). Specifically, we
+consider the distinction across all outputs ( Glob-
+distinct-N) and within outputs in response to one
+single prompt (Group-distinct-N).
+Baselines and implementation details. We in-
+clude several typical methods as baselines. In
+addition to EXP, ITS and KGW, we also include
+Gamma (Hu et al., 2023), Delta (Hu et al., 2023)
+and Unigram (Zhao et al., 2023). All baselines
+are reproduced based on source codes provided
+by original paper. We use a 128 dimension sen-
+tence embedding model (Nussbaum et al., 2024)
+as Enc(·) in WaterPool. For implementation of
+mark modules in different WaterPool (i.e. KGW-
+Pool, ITS-Pool, EXP-Pool), we use identical hyper-
+parameter settings as the corresponding baselines.
+Other details are presented in Appendix D.
+4.1 Main Results
+We here only present and discuss results of OPT-
+1.3b in this section. Results of OPT-6.7b and more
+analysis experiments are presented in Appendix E.
+Notably, results across different LLMs on different
+tasks exhibit consistent trends and patterns.
+Most baselines have achieved high efficacy (over
+90% TPR@FPR=1%), but they all make trade-offs
+between imperceptibility and robustness. Consis-
+tent with our theoretical analysis in Section 3.2, Un-
+igram, EXP, and ITS limit the key spaceΞ, thereby
+reducing the independence of keys across different
+generations. This is reflected in their weaker per-
+formance on the Distinct-N metric. Specifically,
+4161
+
+=== PDF PAGE 7 ===
+w/o Attack Lexical-Attack Dipper-Attack Translation-Attack
+value↑ ∆ value↑ ∆ value↑ ∆ value↑ ∆
+Open-Ended Text Generation
+Gamma 96.94±0.05 - 17.91±0.28 - 2.26±0.04 - 3.25±0.10 -
+Delta 75.37±0.34 - 8.58±0.27 - 2.07±0.08 - 2.91±0.11 -
+Unigram 93.98±1.32 - 89.69±3.67 - 19.99±7.44 - 35.35±8.74 -
+KGW 98.43±0.08 - 88.88±0.13 - 15.05±0.32 - 29.53±0.23 -
+KGW-Pool 98.29±0.01 -0.15±0.08 95.29±1.04 6.41±1.17 24.62±2.01 9.57±2.32 42.26±1.70 12.73±1.73
+EXP 97.19±0.08 - 93.48±0.09 - 18.32±0.36 - 31.14±0.33 -
+EXP-Pool 98.43±0.01 1.24±0.09 96.67±0.07 3.19±0.15 26.17±0.86 7.85±0.62 51.41±0.42 20.27±0.64
+ITS 73.43±0.10 - 26.23±0.19 - 2.16±0.08 - 3.56±0.08 -
+ITS-Pool 92.56±0.14 19.12±0.11 68.50±0.46 42.27±0.40 4.05±0.15 1.89±0.11 10.83±0.31 7.27±0.39
+Long-Form Question Answering
+Gamma 98.68±0.05 - 21.20±0.36 - 2.31±0.05 - 5.18±0.21 -
+Delta 90.19±0.13 - 12.17±0.10 - 2.21±0.08 - 4.96±0.02 -
+Unigram 96.93±1.99 - 92.47±3.77 - 26.38±5.88 - 43.17±6.98 -
+KGW 99.51±0.01 - 94.12±0.06 - 19.21±0.17 - 46.62±0.43 -
+KGW-Pool 99.51±0.00 -0.01±0.01 97.97±0.04 3.85±0.08 29.92±1.04 10.71±1.20 50.14±0.24 3.52±0.37
+EXP 99.17±0.06 - 97.56±0.08 - 27.92±0.56 - 54.99±0.37 -
+EXP-Pool 99.56±0.04 0.40±0.08 98.81±0.07 1.25±0.05 36.24±0.82 8.32±1.37 72.61±0.29 17.62±0.56
+ITS 86.40±0.51 - 38.23±0.46 - 3.02±0.19 - 8.19±0.17 -
+ITS-Pool 97.56±0.05 11.16±0.46 81.73±0.34 43.51±0.21 6.25±0.15 3.23±0.05 24.26±0.43 16.07±0.27
+Table 2: Efficacy and robustness of different watermarking methods on OPT-1.3B evaluated with TPR@FPR=1%.∆
+is the performance boost brought by WaterPool. The best and second-best results are shown in bold and underline.
+Unigram suffers from degradation in both Distinct-
+N and perplexity. While EXP and ITS perform
+well in perplexity, they exhibit the worst Distinct-
+N results with more than 10% degradation. On
+the contrary, Gamma and Delta achieve optimal
+imperceptibility but at the cost of both efficacy and
+robustness. During detection, the alternative hy-
+pothesis distribution required by their likelihood
+ratio test is often inaccurate due to missing original
+prompts. Thus, their TPR@FPR=1% is signifi-
+cantly weaker compared to other methods.
+WaterPool effectively mitigates these trade-offs.
+It markedly improves the original watermarking
+techniques across all tasks and all three aspects.
+It elevates the imperceptibility of original water-
+marks to near-optimal levels, as evidenced by the
+minimal difference from non-watermarked texts.
+Moreover, it consistently enhances the robustness
+of the original watermarks, as shown by substan-
+tial improvements in the TPR@FPR=1% metric
+(e.g. KGW-Pool outperforms KGW by 12.73%,
+EXP-Pool outperforms EXP by 20.27%, ITS-Pool
+outperforms ITS by 7.27%).
+4.2 Real-world Challenges for WaterPool
+As stated in Section 3.4, WaterPool only requires
+to retrieve golden private key if it exists. This asser-
+tion holds intuitively, as a watermarked text, even
+under attacks, should remain semantically closer to
+the original watermarked text stored in the database
+than other texts. Otherwise, it should not be consid-
+ered a modified version of the original watermarked
+text. To empirically demonstrate this, we conduct
+various experiments to demonstrate the stability of
+WaterPool under two real-world challenges.
+Performance with Diverse Negative Samples.
+We test the performance of WaterPool across vari-
+ous distributions of non-watermarked text, includ-
+ing human-written outputs (Human, 3K samples)
+and outputs from other non-watermarked models8
+(Other Models, 1.8M samples) with respect to the
+same prompts. Results shown in Table 3 indicate
+that all WaterPool methods exhibit stable perfor-
+mance regardless of the number and types of neg-
+ative samples, which aligns with our theoretical
+analysis. This stability also highlights the advan-
+tages of WaterPool over retrieval watermarking,
+further substantiating the claims in Section 3.4.
+Scalability with Large Vector Databases. An-
+other real-world challenge for WaterPool is the in-
+creasing scale of possible key spaceΞ with increas-
+ing calls to watermarked LLMs. This raises the
+question of whether the key module can accurately
+retrieve the correct key from a large-scale database.
+To this end, we conduct experiments by scaling
+up the vector database size to simulate this sce-
+nario. Specifically, we augment the database with
+noisy entries by incorporating 50-token fragments
+sampled from the C4 dataset, constructing a noisy
+8Models include Gemma-2b, Gemma-7b, Llama2-7b,
+Llama2-13b, Vicuna-7b and Vicuna-13b.
+4162
+
+=== PDF PAGE 8 ===
+Original Human Other Models
+w/o Attack 98.43 98.35 98.45
+Lexical-Attack 96.67 96.50 96.72
+Dipper-Attack 26.17 24.49 25.65
+Translation-Attack 51.41 50.23 51.60
+Table 3: TPR@FPR=1% of EXP-Pool with different
+non-watermarked texts listed in the first row. WaterPool
+remains stable across different non-watermarked text
+sources. Full results are presented in Appendix E.3.
+100
+80
+60
+40
+20
+0
+TPR@FPR=1%
+105 106 107 108
+Database Size
+Lex-Attack
+Dipper-Attack
+Translation-Attack
+EXP-Pool
+KGW-Pool
+ITS-Pool
+Figure 3: TPR@FPR=1% of WaterPool with different
+database size. WaterPool maintains stable performance
+as the scale increases to 100M items exponentially.
+database of more than 100 million items. During
+detection, if WaterPool retrieves a noisy item from
+the fake database, representing a failed key recon-
+struction, a random key is used for the per-token
+statistic calculation, thereby affecting its efficacy
+and robustness. This setting is particularly chal-
+lenging for open-ended text generation task since
+the noisy database shares a similar distribution with
+the watermarked texts stored in real database, both
+sampled from C4 dataset. Results on open-ended
+text generation and long-form question answering
+are presented in Figure 3. The results demonstrate
+that WaterPool maintains robust performance even
+as the database size increases exponentially, indi-
+cating its feasibility in real-world applications.
+4.3 Analysis of Space and Time
+The price for breaking the trade-off issues with
+WaterPool lies in its space usage. The space com-
+plexity of WaterPool is O(N), growing linearly
+with the number of generations. However, this is
+still practical in real-world scenarios. In our ex-
+periments, we use sentence embeddings in form of
+128-dimensional bfloat16 arrays and a private key
+of one int32 number9. Given ChatGPT’s monthly
+9In practice, we can only sample a number as seed to ini-
+tialize a pseudo-random number generator, thereby generating
+the whole private key vector k∈RL for all tokens.
+visits are about 2B per month10, it takes 260 bytes
+of space per item, resulting in about 520 GB of
+storage per month, which is certainly manageable
+nowadays. Regarding time complexity, WaterPool
+requires less than 0.001 sec per item to retrieve
+from a database of 100M items with 10 RTX3090
+GPUs, which is sufficient since watermark detec-
+tion is not a time-intensive application.
+5 Related Work
+Watermarking is a specific form of steganography.
+Steganography requires that, without the knowl-
+edge about private keys, distributions of original
+texts and texts with steganography must be indis-
+tinguishable (Simmons, 1984; Katzenbeisser and
+Petitcolas, 1999; Hopper et al., 2009; Dedi´c et al.,
+2008; Fang et al., 2017), which leads to impercep-
+tibility objective of watermarking in Section 2.
+LLM watermarking has recently gained many at-
+tention (Christ et al., 2023; Kuditipudi et al., 2023;
+Hu et al., 2023; Pri, 2023; Zhao et al., 2024; Christ
+and Gunn, 2024; Fairoze et al., 2023; He et al.,
+2024), which can be seamlessly integrated into all
+LLMs without further training. KGW (Kirchen-
+bauer et al., 2023a) is the pioneering work, us-
+ing context windows as private keys to increase
+probabilities of a specific partition of vocabulary.
+Building on KGW, follow-ups made many improve-
+ments, such as proposing different hash functions
+(Kirchenbauer et al., 2023b; Hou et al., 2023; Liu
+et al., 2023a; Ren et al., 2023), heuristic partition
+strategies (Li et al., 2023; Chen et al., 2023), em-
+bedding multi-bit messages (Wang et al., 2023; Qu
+et al., 2024), and robust hypothesis testing tech-
+niques (Fernandez et al., 2023). Despite these
+advancements, the trade-off among imperceptibil-
+ity, efficacy, and robustness has been widely rec-
+ognized and remains unresolved. A concurrent
+work (Giboulot and Teddy, 2024) also tries to break
+the trade-off by resampling until observing signifi-
+cant watermarking signals. Although this approach
+maintains imperceptibility in a single turn, it sig-
+nificantly alters theN-shot output distribution.
+6 Conclusion
+In this paper, we focus on the trade-off challenges
+among imperceptibility, efficacy and robustness
+in LLM watermarking. Through a key-centered
+scheme, we have identified that the trade-offs arise
+10https://explodingtopics.com/blog/
+chatgpt-users
+4163
+
+=== PDF PAGE 9 ===
+from the conflict between the scale of the key sam-
+pling space during generation and the complexity
+of key restoration during detection. This insight
+motivates the design of WaterPool, a key module
+utilizing semantic search to alleviate this conflict.
+WaterPool integrates seamlessly with most exist-
+ing watermarking methods, significantly enhancing
+their performance across all three dimensions. We
+hope this work offers valuable insights to future
+research for better solutions to this challenge.
+Acknowledgments
+This work was supported by Beijing Science and
+Technology Program (Z231100007423011) and
+Key Laboratory of Science, Technology and Stan-
+dard in Press Industry (Key Laboratory of Intelli-
+gent Press Media Technology). We appreciate the
+anonymous reviewers for their helpful comments.
+Xiaojun Wan is the corresponding author.
+Limitations
+While WaterPool is both simple and easy to de-
+ploy, it does not entirely resolve the trade-offs be-
+tween imperceptibility, efficacy, and robustness.
+The mark module is also a pivotal component in
+achieving these goals. We have defined the unbi-
+ased condition and statistical differences to outline
+the requirements for mark modules. However, the
+specific design and optimization of mark modules
+are not discussed in this paper. Future research
+could explore advanced mark module designs, ad-
+vancing towards fully resolving the trade-off chal-
+lenges in LLM watermarking.
+References
+2023. A Private Watermark for Large Language Models.
+In The Twelfth International Conference on Learning
+Representations.
+Emily M. Bender, Timnit Gebru, Angelina McMillan-
+Major, and Shmargaret Shmitchell. 2021. On the
+dangers of stochastic parrots: Can language mod-
+els be too big? In Proceedings of the 2021 ACM
+Conference on Fairness, Accountability, and Trans-
+parency, FAccT ’21, page 610–623, New York, NY ,
+USA. Association for Computing Machinery.
+Liang Chen, Yatao Bian, Yang Deng, Shuaiyi Li,
+Bingzhe Wu, Peilin Zhao, and Kam-fai Wong. 2023.
+X-Mark: Towards Lossless Watermarking Through
+Lexical Redundancy. Preprint, arXiv:2311.09832.
+Wei-Lin Chiang, Zhuohan Li, Zi Lin, Ying Sheng,
+Zhanghao Wu, Hao Zhang, Lianmin Zheng, Siyuan
+Zhuang, Yonghao Zhuang, Joseph E. Gonzalez, Ion
+Stoica, and Eric P. Xing. 2023. Vicuna: An open-
+source chatbot impressing gpt-4 with 90%* chatgpt
+quality.
+Miranda Christ and Sam Gunn. 2024. Pseu-
+dorandom Error-Correcting Codes. Preprint,
+arXiv:2402.09370.
+Miranda Christ, Sam Gunn, and Or Zamir. 2023. Unde-
+tectable Watermarks for Language Models. Preprint,
+arXiv:2306.09194.
+Nenad Dedi ´c, Gene Itkis, Leonid Reyzin, and Scott
+Russell. 2008. Upper and lower bounds on
+black-box steganography. Journal of Cryptology ,
+22(3):365–394.
+Jaiden Fairoze, Sanjam Garg, Somesh Jha, Saeed
+Mahloujifar, Mohammad Mahmoody, and Mingyuan
+Wang. 2023. Publicly Detectable Watermarking for
+Language Models. Preprint, arXiv:2310.18491.
+Angela Fan, Yacine Jernite, Ethan Perez, David Grang-
+ier, Jason Weston, and Michael Auli. 2019. ELI5:
+Long form question answering. In Proceedings of
+the 57th Annual Meeting of the Association for Com-
+putational Linguistics, pages 3558–3567, Florence,
+Italy. Association for Computational Linguistics.
+Tina Fang, Martin Jaggi, and Katerina Argyraki. 2017.
+Generating steganographic text with LSTMs. In Pro-
+ceedings of ACL 2017, Student Research Workshop,
+pages 100–106, Vancouver, Canada. Association for
+Computational Linguistics.
+Pierre Fernandez, Antoine Chaffin, Karim Tit, Vivien
+Chappelier, and Teddy Furon. 2023. Three Bricks to
+Consolidate Watermarks for Large Language Models.
+Preprint, arXiv:2308.00113.
+Eva Giboulot and Furon Teddy. 2024. Wa-
+terMax: Breaking the LLM watermark
+detectability-robustness-quality trade-off. Preprint,
+arXiv:2403.04808.
+Zhiwei He, Binglin Zhou, Hongkun Hao, Aiwei Liu,
+Xing Wang, Zhaopeng Tu, Zhuosheng Zhang, and
+Rui Wang. 2024. Can watermarks survive transla-
+tion? on the cross-lingual consistency of text wa-
+termark for large language models. In Proceedings
+of the 62nd Annual Meeting of the Association for
+Computational Linguistics (Volume 1: Long Papers),
+pages 4115–4129, Bangkok, Thailand. Association
+for Computational Linguistics.
+Nicholas Hopper, Luis von Ahn, and John Langford.
+2009. Provably secure steganography. IEEE Trans-
+actions on Computers, 58(5):662–676.
+Abe Bohan Hou, Jingyu Zhang, Tianxing He,
+Yichen Wang, Yung-Sung Chuang, Hongwei Wang,
+Lingfeng Shen, Benjamin Van Durme, Daniel
+Khashabi, and Yulia Tsvetkov. 2023. SemStamp:
+A Semantic Watermark with Paraphrastic Robustness
+for Text Generation. Preprint, arXiv:2310.03991.
+4164
+
+=== PDF PAGE 10 ===
+Zhengmian Hu, Lichang Chen, Xidong Wu, Yihan Wu,
+Hongyang Zhang, and Heng Huang. 2023. Unbiased
+Watermark for Large Language Models. Preprint,
+arXiv:2310.10669.
+Stephan Katzenbeisser and Fabien Petitcolas. 1999. In-
+formation Hiding Techniques for Steganography and
+Digital Watermaking, volume 28.
+John Kirchenbauer, Jonas Geiping, Yuxin Wen,
+Jonathan Katz, Ian Miers, and Tom Goldstein. 2023a.
+A Watermark for Large Language Models. In Pro-
+ceedings of the 40th International Conference on
+Machine Learning, pages 17061–17084. PMLR.
+John Kirchenbauer, Jonas Geiping, Yuxin Wen, Manli
+Shu, Khalid Saifullah, Kezhi Kong, Kasun Fer-
+nando, Aniruddha Saha, Micah Goldblum, and
+Tom Goldstein. 2023b. On the Reliability of Wa-
+termarks for Large Language Models. Preprint,
+arXiv:2306.04634.
+Kalpesh Krishna, Yixiao Song, Marzena Karpinska,
+John Wieting, and Mohit Iyyer. 2023. Paraphrasing
+evades detectors of AI-generated text, but retrieval is
+an effective defense. Preprint, arXiv:2303.13408.
+Rohith Kuditipudi, John Thickstun, Tatsunori
+Hashimoto, and Percy Liang. 2023. Robust
+Distortion-free Watermarks for Language Models.
+Preprint, arXiv:2307.15593.
+Yuhang Li, Yihan Wang, Zhouxing Shi, and Cho-Jui
+Hsieh. 2023. Improving the Generation Quality of
+Watermarked Large Language Models via Word Im-
+portance Scoring. Preprint, arXiv:2311.09668.
+Aiwei Liu, Leyi Pan, Xuming Hu, Shiao Meng, and
+Lijie Wen. 2023a. A Semantic Invariant Robust
+Watermark for Large Language Models. Preprint,
+arXiv:2310.06356.
+Aiwei Liu, Leyi Pan, Yijian Lu, Jingjing Li, Xuming
+Hu, Lijie Wen, Irwin King, and Philip S. Yu. 2023b.
+A Survey of Text Watermarking in the Era of Large
+Language Models. Preprint, arXiv:2312.07913.
+Zach Nussbaum, John X. Morris, Brandon Duderstadt,
+and Andriy Mulyar. 2024. Nomic embed: Training a
+reproducible long context text embedder. Preprint,
+arXiv:2402.01613.
+Julien Piet, Chawin Sitawarin, Vivian Fang, Norman
+Mu, and David Wagner. 2023. Mark My Words: An-
+alyzing and Evaluating Language Model Watermarks.
+Preprint, arXiv:2312.00273.
+Wenjie Qu, Dong Yin, Zixin He, Wei Zou, Tianyang
+Tao, Jinyuan Jia, and Jiaheng Zhang. 2024.
+Provably Robust Multi-bit Watermarking for AI-
+generated Text via Error Correction Code. Preprint,
+arXiv:2401.16820.
+Jie Ren, Han Xu, Yiding Liu, Yingqian Cui, Shuaiqiang
+Wang, Dawei Yin, and Jiliang Tang. 2023. A Ro-
+bust Semantics-based Watermark for Large Lan-
+guage Model against Paraphrasing. Preprint,
+arXiv:2311.08721.
+Gustavus J. Simmons. 1984. The Prisoners’ Problem
+and the Subliminal Channel, pages 51–67. Springer
+US, Boston, MA.
+Gemma Team, Thomas Mesnard, Cassidy Hardin,
+Robert Dadashi, and Surya Bhupatiraju et al. 2024.
+Gemma: Open models based on gemini research and
+technology. Preprint, arXiv:2403.08295.
+Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert,
+Amjad Almahairi, Yasmine Babaei, Nikolay Bash-
+lykov, and et al. 2023. Llama 2: Open foundation and
+fine-tuned chat models. Preprint, arXiv:2307.09288.
+Lean Wang, Wenkai Yang, Deli Chen, Hao Zhou,
+Yankai Lin, Fandong Meng, Jie Zhou, and Xu Sun.
+2023. Towards Codable Text Watermarking for Large
+Language Models. Preprint, arXiv:2307.15992.
+Xuandong Zhao, Prabhanjan Ananth, Lei Li,
+and Yu-Xiang Wang. 2023. Provable Ro-
+bust Watermarking for AI-Generated Text.
+https://arxiv.org/abs/2306.17439v2.
+Xuandong Zhao, Lei Li, and Yu-Xiang Wang.
+2024. Permute-and-Flip: An optimally robust
+and watermarkable decoder for LLMs. Preprint,
+arXiv:2402.05864.
+References
+2023. A Private Watermark for Large Language Models.
+In The Twelfth International Conference on Learning
+Representations.
+Emily M. Bender, Timnit Gebru, Angelina McMillan-
+Major, and Shmargaret Shmitchell. 2021. On the
+dangers of stochastic parrots: Can language mod-
+els be too big? In Proceedings of the 2021 ACM
+Conference on Fairness, Accountability, and Trans-
+parency, FAccT ’21, page 610–623, New York, NY ,
+USA. Association for Computing Machinery.
+Liang Chen, Yatao Bian, Yang Deng, Shuaiyi Li,
+Bingzhe Wu, Peilin Zhao, and Kam-fai Wong. 2023.
+X-Mark: Towards Lossless Watermarking Through
+Lexical Redundancy. Preprint, arXiv:2311.09832.
+Wei-Lin Chiang, Zhuohan Li, Zi Lin, Ying Sheng,
+Zhanghao Wu, Hao Zhang, Lianmin Zheng, Siyuan
+Zhuang, Yonghao Zhuang, Joseph E. Gonzalez, Ion
+Stoica, and Eric P. Xing. 2023. Vicuna: An open-
+source chatbot impressing gpt-4 with 90%* chatgpt
+quality.
+Miranda Christ and Sam Gunn. 2024. Pseu-
+dorandom Error-Correcting Codes. Preprint,
+arXiv:2402.09370.
+Miranda Christ, Sam Gunn, and Or Zamir. 2023. Unde-
+tectable Watermarks for Language Models. Preprint,
+arXiv:2306.09194.
+4165
+
+=== PDF PAGE 11 ===
+Nenad Dedi ´c, Gene Itkis, Leonid Reyzin, and Scott
+Russell. 2008. Upper and lower bounds on
+black-box steganography. Journal of Cryptology ,
+22(3):365–394.
+Jaiden Fairoze, Sanjam Garg, Somesh Jha, Saeed
+Mahloujifar, Mohammad Mahmoody, and Mingyuan
+Wang. 2023. Publicly Detectable Watermarking for
+Language Models. Preprint, arXiv:2310.18491.
+Angela Fan, Yacine Jernite, Ethan Perez, David Grang-
+ier, Jason Weston, and Michael Auli. 2019. ELI5:
+Long form question answering. In Proceedings of
+the 57th Annual Meeting of the Association for Com-
+putational Linguistics, pages 3558–3567, Florence,
+Italy. Association for Computational Linguistics.
+Tina Fang, Martin Jaggi, and Katerina Argyraki. 2017.
+Generating steganographic text with LSTMs. In Pro-
+ceedings of ACL 2017, Student Research Workshop,
+pages 100–106, Vancouver, Canada. Association for
+Computational Linguistics.
+Pierre Fernandez, Antoine Chaffin, Karim Tit, Vivien
+Chappelier, and Teddy Furon. 2023. Three Bricks to
+Consolidate Watermarks for Large Language Models.
+Preprint, arXiv:2308.00113.
+Eva Giboulot and Furon Teddy. 2024. Wa-
+terMax: Breaking the LLM watermark
+detectability-robustness-quality trade-off. Preprint,
+arXiv:2403.04808.
+Zhiwei He, Binglin Zhou, Hongkun Hao, Aiwei Liu,
+Xing Wang, Zhaopeng Tu, Zhuosheng Zhang, and
+Rui Wang. 2024. Can watermarks survive transla-
+tion? on the cross-lingual consistency of text wa-
+termark for large language models. In Proceedings
+of the 62nd Annual Meeting of the Association for
+Computational Linguistics (Volume 1: Long Papers),
+pages 4115–4129, Bangkok, Thailand. Association
+for Computational Linguistics.
+Nicholas Hopper, Luis von Ahn, and John Langford.
+2009. Provably secure steganography. IEEE Trans-
+actions on Computers, 58(5):662–676.
+Abe Bohan Hou, Jingyu Zhang, Tianxing He,
+Yichen Wang, Yung-Sung Chuang, Hongwei Wang,
+Lingfeng Shen, Benjamin Van Durme, Daniel
+Khashabi, and Yulia Tsvetkov. 2023. SemStamp:
+A Semantic Watermark with Paraphrastic Robustness
+for Text Generation. Preprint, arXiv:2310.03991.
+Zhengmian Hu, Lichang Chen, Xidong Wu, Yihan Wu,
+Hongyang Zhang, and Heng Huang. 2023. Unbiased
+Watermark for Large Language Models. Preprint,
+arXiv:2310.10669.
+Stephan Katzenbeisser and Fabien Petitcolas. 1999. In-
+formation Hiding Techniques for Steganography and
+Digital Watermaking, volume 28.
+John Kirchenbauer, Jonas Geiping, Yuxin Wen,
+Jonathan Katz, Ian Miers, and Tom Goldstein. 2023a.
+A Watermark for Large Language Models. In Pro-
+ceedings of the 40th International Conference on
+Machine Learning, pages 17061–17084. PMLR.
+John Kirchenbauer, Jonas Geiping, Yuxin Wen, Manli
+Shu, Khalid Saifullah, Kezhi Kong, Kasun Fer-
+nando, Aniruddha Saha, Micah Goldblum, and
+Tom Goldstein. 2023b. On the Reliability of Wa-
+termarks for Large Language Models. Preprint,
+arXiv:2306.04634.
+Kalpesh Krishna, Yixiao Song, Marzena Karpinska,
+John Wieting, and Mohit Iyyer. 2023. Paraphrasing
+evades detectors of AI-generated text, but retrieval is
+an effective defense. Preprint, arXiv:2303.13408.
+Rohith Kuditipudi, John Thickstun, Tatsunori
+Hashimoto, and Percy Liang. 2023. Robust
+Distortion-free Watermarks for Language Models.
+Preprint, arXiv:2307.15593.
+Yuhang Li, Yihan Wang, Zhouxing Shi, and Cho-Jui
+Hsieh. 2023. Improving the Generation Quality of
+Watermarked Large Language Models via Word Im-
+portance Scoring. Preprint, arXiv:2311.09668.
+Aiwei Liu, Leyi Pan, Xuming Hu, Shiao Meng, and
+Lijie Wen. 2023a. A Semantic Invariant Robust
+Watermark for Large Language Models. Preprint,
+arXiv:2310.06356.
+Aiwei Liu, Leyi Pan, Yijian Lu, Jingjing Li, Xuming
+Hu, Lijie Wen, Irwin King, and Philip S. Yu. 2023b.
+A Survey of Text Watermarking in the Era of Large
+Language Models. Preprint, arXiv:2312.07913.
+Zach Nussbaum, John X. Morris, Brandon Duderstadt,
+and Andriy Mulyar. 2024. Nomic embed: Training a
+reproducible long context text embedder. Preprint,
+arXiv:2402.01613.
+Julien Piet, Chawin Sitawarin, Vivian Fang, Norman
+Mu, and David Wagner. 2023. Mark My Words: An-
+alyzing and Evaluating Language Model Watermarks.
+Preprint, arXiv:2312.00273.
+Wenjie Qu, Dong Yin, Zixin He, Wei Zou, Tianyang
+Tao, Jinyuan Jia, and Jiaheng Zhang. 2024.
+Provably Robust Multi-bit Watermarking for AI-
+generated Text via Error Correction Code. Preprint,
+arXiv:2401.16820.
+Jie Ren, Han Xu, Yiding Liu, Yingqian Cui, Shuaiqiang
+Wang, Dawei Yin, and Jiliang Tang. 2023. A Ro-
+bust Semantics-based Watermark for Large Lan-
+guage Model against Paraphrasing. Preprint,
+arXiv:2311.08721.
+Gustavus J. Simmons. 1984. The Prisoners’ Problem
+and the Subliminal Channel, pages 51–67. Springer
+US, Boston, MA.
+Gemma Team, Thomas Mesnard, Cassidy Hardin,
+Robert Dadashi, and Surya Bhupatiraju et al. 2024.
+Gemma: Open models based on gemini research and
+technology. Preprint, arXiv:2403.08295.
+4166
+
+=== PDF PAGE 12 ===
+Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert,
+Amjad Almahairi, Yasmine Babaei, Nikolay Bash-
+lykov, and et al. 2023. Llama 2: Open foundation and
+fine-tuned chat models. Preprint, arXiv:2307.09288.
+Lean Wang, Wenkai Yang, Deli Chen, Hao Zhou,
+Yankai Lin, Fandong Meng, Jie Zhou, and Xu Sun.
+2023. Towards Codable Text Watermarking for Large
+Language Models. Preprint, arXiv:2307.15992.
+Xuandong Zhao, Prabhanjan Ananth, Lei Li,
+and Yu-Xiang Wang. 2023. Provable Ro-
+bust Watermarking for AI-Generated Text.
+https://arxiv.org/abs/2306.17439v2.
+Xuandong Zhao, Lei Li, and Yu-Xiang Wang.
+2024. Permute-and-Flip: An optimally robust
+and watermarkable decoder for LLMs. Preprint,
+arXiv:2402.05864.
+4167
+
+=== PDF PAGE 13 ===
+Name Reweight Function F(ki,Pi) StatisticS(ˆki,ˆyi) Used in
+logits-add ∀t∈Σ, ˆLi(t) =Li(t) +τ·1t∈Gki
+F(ki,Pi) =Softmax(ˆLi) S(ˆki,ˆyi) =
+1ˆyi∈Gˆki
+−γ
+√len(y)γ(1−γ)
+KGW(Kirchenbauer et al., 2023a),
+Unigram(Zhao et al., 2023)
+inverse-sample
+uki∼U([0,1])
+∀t∈Σ,Pperm
+i (t) =Pi(π−1
+ki (t))
+z∗= min{z∈Z:∑
+ord(t)≤zPperm
+i (t)>uki}
+t∗=π−1
+ki◦ord−1(z∗)
+F(ki,Pi) =δ(t∗)
+S(ˆki,ˆyi) = (uˆki−1
+2)·(
+ord(πˆki(ˆyi))−1
+|Σ|−1 −1
+2) ITS(Kuditipudi et al., 2023)
+gumbel-samplegki∈R|Σ|,gki,j
+iid∼Gumbel(0,1)
+t∗= arg maxt∈Σ logPi(t) +gki,ord(t)
+F(ki,Pi) =δ(t∗)
+S(ˆki,ˆyi) =−exp(−gki,ord(ˆyi)) EXP(Kuditipudi et al., 2023)
+prob-scale
+∀t∈Σ,Pperm
+i (t) =Pi(π−1
+ki (t))
+∀t∈Σ,Cperm
+i (t) =∑
+ord(t′)<ord(t)Pperm
+i (t′)
+∀t∈Σ, ˆCi(t) = min(2Cperm
+i (t),1)
+∀t∈Σ, ˆPperm
+i (t) =ˆCi(t)−ˆCi(ord−1(ord(t)−1))
+∀t∈Σ, ˆPi(t) =ˆPperm
+i (πki(t))
+F(ki,Pi) =ˆPi
+∀t∈Σ,Pperm
+i (t) =Pi(π−1
+ˆki
+(t))
+∀t∈Σ,Cperm
+i (t) =∑
+ord(t′)<ord(t)Pperm
+i (t′)
+∀t∈Σ, ˆCi(t) = min(2Cperm
+i (t),1)
+∀t∈Σ, ˆPperm
+i (t) =ˆCi(t)−ˆCi(ord−1(ord(t)−1))
+∀t∈Σ, ˆPi(t) =ˆPperm
+i (πˆki(t))
+S(ˆki,ˆyi) = logˆPi(ˆyi)−logPi(ˆyi)
+Gamma(Kuditipudi et al., 2023)
+Table 4: Mark modules of typical watermarks.Pi(·),Ci(·) andLi(·) are probability distribution function, cumulative
+distribution function and logit function of thei-th step generation.ord : Σ→{1,...,|Σ|}is a function mapping each
+token to its order in the vocabulary.δ(t) represents a degeneration distribution taking only one valuet. Subscript
+"ki" indicates a random variable seeded by ki. For example, Gki is a random γratio partition of vocabulary,
+πki : Σ→Σ represents a random permutation over the vocabulary. Superscript "perm" indicates a distribution
+function after vocabulary permutation, such asP perm. Other notations likeγ,τare fixed hyper-parameters.
+Name Key Sampling ki Key Restorationˆki Used in
+greedy-search Ξ ={ξ1,...,ξK}i.i.d∼ U(RL)
+k∼U(Ξ)
+ˆk = arg max
+ξ∈Ξ
+dedit(ξ,ˆy), where
+dedit(ξ,ˆy) = max{dedit(ξ2:, ˆy2:) +S(ξ1, ˆy1),
+dedit(ξ,ˆy2:)−η,
+dedit(ξ2:, ˆy)−η}
+ITS(Kuditipudi et al., 2023),
+EXP(Kuditipudi et al., 2023)
+context-hash ki = hash(yi−c:i−1) ki = hash(ˆyi−c:i−1)
+KGW(Kirchenbauer et al., 2023a),
+Gamma(Hu et al., 2023),
+Delta(Hu et al., 2023)
+fixed-constant k∼U(R); ki =k ki =k Unigram(Zhao et al., 2023)
+Table 5: Key modules of typical watermarks. Both Ξ andk are initialized once, and then fixed on every generation.
+L is the maximum length of LLM.N,c,ηare all fixed hyper-parameters.
+4168
+
+=== PDF PAGE 14 ===
+A Typical Watermark Designs
+Here we list mark and key modules of typical wa-
+termarking methods in Table 4 and 5.
+4169
+
+=== PDF PAGE 15 ===
+B Algorithms of WaterPool
+In this section, we present the pseudo codes for
+EXP-Pool, ITS-Pool and KGW-Pool. We high-
+light the codes WaterPool invokes in with triangle
+comments (▷), while the rest of the code remains
+unchanged from the original watermarking tech-
+niques. The invocation code of WaterPool is little,
+demonstrating the ease of its integration with exist-
+ing watermarking methods. The specific implemen-
+tation of modification function F and per-token
+statisticS used in the pseudo codes can be found
+in Table 4.
+Algorithm 1 EXP-Pool Generation
+Params: language model M, max output length
+L, modification function of EXPFexp(·,·), embed-
+ding modelEnc(·).
+Input:N rounds queries{xn}N
+n=1.
+Output: N rounds outputs {yn}N
+n=1, vector
+databaseD.
+1: D←{} ▷Initialize vector database
+2: /* Multi-round queries */
+3: forn∈{1,...,N}do
+4: Input current round prompt xn
+5: yn←empty string
+6: kn∼U(RL) ▷Sample key
+7: /* Auto-regressive generation */
+8: fori∈1,...,Ldo
+9: Pi←PM(·|xn, yn
+<i)
+10: ˆPi←Fexp(kn
+i,Pi)
+11: yn
+i ∼ˆPi
+12: end for
+13: D←D∪{(Enc(yn), kn)}▷Store key
+14: Output current round generation yn
+15: end for
+Algorithm 2 EXP-Pool Detection
+Params: vector database D =
+{(Enc(yn), kn)}N
+n , embedding model Enc(·),
+permutation resample times T , edit penalty η,
+per-token statistic of EXPSexp(·,·).
+Input: candidate text ˆy
+Output:p-value of being watermarked ˆp
+1: /* Aggregation of per-token statistic si with
+edit distance trick */
+2: procedurededit(k, y):
+3: if len(k) = 0 then
+4: return−η·len(y)
+5: else if len(y) = 0 then
+6: return−η·len(k)
+7: else
+8: si←Sexp(k1, y2)
+9: return max{dedit(k2:, y2:) +
+si,d edit(k2:, y)−η,dedit(k, y2:)−η}
+10: end if
+11: end procedure
+12: n∗←arg maxn sim(Enc(yn),Enc (ˆy)) ▷
+Retrieve key from vector database
+13: ˆk←kn∗
+14: ˆV ←dedit(ˆk, ˆy)
+15: /* Permutation test */
+16: fort∈1,...,Tdo
+17: kt∼U(RL)
+18: Vt←dedit(kt, ˆy)
+19: end for
+20: /* Calculate p-value */
+21: ˆp←1
+T+1
+(
+1 +∑
+t 1 ˆV>V t
+)
+4170
+
+=== PDF PAGE 16 ===
+Algorithm 3 ITS-Pool Generation
+Params: language modelM, max output lengthL,
+modification function of ITSFits(·,·), embedding
+modelEnc(·).
+Input:N rounds queries{xn}N
+n=1.
+Output: N rounds outputs {yn}N
+n=1, vector
+databaseD.
+1: D←{} ▷Initialize vector database
+2: /* Multi-round queries */
+3: forn∈{1,...,N}do
+4: Input current round prompt xn
+5: yn←empty string
+6: kn∼U(RL) ▷Sample key
+7: /* Auto-regressive generation */
+8: fori∈1,...,Ldo
+9: Pi←PM(·|xn, yn
+<i)
+10: ˆPi←Fits(kn
+i,Pi)
+11: yn
+i ∼ˆPi
+12: end for
+13: D←D∪{(Enc(yn), kn)}▷Store key
+14: Output current round generation yn
+15: end for
+Algorithm 4 ITS-Pool Detection
+Params: vector database D =
+{(Enc(yn), kn)}N
+n , embedding model Enc(·),
+permutation resample times T , edit penalty η,
+per-token statistic of ITSSits(·,·).
+Input: candidate text ˆy
+Output:p-value of being watermarked ˆp
+1: /* Aggregation of per-token statistic si with
+edit distance trick */
+2: procedurededit(k, y):
+3: if len(k) = 0 then
+4: return−η·len(y)
+5: else if len(y) = 0 then
+6: return−η·len(k)
+7: else
+8: si←Sits(k1, y2)
+9: return max{dedit(k2:, y2:) +
+si,d edit(k2:, y)−η,dedit(k, y2:)−η}
+10: end if
+11: end procedure
+12: n∗←arg maxn sim(Enc(yn),Enc (ˆy)) ▷
+Retrieve key from vector database
+13: ˆk←kn∗
+14: ˆV ←dedit(ˆk, ˆy)
+15: /* Permutation test */
+16: fort∈1,...,Tdo
+17: kt∼U(RL)
+18: Vt←dedit(kt, ˆy)
+19: end for
+20: /* Calculate p-value */
+21: ˆp←1
+T+1
+(
+1 +∑
+t 1 ˆV>V t
+)
+4171
+
+=== PDF PAGE 17 ===
+Algorithm 5 KGW-Pool Generation
+Params: language modelM, max output lengthL,
+modification function of KGWFkgw(·,·), embed-
+ding modelEnc(·).
+Input:N rounds queries{xn}N
+n=1.
+Output: N rounds outputs {yn}N
+n=1, vector
+databaseD.
+1: D←{} ▷Initialize vector database
+2: /* Multi-round queries */
+3: forn∈{1,...,N}do
+4: Input current round prompt xn
+5: yn←empty string
+6: kn∼U(R) ▷Sample key
+7: /* Auto-regressive generation */
+8: fori∈1,...,Ldo
+9: Pi←PM(·|xn, yn
+<i)
+10: ˆPi←Fkgw(kn,Pi)
+11: yn
+i ∼ˆPi
+12: end for
+13: D←D +{(Enc(yn),kn)}▷Store key
+14: Output current round generation yn
+15: end for
+Algorithm 6 KGW-Pool Detection
+Params: vector database D ={(Enc(yn),kn)},
+embedding model Enc(·), per-token statistic of
+KGWSkgw(·,·)
+Input: candidate text ˆy
+Output:p-value of being watermarked ˆp
+1: n∗←arg maxn sim(Enc(yn),Enc (ˆy)) ▷
+Retrieve key from vector database
+2: ˆk←kn∗
+3: /* Aggregation of per-token statistic si via
+summation */
+4: fori∈1,...,len(ˆy) do
+5: si←Skgw(ˆk, ˆyi)
+6: end for
+7: /* Calculation of z-score */
+8: z←∑
+isi
+9: /* Calculation of p-value */
+10: p←1−Φ(z)
+4172
+
+=== PDF PAGE 18 ===
+C Theoretical Proofs
+C.1 Proof of Proposition 3.1
+Proof. Recall that the imperceptibility is defined
+as
+∏
+i,n
+PM(yn
+i|xn, yn
+<i) = Ek1,...,kN [
+∏
+i,n
+F (kn
+i,P n
+i )(yn
+i )]
+Given that (1) k1,...,kN i.i.d∼ U(RL); (2)
+PM(·|xn, yn
+<i) = Eki∼U(R)[F(ki,Pi)]. We have,
+RHS = Ek1∼U(RL)...EkN∼U(RL)[
+∏
+i,n
+F (kn
+i,P n
+i )(yn
+i )]
+=
+∏
+n
+Ekn∼U(RL)[
+∏
+i
+F (kn
+i,P n
+i )(yn
+i )]
+=
+∏
+n
+(Ekn
+1∼U(R)...Ekn
+L∼U(R)[
+∏
+i
+F (kn
+i,P n
+i )(yn
+i )])
+=
+∏
+n
+(
+∏
+i
+Ekn
+i∼U(R)[F (kn
+i,P n
+i )(yn
+i )])
+=
+∏
+n,i
+PM(yn
+i|xn, yn
+<i) = LHS
+C.2 Proof of Proposition 3.2 (EXP-Pool’s
+Imperceptibility)
+We first recall the distribution modification process
+of EXP-Pool. Given a private key ki as seed, a
+standard Gumbel vector gki ∈R|Σ|is sampled.
+Gumbel-max sampling process on the next token
+distributionPi(·) := PM(·|xn, yn
+<i) via gki sam-
+ples an output tokent∗. The degenerate distribution
+oft∗is then returned.
+Lemma C.1. The mark module of EXP-Pool satis-
+fies the unbiased condition, i.e.
+PM(·|xn, yn
+<i) = Eki∼U(R)[Fexp(ki,Pi)]
+Proof. For simplicity, we denotePM(t|xn, yn
+<i) as
+Pi(t) andgt as the Gumbel variable in gki corre-
+sponding to the tokent. Since The lemma holds if
+and only if for any tokent∈Σ ,
+PM(t|xn, yn
+<i) = Egki,j
+i.i.d∼Gumbel(0,1)[1logPi(t)+gt
+≥logPi(t′) +gt′,∀t′∈Σ]
+This equation follows as
+RHS=P (logPi(t)+gt≥logPi(t′)+gt′,∀t′∈Σ)
+=P (exp(−exp(−gt′))≤exp(−exp(−gt))Pi(t′)/Pi(t),
+∀t′∈Σ)
+=
+∫ 1
+0
+P (ut′≤uPi(t′)/Pi(t)
+t ,∀t′∈Σ|ut)p(ut)dut
+=
+∫ 1
+0
+∏
+t′∈Σ
+P(ut′≤uPi(t′)/Pi(t)
+t |ut)p(ut)dut
+=
+∫ 1
+0
+u
+∑
+t′Pi(t′)/Pi(t)
+t dut
+=Pi(t)=LHS
+,whereut := exp(−exp(−gt)). We have ut∼
+U(0, 1), sincegt∼Gumbel(0, 1).
+From the unbiased condition and the indepen-
+dent condition of WaterPool, the imperceptibility of
+EXP-Pool immediately follows according to Propo-
+sition 3.1.
+C.3 Proof of Proposition 3.2 (ITS-Pool’s
+Imperceptibility)
+We first recall the distribution modification process
+of ITS-Pool. Given a private key ki as the random
+seed, a random permutation πki : Σ →Σ and a
+uniform variable uki∼U([0, 1]) are sampled. ITS
+conducts an inverse transform sampling on the per-
+muted distributionP perm via u. The sampled token
+t is transformed back to t∗via inverse permuta-
+tionπ−1
+ki . The degenerate distribution oft∗is then
+returned.
+Lemma C.2. The mark module of ITS satisfies the
+unbiased condition, i.e.
+PM(·|xn, yn
+<i) = Eki∼U(R)[Fits(ki,Pi)]
+Proof. The lemma follows if that given any permu-
+tationπand any output tokent∗,
+PM(π(t∗)|xn, yn
+<i) = Euki∼U([0,1])[
+1π(t∗) is sampled via inverse transform sampling]
+This equation certainly holds because of the defi-
+nition of inverse transform sampling, i.e.
+RHS=P(uki∈[PM({t′:ord(t′)<ord◦π(t∗)}|xn, yn
+<i),
+PM({t′:ord(t′)≤ord◦π(t∗)}|xn, yn
+<i) ] )
+=PM(π(t∗)|xn, yn
+<i)=LHS
+,whereord : Σ →|Σ|is a function maps each
+token to its order in vocabulary.
+From the unbiased condition and the indepen-
+dent condition of WaterPool, the imperceptibility of
+ITS-Pool immediately follows according to Propo-
+sition 3.1.
+C.4 Proof of Proposition 3.3 (EXP-Pool’s
+Efficacy)
+We first recall the mark module of EXP-Pool
+(gumbel-sample in Table 4). During generation,
+the modification functionFexp(ki,Pi) takes a pri-
+vate key ki as seed to sample a standard Gum-
+bel vector. A Gumbel-max sampling is then con-
+duct to sample an output token, of which the de-
+generate distribution is returned. During detec-
+tion, the mark module takes in a restored pri-
+4173
+
+=== PDF PAGE 19 ===
+vate key ˆki to generate a restored Gumbel vec-
+tor g ˆki
+∈R|Σ|, g ˆki,j ∼Gumbel(0, 1). The per-
+token statisticSexp(ˆki, yi) =−exp(−g ˆki,ord(yi))
+is then calculated, where ord : Σ→{1,...,|Σ|}is
+a function maps each token to the its order in the
+vocabulary.
+For simplicity, we denotegt as the Gumbel vari-
+able gki,ord(t) corresponding to the tokent.
+We begin by proving that given a candidate token
+yi, the expectation of per-token statistic only relies
+on the original distributionPi(yi) if yi is sampled
+from the modified distribution seeded by ki. It can
+be formalized as the following lemma.
+Lemma C.3. Given a prefix y<i and a to-
+ken yi, for a private key ki ∼ U(R), if
+yi is sampled from Fexp(ki,PM(·|y<i)), then
+Eki∼R[Sexp(ki, yi)|yi, y<i] =−Pi(yi).
+Proof. The randomness of ki affects the statistic
+via the Gumbel vector gki = [gt]t∈Σ . For simplic-
+ity, we only consider the randomness ofgki instead
+of ki.
+We first calculate the cumulative distribution
+function ofSexp(ki, yi)|yi, y<i.
+P(Sexp(ki, yi)≤v|yi, y<i)
+=P(gyi≤−log(−v)|yi, y<i)
+(1)
+= P (
+⋂
+t∈Σ
+gt + logPi(t)≤gyi + logPi(yi)
+≤−log(−v) + logPi(yi)|yi, y<i)
+(2)
+=
+∏
+t∈Σ
+exp(−v Pi(t)
+Pi(yi))
+= exp(−v/Pi(yi))
+, where the equation (1) follows from the
+definition of Gumbel max sampling; (2) fol-
+lows from gt ∼Gumbel(0, 1). Therefore,
+−Sexp(ki, yi)|yi, y<i ∼Exp(1/Pi(yi)). The
+lemma follows immediately by calculating the ex-
+pectation.
+On the contrary, if yi is not sampled from modi-
+fied distribution seeded by ki,
+P (Sexp(ki,yi)≤v|yi,y<i)=P (gyi≤−log(−v))=exp(v)
+from which we have
+−Sexp(ki, yi)|yi, y<i∼Exp(1)
+Eki∼U(R)[Sexp(ki, yi)|yi, y<i] =−1
+Eventually, we can guaranteed the statistical differ-
+ence of EXP-Pool given the prefix y<i,
+E[Sexp(ki,yi)|y<i,H1]−E[Sexp(ki,yi)|y<i,H0]
+=Eyi,ki[Sexp( ˆki,yi)|y<i,H1, ˆki=ki]·precall
++Eyi,ki[Sexp( ˆki,yi)|y<i,H1, ˆki̸=ki]·(1−precall)+1
+=Eyi[−Pi(yi)|y<i]·precall−(1−precall)+1
+=
+∑
+yi∈Σ
+(1−Pi(yi))Pi(yi)·precall:=ϕexp(pi)·precall
+, where ϕexp(pi) is only relevant to probability
+vector pi ofPM(·|y<i), representing watermarking
+potentials, andprecall is the recall of the retriever
+in EXP-Pool.
+C.5 Proof of Proposition 3.3 (ITS-Pool’s
+Efficacy)
+We first recall the mark module of ITS-Pool
+(inverse-sample in Table 4). During generation,
+the modification functionFits(ki,Pi) takes a pri-
+vate key ki as seed to sample a standard uni-
+form variable and a random permutation. An in-
+verse transform sampling is then conduct on the
+permuted distribution to sample an output token,
+of which the degenerate distribution is returned.
+During detection, the mark module takes in a re-
+stored private key ˆki to restore a standard uni-
+form variable u ˆki
+∼ U(0, 1) and a random per-
+mutation πˆki
+: Σ →Σ . The per-token statistic
+Sits( ˆki, yi) = ( u ˆki
+−1
+2)(
+ord(πˆki
+(yi))−1
+|Σ|−1 −1
+2) is
+then calculated, where ord : Σ →{1,...,|Σ|}is
+a function maps each token to the its order in the
+vocabulary.
+We begin by proving that given a candidate token
+yi, the expectation of per-token statistic only relies
+on the original distributionPi(yi) if yi is sampled
+from the modified distribution seeded byki (i.e. the
+alternative hypothesisH1). It can be formalized as
+the following lemma11.
+Lemma C.4. Given a prefix y<i and a to-
+ken yi, for a private key ki ∼ U(R), if
+yi is sampled from Fits(ki,PM(·|y<i)), then
+Eki∼U(R)[Sits(ki, yi)|yi, y<i] =C0·(1−Pi(yi)),
+whereC0 is a constant relevant to vocabulary size
+|Σ|.
+Proof. The randomness of ki affects the statistic
+via the uniform variable uki and the permutation
+πki. For simplicity, we omit the subscript ki and
+only consider the randomness of u andπ.
+11It is based on Lemma B.1 in (Kuditipudi et al., 2023)
+4174
+
+=== PDF PAGE 20 ===
+We show that π|yi, y<i is a uniform random
+variable over the permutation space.
+P (π|yi, y<i) = P(yi|π,y<i)P(π)
+P (yi|y<i) =P(π)
+, where the second equation follows from that per-
+mutation won’t affect the inverse transform sam-
+pling (see AppendixC.3)
+We also prove that u|π,yi, y<i is a uniform ran-
+dom variable. We define the interval of yi givenπ
+in inverse transform sampling during ITS genera-
+tion,
+I(yi,π)=[Pi({t′:ord(t′)<ord◦π(yi)}),
+Pi({t′:ord(t′)≤ord◦π(yi)})]
+It is evident that|I(yi,π) =Pi(yi)|. Then for any
+intervalI⊂[0, 1] we have
+P (u∈I|yi,π,y<i) = P (yi, u∈I|π,y<i)
+P (yi|π,y<i) =|I∩I(yi,π)|
+|I(yi,π)|
+So u|π,yi, y<i∼U(I(yi,π)). Then we have,
+E[u|yi,π(yi),y<i]
+=E
+[
+Pi({t′:ord(t′)<ord◦π(yi)})+|I(yi,π)|
+2
+⏐⏐⏐⏐yi,π(yi),y<i
+]
+= (π(yi)−1)
+|Σ|−1 ·(1−Pi(yi))+Pi(yi)
+2
+= 1
+2 +( (π(yi)−1)
+|Σ|−1 −1
+2)(1−Pi(yi))
+It is evident that E[u] = 1
+2 and E[ (π(yi)−1)
+|Σ|−1 ] = 1
+2,
+since they are both uniform standard variables.
+Therefore,Sits(ki, yi) essentially calculates the co-
+variance between u and π(yi)−1
+|Σ|−1 , which is tractable
+as following,
+Eki[Sits(ki,yi)|yi,y<i]
+=Cov
+(
+u,π(yi)−1
+|Σ|−1
+⏐⏐⏐⏐yi,y<i
+)
+=(u−1
+2)(π(yi)−1
+|Σ|−1 −1
+2)·P (u,π(yi)|yi,y<i)
+=E[u−1
+2|yi,π(yi),y<i]·(π(yi)−1
+|Σ|−1 −1
+2)·P (π(yi)|yi,y<i)
+=(1−Pi(yi))·(π(yi)−1
+|Σ|−1 −1
+2)2·P (π(yi)|yi,y<i)
+=(1−Pi(yi))·Var
+(π(yi)−1
+|Σ|−1
+⏐⏐⏐⏐yi,y<i
+)
+=C0·(1−Pi(yi))
+,whereC0 = Var
+(
+π(yi)−1
+|Σ|−1
+⏐⏐⏐ yi, y<i
+)
+is a constant
+sinceπ|yi, y<i is uniform over the space of vocab-
+ulary permutation.
+On the contrary, if yi is not sampled
+from modified distribution seeded by ki,
+Eki[Sits(ki, yi)|yi, y<i] =Cov(u, π(yi)−1
+|Σ|−1 |yi, y<i)
+still holds. Now that ki and yi are independent,
+Eki[Sits(ki, yi)|yi, y<i] = 0 trivially. There-
+fore, Eyi,ki[Sits( ˆki, yi)|y<i,H 0] = 0 follows
+immediately.
+Under the alternative hypothesisH1, the lemma
+above provides that
+Eyi,ki[Sits( ˆki, yi)|y<i,H 1]
+= Eyi,ki[Sits( ˆki, yi)|y<i,H 1, ˆki = ki]·precall
++ Eyi,ki[Sits( ˆki, yi)|y<i,H 1, ˆki̸= ki]·(1−precall)
+= Eyi[C0·(1−Pi(yi))|y<i]·precall
+=C0·precall·
+∑
+yi∈Σ
+(1−Pi(yi))Pi(yi)
+, whereprecall represents the recall performance
+of the retriever in ITS-Pool.
+Finally, we can guarantee the statistical differ-
+ence of ITS-Pool,
+E[Sits(ki, yi)|y<i,H 1]−E[Sits(ki, yi)|y<i,H 0]
+=C0·
+∑
+yi∈Σ
+(1−Pi(yi))Pi(yi)·precall :=ϕits(pi)·precall
+, where ϕits(pi) is only relevant to probability
+vector pi ofPM(·|y<i), representing watermarking
+potentials.
+C.6 Proof of Proposition 3.3 (KGW-Pool’s
+Efficacy)
+We first recall the mark module of KGW-Pool
+(logits-add in Table 4). During generation, the
+mark module will randomly sample a green listGki
+ofγ|Σ|tokens from vocabulary, which is seeded
+by ki. Logits of these green tokens are increased
+by a constant δto form the modified distribution
+Fkgw(ki,Pi(yi)). During detection, the mark mod-
+ule takes in a restored private key ˆki, generates a
+green listG ˆki
+seeded by ˆki, and then calculates the
+per-token statisticSkgw(ˆki, yi) =
+1yi∈Gˆki
+−γ
+√
+len(y)γ(1−γ).
+For simplicity, we omit the subscript ki inGki.
+We also denote the size of vocabulary and green
+list asN =|Σ|andNG =γ|Σ|respectively.
+Since the denominator is a constant under both
+hypotheses, we only need to focus onS′(ki, yi) :=
+1yi∈Gki
+. Under the alternative hypothesis, the ex-
+pectation ofS′is essentially the probability of sam-
+pling a token from the green list during KGW-Pool
+generation. We show that the probability can be
+bounded from below, as formalized in the follow-
+ing lemma12.
+12It is based on Lemma F.1 in (Kirchenbauer et al., 2023a)
+4175
+
+=== PDF PAGE 21 ===
+Lemma C.5. Given a prefix y<i, for a pri-
+vate key ki ∼ U(R) and a token yi, if
+yi is sampled from Fkgw(ki,PM(·|y<i)),
+then Eki,yi[S′(ki, yi)|y<i] ≥ C1 ·
+Spike(pi, (1−γ)(α−1)
+1+(α−1)γ), where C1 is a con-
+stant and Spike(pi,c ) is the spike entropy defined
+in (Kirchenbauer et al., 2023a).
+Proof. Trivially, we haveEki,yi[S′(ki, yi)|y<i] =
+P (yi∈G, yi,G|y<i). We consider the following
+process of sampling yi andG. We first randomly
+choose a tokent as output token yi, and then ran-
+domly sample the remaining tokens to construct
+the green list. Therefore, the expected probability
+of a token from the green list being sampled can be
+written as,
+Eyi∈Σ EGs.t.yi∈G
+αPi(yi)∑
+t∈Σ Pi(t) +α∑
+t∈GPi(t)
+, whereα= exp(δ).
+Define the inner expectation asfyi(pi), where
+pi is the probability vector of Pi(·). Trivially,
+fyi(pi) = fyi(Π pi) for any permutation Π over
+the vocabulary except yi. Also, fyi is convex in
+pi
+−yi. Therefore, we have,
+fyi(pi) = EΠfyi(Π pi)
+(1)
+≥fyi(EΠ Π pi)
+(2)
+≥αPi(yi)/((1−Pi(yi))(N−NG)/(N−1)
++α(1−Pi(yi))(NG−1)/(N−1) +αPi(yi))
+=Pi(yi) αN−α
+N−NG +αNG + (α−1)(N−NG)Pi(yi)−α
+≥Pi(yi) αN
+N−NG +αNG + (α−1)(N−NG)Pi(yi)
+= αPi(yi)
+(1−γ) +αγ+ (α−1)(1−γ)Pi(yi)
+, where (1) follows from Jensen’s inequality;(2)
+follows from EΠ Π pi
+t = 1−Pi(yi)
+N−1 ,∀t̸= yi. Then
+we have,
+Ekiyi[S′(ki, yi)|y<i]
+=P(yi∈G, yi,G|y<i)
+=NG·Eyi∈Σ EGs.t.yi∈G
+αPi(yi)∑
+t∈Σ Pi(t) +α∑
+t∈GPi(t)
+=NG·Eyi∈Σfyi(pi)
+≥ γα
+1 + (α−1)γSpike(pi, (1−γ)(α−1)
+1 + (α−1)γ)
+:=C1·Spike(pi, (1−γ)(α−1)
+1 + (α−1)γ)
+, where Spike(pi,c ) = ∑
+t∈Σ
+Pi(t)
+1+cPi(t). And the
+lower bound is strictly larger thanγ.
+On the contrary, under the null hypothesis, triv-
+ially we have E[S′(ki, yi)|y<i,H 0] =γ, since ki
+and yi are independent. Combining all above, we
+eventually have,
+E[S(ˆki,yi)|y<i,H1]−E[S(ˆki,yi)|y<i,H0]
+=Eki,yi[S(ˆki,yi)|y<i,H1, ˆki=ki]·prec
++Eki,yi[S(ˆki,yi)|y<i,H1, ˆki̸=ki]·(1−prec)
+=(Eki,yi[S′(ki,yi)|y<i,H1]−γ)/
+√
+len(y)γ(1−γ)·prec
+≥(C1·Spike(pi,(1−γ)(α−1)
+1+(α−1)γ)−γ)/
+√
+len(y)γ(1−γ)·prec
+:=ϕkgw(pi)·prec
+, where ϕkgw(pi) is only relevant to probability
+vector pi ofPM(·|y<i), representing watermark-
+ing potentials at this step, and prec is the recall
+performance of the retriever in KGW-Pool.
+D Experimental Details
+Datasets. Following previous works (Kirchen-
+bauer et al., 2023a,b), we include two common
+used datasets for our experiments, the Colossal
+Common Crawl Cleaned corpus (C4) and "Explain
+Like I’m Five" (ELI5) (Fan et al., 2019). C4 is a
+colossal, cleaned version of Common Crawl’s web
+crawl corpus13, which has been commonly adopted
+as pretraining corpus of LLMs. We randomly se-
+lect 3000 texts of length 50 from C4 as prompts for
+open-ended generation task. ELI5 is a dataset of
+questions and answers gathered from three topics of
+reddits, where users ask factual questions requiring
+paragraph-length or longer answers. Specifically,
+we use the version curated by (Krishna et al., 2023)
+including 2758 samples. The human-written ques-
+tions are used as prompts for long-form question
+answering.
+Metrics. We generate 20 watermarked outputs
+for each prompt, while considering outputs of the
+original LLM as non-watermarked. Subsequently,
+a total of about 120,000 samples are used to eval-
+uate each watermarking technique. For both effi-
+cacy and robustness, we report true positive rate
+(watermarked texts being successfully detected) at
+1% false positive rate (non-watermarked texts be-
+ing falsely detected) denoted as TPR@FPR=1%.
+To comprehensively evaluate the robustness of wa-
+termarking techniques, we include three different
+kinds of attacks, namely Lexical-Attack, Dipper-
+Attack and Translation-Attack. Lexical-attack is
+a baseline attack by randomly add/delete/replace
+a small portion of texts. Specifically, we ran-
+domly modify 10% tokens of the original wa-
+13https://commoncrawl.org
+4176
+
+=== PDF PAGE 22 ===
+termarked text. Dipper is a paraphrasing model
+proposed by (Krishna et al., 2023) aiming at
+corrupting watermark patterns within texts. We
+set its hyper-parameters lex=40,div=40 following
+(Kirchenbauer et al., 2023b). Translation-attack
+represents roundtrip-translation, which is a widely
+used paraphrasing method. Following (Kuditipudi
+et al., 2023), we translate texts to Russian and then
+translate them back to English. For the evaluation
+of imperceptibility, we split the criteria into two
+aspects: (1) the distribution bias within each output
+(2) the independence among different outputs. The
+former can be evaluated with perplexity while the
+latter can be roughly evaluated with n-gram distinc-
+tion (Kirchenbauer et al., 2023b). Specifically, we
+consider the distinction across all outputs (Glob-
+distinct-N) and within outputs in response to one
+single prompt (Group-distinct-N).
+Baselines. We include several typical meth-
+ods as baselines. In addition to EXP(Kuditipudi
+et al., 2023), ITS(Kuditipudi et al., 2023) and
+KGW(Kirchenbauer et al., 2023a), we also include
+Gamma(Hu et al., 2023), Delta(Hu et al., 2023)
+and Unigram(Zhao et al., 2023). Both Gamma and
+Delta propose unbiased modification functions to-
+wards optimal imperceptibility during generation,
+and conduct likelihood ratio test for detection. Un-
+igram is similar to KGW, fixing the private key
+during generation, leading to a fixed green list par-
+tition in sequence level.
+Implementation details. We conduct main ex-
+periments on two LLMs of different scales, OPT-
+1.3b and OPT-6.7b, following (Krishna et al., 2023).
+OPT-1.3b is used by default except in main ex-
+periments. On both open-ended generation and
+long-form question answering, we conduct multi-
+nomial sampling to generate sequences within the
+range of [50, 70] tokens. We use a 128 dimen-
+sion sentence embedding model (Nussbaum et al.,
+2024) as the retriever in WaterPool. As for imple-
+mentation of mark modules in different WaterPool
+(i.e. KGW-Pool, ITS-Pool, EXP-Pool), we use
+identical hyper-parameter settings as the original
+watermarking technique. All baselines are repro-
+duced based on source codes provided by original
+paper. For KGW, we set δ= 2.0, γ= 0.25 as
+suggested in (Kirchenbauer et al., 2023a). For Un-
+igram, we set δ= 2.0, γ= 0.5 as suggested in
+(Zhao et al., 2023). For Gamma and Delta, we use
+the context length of 5 and search the perturbation
+strength d over the set{0, 0.1,...,1.0}following
+(Christ et al., 2023). For EXP and ITS, we set
+the key length n = 80, large enough to generate
+at most 70 tokens in our main experiments. We
+set the edit-distance penalty γ= 0.0 and 0.4 re-
+spectively following (Kuditipudi et al., 2023). For
+KGW-Pool, we observed high variance of perfor-
+mance. It is because of the random partition in a
+sequence level. The logits-add mark module is sen-
+sitive to this partition, which is similar to Unigram.
+To this end, we resample the key for three times
+and use the best one as watermarked output during
+generation in practice. This trick only leads to ad-
+ditional time complexity of generation and won’t
+affect any other analysis in this paper. EXP, ITS,
+EXP-Pool and ITS-Pool all leverage permutation
+tests to calculatep-value (e.g. /* Permutation test
+*/ in Algorithm 2). We conduct the permutations
+with 5000 resamples. Following (Kuditipudi et al.,
+2023), we only pre-compute the permutation dis-
+tribution once instead of recomputing it for each
+candidate text. This trick reduces the high time
+complexity of permutation tests and doesn’t cause
+much performance degradation.
+E Additional Experiments
+E.1 Full Results of WaterPool
+In this section, we present full results of WaterPool
+under different settings (e.g. OPT-1.3b/OPT-6.7b,
+open-ended generation / long-form question an-
+swering) in Table 6, 7, 8 and 9.
+E.2 Problem of Retrieval Watermark
+In this section, we conduct an experiment to empir-
+ically demonstrate the statements in Section 3.4
+about the semantic collision problem of the re-
+trieval watermark (Krishna et al., 2023) in real-
+world scenarios. We hypothesize that retrieval
+watermark may suffer from severe degradation
+when facing different non-watermarked text dis-
+tributions. Therefore, in addition to OPT-1.3b
+and OPT-6.7b used in main experiments, we in-
+clude another eight prominent LLMs: Gemma-
+2b(Team et al., 2024), Gemma-7b(Team et al.,
+2024), Llama2-7b(Touvron et al., 2023), Llama2-
+13b(Touvron et al., 2023), Vicuna-7b(Chiang et al.,
+2023), Vicuna-13b(Chiang et al., 2023), generating
+outputs for both open-ended generation and long-
+form question answering tasks. We employ a cross-
+testing experimental setup, where each time one
+model is treated as the watermarked model, while
+the others are considered as non-watermarked mod-
+els. This setup reflects a common real-world sce-
+4177
+
+=== PDF PAGE 23 ===
+w/o Attack Lexical-Attack Dipper-Attack Translation-Attack
+value ↑ ∆ value ↑ ∆ value ↑ ∆ value ↑ ∆
+Open Text Generation
+Gamma 99.58±0 .01 - 78.69±0 .08 - 55.18±0 .11 - 58.33±0 .18 -
+Delta 94.24±0 .05 - 62.48±0 .29 - 52.47±0 .10 - 54.52±0 .16 -
+Unigram 99.59±0 .06 - 99.31±0 .22 - 83.60±4 .75 - 90.99±2 .47 -
+KGW 99.87±0 .01 - 99.24±0 .02 - 77.43±0 .48 - 85.88±0 .06 -
+KGW-Pool 99.90±0 .00 0.03±0 .01 99.74±0 .00 0.50±0 .02 84.10±0 .89 6.67±1 .37 92.15±0 .14 6.27±0 .19
+EXP 99.45±0 .02 - 98.97±0 .02 - 73.60±0 .49 - 80.45±0 .05 -
+EXP-Pool 99.76±0 .01 0.31±0 .02 99.57±0 .00 0.60±0 .02 80.42±0 .94 6.83±1 .18 90.65±0 .04 10.20±0 .09
+ITS 95.48±0 .03 - 83.19±0 .11 - 59.24±0 .13 - 56.88±0 .03 -
+ITS-Pool 99.18±0 .01 3.70±0 .03 96.70±0 .00 13.52±0 .11 61.68±0 .03 2.44±0 .15 71.33±0 .03 14.45±0 .06
+Long-Form Question Answering
+Gamma 99.85±0 .01 - 80.93±0 .17 - 55.14±0 .02 - 61.69±0 .09 -
+Delta 97.99±0 .06 - 65.72±0 .17 - 52.75±0 .12 - 57.48±0 .12 -
+Unigram 99.83±0 .10 - 99.63±0 .19 - 87.79±1 .92 - 94.38±1 .05 -
+KGW 99.97±0 .00 - 99.66±0 .00 - 81.05±0 .23 - 92.34±0 .09 -
+KGW-Pool 99.96±0 .00 -0.01±0 .00 99.75±0 .02 0.09±0 .02 87.41±0 .58 6.36±0 .38 94.29±0 .09 1.95±0 .12
+EXP 99.86±0 .02 - 99.70±0 .04 - 80.55±0 .41 - 91.17±0 .06 -
+EXP-Pool 99.92±0 .01 0.06±0 .02 99.83±0 .01 0.13±0 .04 85.87±0 .32 5.32±0 .69 96.05±0 .05 4.88±0 .11
+ITS 97.96±0 .06 - 88.41±0 .19 - 63.12±0 .10 - 68.02±0 .21 -
+ITS-Pool 99.75±0 .00 1.79±0 .06 98.48±0 .01 10.07±0 .19 66.35±0 .13 3.23±0 .22 81.99±0 .07 13.97±0 .27
+Table 6: Efficacy and Robustness of different watermarking methods on OPT-1.3B evaluated with ROC-AUC.∆
+is the performance boost brought by WaterPool. The best and second-best results are highlighted in bold and
+underline.
+nario in watermarking as more and more non-
+watermarked LLMs will emerge. Subsequently,
+we evaluate the performance of the retrieval wa-
+termark across eight groups of watermark detec-
+tion experiments. The robustness, evaluated by
+TPR@FPR=1% under lexical attack, is presented
+in Table 10. The results show that even under lexi-
+cal attack, the weakest attack, the retrieval water-
+mark experiences significant performance degra-
+dation of more than 40%, while most other water-
+marking techniques maintain high TPR@FPR=1%
+(see Table 2). This phenomenon substantiate our
+claims in Section 3.4, highlighting the vulnerability
+of retrieval watermark compared to other methods
+in practical applications.
+E.3 Performance with Diverse Negative
+Samples
+Full results are presented in Table 11.
+E.4 Scaling Length of Watermarked Texts
+Both (Kirchenbauer et al., 2023a) and (Kirchen-
+bauer et al., 2023b) observe that the detection
+rate of watermarking is a monotonically increas-
+ing function of the watermarked text length. In
+this section, we conduct an experiment to investi-
+gate the performance of WaterPool with growths
+of text length. We generate outputs of different
+lengthsT∈[80, 90,...200] and calculate the cor-
+responding TPR@FPR=1% metrics. The results
+are presented in Figure 4. We observe a consistent
+increase in the detection rate of WaterPool under
+different attack settings, aligning with the findings
+reported by (Kirchenbauer et al., 2023b). Moreover,
+WaterPool consistently enhance the performance
+of original watermarking techniques across all set-
+tings, further underscoring its superior capabilities.
+4178
+
+=== PDF PAGE 24 ===
+Glob-distinct2 Glob-distinct3 Group-distinct2 Group-distinct3 Perplexity
+value↑ ∆↑ value↑ ∆↑ value↑ ∆↑ value↑ ∆↑ value↓∆↓
+Open-Ended Text Generation
+Non-watermark 39.4±0.9 0.0±0.0 75.8±2.0 0.0±0.0 84.3±2.3 0.0±0.0 94.1±2.7 0.0±0.0 6.8±0.0 0.0±0.0
+Gamma 39.9±0.0 0.5±0.9 77.0±0.0 1.2±2.0 85.6±0.0 1.3±2.3 95.6±0.0 1.5±2.7 6.8±0.0 0.0±0.0
+Delta 39.9±0.0 0.5±0.8 77.0±0.0 1.2±2.0 85.6±0.0 1.3±2.3 95.7±0.0 1.6±2.7 6.8±0.0 0.0±0.0
+Unigram 36.5±1.8 -2.9±0.9 72.4±2.4 -3.5±1.2 82.9±2.2 -1.4±1.5 94.8±0.7 0.7±2.3 8.8±0.4 1.9±0.4
+KGW 38.2±0.0 -1.2±0.9 74.8±0.0 -1.0±2.0 85.3±0.0 1.0±2.3 95.6±0.0 1.5±2.7 8.4±0.0 1.6±0.0
+KGW-Pool 41.9±0.1 2.5±0.8 79.7±0.0 3.8±2.0 87.4±0.0 3.1±2.3 96.7±0.0 2.6±2.7 8.8±0.0 2.0±0.0
+EXP 32.0±0.1 -7.4±0.9 61.9±0.4 -13.9±2.3 73.0±0.3 -11.3±2.2 81.9±0.2 -12.2±2.7 6.9±0.0 0.0±0.0
+EXP-Pool 39.9±0.0 0.6±0.9 77.0±0.0 1.2±2.0 85.6±0.0 1.3±2.3 95.7±0.0 1.6±2.7 6.8±0.0 0.0±0.0
+ITS 35.9±0.0 -3.5±0.9 68.2±0.1 -7.6±2.0 75.9±0.1 -8.4±2.2 84.5±0.1 -9.6±2.6 6.6±0.0 -0.3±0.0
+ITS-Pool 39.9±0.0 0.5±0.9 77.0±0.0 1.2±2.0 85.6±0.0 1.3±2.3 95.6±0.0 1.6±2.7 6.8±0.0 0.0±0.0
+Long-Form Question Answering
+Non-watermark 33.0±0.0 0.0±0.0 71.3±0.0 0.0±0.0 87.1±0.1 0.0±0.0 97.1±0.0 0.0±0.0 8.8±0.0 0.0±0.0
+Gamma 32.9±0.0 -0.1±0.0 71.2±0.1 -0.1±0.1 87.1±0.0 -0.1±0.0 97.0±0.0 -0.1±0.0 8.8±0.0 -0.0±0.0
+Delta 33.0±0.0 -0.0±0.0 71.2±0.1 -0.1±0.1 87.1±0.0 -0.1±0.1 97.0±0.0 -0.0±0.0 8.8±0.0 -0.0±0.1
+Unigram 29.2±2.0 -3.8±2.0 65.1±2.8 -6.2±2.8 82.5±2.2 -4.7±2.2 95.1±0.6 -2.0±0.6 10.4±0.8 1.6±0.8
+KGW 31.3±0.1 -1.7±0.1 68.1±0.1 -3.2±0.1 86.0±0.0 -1.1±0.0 96.5±0.0 -0.6±0.0 10.8±0.0 2.0±0.0
+KGW-Pool 34.8±0.0 1.8±0.0 73.5±0.0 2.2±0.1 85.2±0.1 -2.0±0.1 95.1±0.0 -2.0±0.0 10.5±0.0 1.6±0.0
+EXP 25.2±0.8 -7.8±0.8 54.1±1.8 -17.2±1.8 75.3±0.1 -11.8±0.1 84.7±0.1 -12.4±0.1 8.7±0.2 -0.1±0.2
+EXP-Pool 32.9±0.1 -0.1±0.1 71.1±0.3 -0.1±0.2 87.1±0.0 -0.1±0.0 97.1±0.0 -0.0±0.0 8.8±0.0 -0.0±0.0
+ITS 29.4±0.0 -3.6±0.1 62.7±0.1 -8.6±0.1 77.4±0.1 -9.8±0.1 85.9±0.1 -11.2±0.1 8.4±0.0 -0.5±0.0
+ITS-Pool 32.9±0.0 -0.1±0.0 71.1±0.0 -0.1±0.0 87.1±0.0 -0.1±0.0 97.0±0.0 -0.1±0.0 8.8±0.0 -0.0±0.0
+Table 7: Imperceptibility of different watermarking methods on OPT-6.7B.∆ is the difference between watermarked
+and non-watermarked texts. The best and second-best results before rounding are highlighted in bold and underline.
+w/o Attack Lexical-Attack Dipper-Attack Translation-Attack
+value ↑ ∆ value ↑ ∆ value ↑ ∆ value ↑ ∆
+Open-Ended Text Generation
+Gamma 95.46±0 .07 - 16.08±0 .44 - 2.40±0 .12 - 2.93±0 .09 -
+Delta 70.85±0 .11 - 7.34±0 .26 - 2.10±0 .04 - 2.60±0 .05 -
+Unigram 93.68±2 .32 - 89.39±4 .31 - 23.62±13 .20 - 36.52±14 .15 -
+KGW 97.58±0 .08 - 86.17±0 .49 - 14.63±0 .05 - 25.88±0 .16 -
+KGW-Pool 96.77±0 .11 -0.81±0 .03 93.30±0 .08 7.13±0 .42 23.66±1 .03 9.03±1 .06 37.91±0 .12 12.03±0 .10
+EXP 94.84±0 .35 - 88.97±0 .68 - 15.40±1 .24 - 27.16±1 .28 -
+EXP-Pool 96.56±0 .96 1.72±1 .31 94.19±0 .07 5.22±0 .66 22.03±0 .85 6.63±2 .05 43.84±0 .52 16.68±0 .89
+ITS 64.71±0 .46 - 21.06±0 .59 - 2.14±0 .08 - 2.95±0 .17 -
+ITS-Pool 88.43±0 .11 23.72±0 .47 60.89±0 .34 39.84±0 .57 3.77±0 .06 1.63±0 .13 8.98±0 .11 6.03±0 .20
+Long-Form Question Answering
+Gamma 98.33±0 .04 - 20.20±0 .39 - 2.22±0 .05 - 4.34±0 .12 -
+Delta 89.08±0 .16 - 12.08±0 .10 - 2.11±0 .13 - 4.22±0 .15 -
+Unigram 96.50±2 .59 - 90.67±6 .19 - 29.91±13 .55 - 42.00±19 .57 -
+KGW 99.29±0 .01 - 92.69±0 .30 - 17.59±0 .26 - 41.33±0 .24 -
+KGW-Pool 99.40±0 .17 0.11±0 .17 97.25±0 .17 4.56±0 .23 28.17±0 .84 10.57±0 .83 45.67±2 .06 4.33±1 .88
+EXP 98.66±0 .08 - 96.11±0 .21 - 22.41±1 .82 - 49.18±0 .97 -
+EXP-Pool 99.27±0 .04 0.61±0 .06 98.12±0 .03 2.01±0 .23 32.14±0 .08 9.73±1 .89 65.61±0 .06 16.43±0 .92
+ITS 81.56±0 .37 - 33.43±0 .74 - 2.77±0 .07 - 6.38±0 .19 -
+ITS-Pool 96.48±0 .08 14.92±0 .37 78.37±0 .36 44.94±0 .66 6.10±0 .26 3.33±0 .21 20.88±0 .36 14.50±0 .44
+Table 8: Efficacy and Robustness of different watermarking methods on OPT-6.7B evaluated with TPR@FPR=1%.
+∆ is the performance boost brought by WaterPool. The best and second-best results before rounding are highlighted
+in bold and underline.
+4179
+
+=== PDF PAGE 25 ===
+w/o Attack Lexical-Attack Dipper-Attack Translation-Attack
+value ↑ ∆ value ↑ ∆ value ↑ ∆ value ↑ ∆
+Open Text Generation
+Gamma 99.33±0 .01 - 77.01±0 .14 - 55.20±0 .17 - 57.47±0 .20 -
+Delta 92.84±0 .05 - 61.06±0 .26 - 52.39±0 .07 - 53.83±0 .04 -
+Unigram 99.48±0 .19 - 99.12±0 .38 - 83.94±5 .55 - 89.73±3 .35 -
+KGW 99.77±0 .01 - 98.96±0 .03 - 76.73±0 .17 - 83.73±0 .16 -
+KGW-Pool 99.84±0 .00 0.06±0 .01 99.62±0 .00 0.66±0 .03 83.88±0 .71 7.14±0 .76 90.85±0 .09 7.13±0 .23
+EXP 99.12±0 .03 - 98.32±0 .04 - 71.72±0 .49 - 78.93±1 .57 -
+EXP-Pool 99.46±0 .21 0.34±0 .18 99.29±0 .03 0.96±0 .07 77.78±1 .12 6.06±1 .61 88.22±0 .13 9.29±1 .45
+ITS 93.25±0 .06 - 79.89±0 .10 - 59.15±0 .18 - 55.34±0 .19 -
+ITS-Pool 98.63±0 .01 5.38±0 .07 95.40±0 .06 15.51±0 .07 61.17±0 .12 2.02±0 .23 69.49±0 .10 14.15±0 .16
+Long-Form Question Answering
+Gamma 99.81±0 .00 - 80.10±0 .11 - 54.91±0 .06 - 60.16±0 .05 -
+Delta 97.74±0 .02 - 65.49±0 .07 - 52.54±0 .12 - 56.29±0 .07 -
+Unigram 99.80±0 .14 - 99.57±0 .26 - 88.43±4 .17 - 93.74±2 .41 -
+KGW 99.96±0 .00 - 99.57±0 .00 - 80.23±0 .16 - 91.00±0 .08 -
+KGW-Pool 99.95±0 .01 -0.01±0 .01 99.73±0 .01 0.17±0 .00 86.84±0 .62 6.61±0 .49 93.32±0 .04 2.31±0 .10
+EXP 99.81±0 .01 - 99.54±0 .03 - 77.31±1 .28 - 89.34±0 .34 -
+EXP-Pool 99.90±0 .00 0.09±0 .01 99.77±0 .01 0.23±0 .02 84.38±0 .15 7.07±1 .16 94.71±0 .02 5.36±0 .34
+ITS 97.04±0 .02 - 86.25±0 .04 - 62.49±0 .14 - 65.94±0 .10 -
+ITS-Pool 99.67±0 .01 2.63±0 .01 98.08±0 .01 11.83±0 .04 65.85±0 .13 3.36±0 .28 80.03±0 .10 14.10±0 .18
+Table 9: Efficacy and Robustness of different watermarking methods on OPT-6.7B evaluated with ROC-AUC.∆
+is the performance boost brought by WaterPool. The best and second-best results are highlighted in bold and
+underline.
+Watermarked ModelVicuna-13b Vicuna-7b Llama2-13b Llama2-7b Gemma-2b Gemma-7b OPT-1.3b OPT-6.7b Avg
+Open-Ended Text Generation
+Vicuna-13b - 16.36 32.36 40.85 61.23 51.09 49.94 40.02 41.69
+Vicuna-7b 14.62 - 39.24 41.41 61.16 53.00 49.63 39.73 42.69
+Llama2-13b 23.36 31.65 - 44.56 66.95 58.67 53.12 43.22 45.93
+Llama2-7b 29.19 31.63 41.54 - 68.24 60.53 53.10 43.35 46.80
+Gemma-2b 47.32 48.20 63.43 65.86 - 67.78 63.05 54.13 58.54
+Gemma-7b 37.95 41.03 55.49 58.77 68.70 - 58.30 48.65 52.70
+OPT-1.3b 42.29 42.29 53.00 57.93 66.59 62.43 - 53.00 53.93
+OPT-6.7b 30.73 30.73 47.83 47.83 62.37 57.79 52.99 - 47.18
+Long-Form Question Answering
+Vicuna-13b - 0.87 39.39 44.02 68.47 45.95 55.36 46.01 42.87
+Vicuna-7b 0.76 - 40.00 42.84 68.19 45.65 54.25 45.01 42.38
+Llama2-13b 9.16 9.81 - 44.00 66.52 46.48 50.77 41.62 38.34
+Llama2-7b 10.77 10.37 41.94 - 66.40 47.64 53.99 45.15 39.47
+Gemma-2b 21.65 21.88 64.71 67.15 - 65.23 69.16 60.29 52.87
+Gemma-7b 8.93 9.56 42.78 45.74 63.75 - 54.14 44.80 38.53
+OPT-1.3b 17.56 17.56 47.64 47.64 64.59 52.26 - 52.26 42.79
+OPT-6.7b 12.83 8.93 41.87 41.87 59.81 41.87 55.68 - 37.55
+Table 10: TPR@FPR=1% of retrieval watermark under lexical attacks. The model in the first column is the model
+being watermarked. Retrieval watermark is vulnerable even under the weakest lexical attacks.
+4180
+
+=== PDF PAGE 26 ===
+w/o Attack Lexical-Attack Dipper-Attack Translation-Attack
+EXP-Pool
+Original 98.43 / 99.56 96.67 / 98.81 26.17 / 36.24 51.41 / 72.61
+Human 98.35 / 99.66 96.50 / 99.04 24.49 / 39.70 50.23 / 75.00
+Other Models98.45 / 99.61 96.72 / 98.88 25.65 / 36.63 51.60 / 72.51
+KGW-Pool
+Original 98.29 / 99.51 95.29 / 97.97 24.62 / 29.92 42.26 / 50.14
+Human 98.96 / 99.98 96.27 / 99.56 27.23 / 46.80 46.22 / 69.24
+Other Models98.96 / 99.71 96.21 / 98.03 26.33 / 30.52 45.42 / 51.66
+ITS-Pool
+Original 92.56 / 97.56 68.50 / 81.73 4.05 / 6.25 10.83 / 24.26
+Human 93.33 / 97.44 71.18 / 80.77 4.61 / 5.82 12.01 / 22.95
+Other Models92.73 / 97.65 69.27 / 82.22 4.15 / 6.62 11.17 / 24.92
+Table 11: TPR@FPR=1% of WaterPool with different non-watermarked texts. The results are in form of(C4 Result
+/ LFQA Result) . The first column lists watermarking methods, and the second column shows non-watermarked
+text sources. WaterPool remains stable across different non-watermarked texts.
+4181
+
+=== PDF PAGE 27 ===
+w/o Attack
+Lexical-Attack
+Translation-Attack
+TPR@FPR=1%
+100
+90
+80
+70
+60
+50
+100
+80
+60
+40
+20
+40
+35
+25
+15
+5
+10
+20
+30
+80 100 120 140 160 180 200
+T ext Length
+EXP
+ITS
+KGW
+EXP-Pool
+ITS-Pool
+KGW-Pool
+Figure 4: TPR@FPR=1% of different watermarking
+techniques with the growths of text length. The same
+color indicates different methods sharing the same mark
+module. Solid lines represent original methods while
+dashed lines represent WaterPool methods.
+4182

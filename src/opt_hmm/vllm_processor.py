@@ -7,6 +7,7 @@ import torch
 from vllm.v1.sample.logits_processor import AdapterLogitsProcessor
 
 from .protocol import context_seed, uniforms
+from .pivot_diagnostics import probabilities_from_logits, probability_summary, pivot_law
 
 
 class GumbelRequest:
@@ -32,6 +33,11 @@ class GumbelRequest:
         seed = context_seed(context, settings["key"])
         active = any(start <= step < stop for start, stop in settings["ranges"])
         audit = {"step": step, "active": active, "context": context, "seed": str(seed)}
+        p = None
+        if settings.get('pivot_diagnostics', False):
+            # Read the actual masked pre-sampling logits, before forcing a winner.
+            p = probabilities_from_logits(logits[:vocab].detach().double().cpu().numpy(), self.temperature)
+            audit['probability'] = probability_summary(p)
         if active:
             # l/T + standard Gumbel noise has exactly the same argmax as
             # log(U_w)/P_w, P=softmax(l/T), and avoids dividing by tiny P_w.
@@ -42,6 +48,9 @@ class GumbelRequest:
                 raise ValueError("No finite token available.")
             chosen = int(torch.argmax(scores).item())
             audit.update({"chosen": chosen, "selected_y": float(u_np[chosen])})
+            if p is not None:
+                audit['probability'].update(pivot_law(p, float(u_np[chosen])))
+                audit['probability']['selected_probability'] = float(p[chosen])
             # Force the chosen winner, so vLLM does not add a second random draw.
             logits.fill_(float("-inf"))
             logits[chosen] = 0.

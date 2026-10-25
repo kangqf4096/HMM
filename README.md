@@ -1,8 +1,14 @@
 # OPT-HMM 水印片段定位实验
 
+当前共享项目以 Git 为准，Colab 负责执行实验。Colab 使用 **OPT-1.3B + arXiv 正文**，入口为 `configs/colab_arxiv.json`，完整的克隆、安装、下载与运行单元格见 [Colab 运行说明](docs/colab.md)。模型下载到 `models/opt-1.3b/`，数据缓存、提示词和结果分别留在项目内 `.cache/hf/`、`data/` 和 `runs/`；这些目录均由 Git 忽略。
+
+文献缓存见 [papers/README.md](papers/README.md)；零假设、备择发射分布与上下文密钥的核对见 [研究笔记](docs/watermark_hypotheses_and_keys_20261025.md)。后续先检索仓库内已有全文，再补充联网资料。
+
+按当前 smoke 配置测量备择分布条件性与编辑失配，运行 `bash scripts/pivot_smoke.sh`；完整命令、输出和 oracle 信息边界见 [真实模型枢轴分布实验](docs/pivot_experiment_20261025.md)。
+
 这是现有基础方案的可运行 v0：从连续枢轴量估计整篇水印信号比例，再用两状态 HMM 计算逐 token 后验，并输出连续片段。定位目标是“相对于指定密钥仍保留水印耦合的位置”。
 
-默认远程环境是 Linux、RTX 3090 24GB、单卡、FP16、vLLM **0.19.1**，模型位置：
+下文保留原 Linux 服务器环境及 Qwen 配置，供已有实验复现：RTX 3090 24GB、单卡、FP16、vLLM **0.19.1**，模型位置：
 
     /home/MCEC_ADAS/kdz/models/Qwen2.5-Coder-3B-Instruct
 

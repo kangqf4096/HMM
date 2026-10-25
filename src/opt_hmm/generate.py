@@ -28,7 +28,8 @@ def _record(doc, original, tokens, origin, variant, config, key, actions=None):
             "duplicate_context_count": repeats, "pivot_seconds": perf_counter() - started}
 
 
-def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.8, dtype="float16"):
+def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.8, dtype="float16",
+             pivot_diagnostics=False):
     validate_text(config)
     if tensor_parallel < 1 or not 0 < gpu_memory <= 1:
         raise ValueError('Invalid tensor parallelism or GPU memory fraction.')
@@ -38,7 +39,7 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
     for name, default in (("dataset", DATASET), ("subset", SUBSET), ("dataset_revision", REVISION)):
         if manifest.get(name) != config.get(name, default):
             raise ValueError(f"Preparation and generation differ on {name}. Prepare again.")
-    for name in ("context_width", "prompt_tokens"):
+    for name in ("context_width", "prompt_tokens", "roles"):
         if manifest["config"].get(name) != config.get(name):
             raise ValueError(f"Preparation and generation differ on {name}. Prepare again.")
     if Path(manifest["model"]).resolve() != Path(model).resolve():
@@ -102,7 +103,8 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
                 ranges = []
             trace_path = str((trace_dir / f"r{len(jobs)}.jsonl").resolve())
             settings = {"context_width": m, "key": key, "vocab_size": vocab_size,
-                        "blocked_ids": blocked, "ranges": ranges, "trace_path": trace_path}
+                        "blocked_ids": blocked, "ranges": ranges, "trace_path": trace_path,
+                        "pivot_diagnostics": pivot_diagnostics}
             params.append(SamplingParams(n=1, temperature=config.get("temperature", 1.),
                                          top_p=1., top_k=-1, min_p=0.,
                                          max_tokens=requested_length, ignore_eos=True,
@@ -140,7 +142,9 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
                 raise RuntimeError("Watermark sampler audit does not match emitted tokens.")
         original = {"id": f"{doc['group']}/{mode}", "group": doc["group"], "role": doc["role"],
                     "token_ids": tokens, "prompt_ids": doc["prompt_ids"],
-                    "enabled": enabled, "contexts": contexts, "seeds": seeds}
+                    "enabled": enabled, "contexts": contexts, "seeds": seeds,
+                    "probability_trace": [audit[t].get('probability') for t in range(len(tokens))]
+                    if pivot_diagnostics else None}
         sources.append(original)
         if mode == "null":
             for length in sorted(lengths):
@@ -164,6 +168,7 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
                                         "gpu_memory_utilization": gpu_memory,
                                         "model_load_seconds": model_load_seconds,
                                         "generation_seconds": generation_seconds,
+                                        "pivot_diagnostics": pivot_diagnostics,
                                         "audit": "Every active chosen token, pivot, context and seed verified.",
                                         "lengths": sorted(lengths),
                                         "prompt_manifest": manifest})

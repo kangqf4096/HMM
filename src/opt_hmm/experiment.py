@@ -49,7 +49,7 @@ def diagnostics(records):
     return result
 
 
-def run_evaluation(records, output, config, oracle_density=None, oracle_parameters=None):
+def run_evaluation(records, output, config, oracle_density=None, oracle_parameters=None, ratio_methods=None):
     groups = {}
     ids = set()
     for record in records:
@@ -78,6 +78,21 @@ def run_evaluation(records, output, config, oracle_density=None, oracle_paramete
                                   fixed_rho=config.get("fixed_rho", .95),
                                   window=config.get("window", 20))
                  for method in METHODS}
+    ratio_methods = ratio_methods or {}
+    if set(ratio_methods) & set(detectors):
+        raise ValueError('Extra ratio methods must have distinct names.')
+    for method, values in ratio_methods.items():
+        for record in records:
+            if record['role'] in ('dev', 'test', 'null_cal', 'null_test'):
+                if record['id'] not in values or len(values[record['id']]) != len(record['y']):
+                    raise ValueError(f'Missing/mismatched ratios for {method}: {record["id"]}')
+        detectors[method] = Detector(histogram, method='opt_hmm', rhos=config.get('rhos', (0., .5, .8, .9, .95, .98, .99)))
+
+    def infer_record(method, detector, record):
+        y, mask, _ = arrays(record)
+        if method in ratio_methods:
+            return detector.infer_ratios(ratio_methods[method][record['id']], mask)
+        return detector.infer(y, mask)
     if oracle_density is not None:
         detectors["oracle"] = Detector(oracle_density, method="oracle",
                                       fixed_e=oracle_parameters["epsilon"],
@@ -105,7 +120,7 @@ def run_evaluation(records, output, config, oracle_density=None, oracle_paramete
             scores = []
             for record in selected:
                 y, mask, _ = arrays(record)
-                scores.append(float(detector.infer(y, mask).scores.max()))
+                scores.append(float(infer_record(method, detector, record).scores.max()))
             thresholds[method][key] = calibrate(scores, config.get("alpha", .05))
         calibration_seconds[method] = perf_counter() - calibration_started
         method_rows, prob_truths, prob_scores = [], [], []
@@ -113,7 +128,7 @@ def run_evaluation(records, output, config, oracle_density=None, oracle_paramete
             y, mask, truth = arrays(record)
             if record["role"] == "null_test" and truth[mask].any():
                 raise ValueError("Null test contains positive labels.")
-            result = detector.infer(y, mask)
+            result = infer_record(method, detector, record)
             threshold = thresholds[method][length_key(record)]
             labels = threshold.predict(result.scores, mask)
             metrics = evaluate(truth, labels, result.scores, result.epsilon, mask)

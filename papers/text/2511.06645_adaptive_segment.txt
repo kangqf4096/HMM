@@ -1,0 +1,2628 @@
+=== PDF PAGE 1 ===
+Adaptive Testing for Segmenting Watermarked Texts From
+Language Models ∗
+Xingchi Li 1,†, Xiaochi Liu 2,†, Guanxun Li 2,‡
+1 Department of Statistics, Texas A&M University
+2 Department of Statistics, Beijing Normal University at Zhuhai
+Abstract
+The rapid adoption of large language models (LLMs), such as GPT-4 and Claude
+3.5, underscores the need to distinguish LLM-generated text from human-written con-
+tent to mitigate the spread of misinformation and misuse in education. One promising
+approach to address this issue is the watermark technique, which embeds subtle sta-
+tistical signals into LLM-generated text to enable reliable identification. In this paper,
+we first generalize the likelihood-based LLM detection method of a previous study by
+introducing a flexible weighted formulation, and further adapt this approach to the
+inverse transform sampling method. Moving beyond watermark detection, we extend
+this adaptive detection strategy to tackle the more challenging problem of segmenting
+a given text into watermarked and non-watermarked substrings. In contrast to the
+approach in a previous study, which relies on accurate estimation of next-token proba-
+bilities that are highly sensitive to prompt estimation, our proposed framework removes
+the need for precise prompt estimation. Extensive numerical experiments demonstrate
+that the proposed methodology is both effective and robust in accurately segmenting
+texts containing a mixture of watermarked and non-watermarked content.
+Keywords:binary segmentation, change point detection, randomization test, water-
+marking
+1 Introduction
+The rapid advancement of large language models (LLMs), such as GPT-4 and Claude 3.5,
+has facilitated their widespread use in text generation across diverse applications such as pa-
+per polish, knowledge integration, language translation, and code generation. However, the
+widespread adoption of LLMs has introduced substantial challenges, including the spread
+of misinformation, misuse in educational settings and the contamination of training data
+for subsequent models. Consequently, it has become increasingly important to develop re-
+liable methods for detecting LLM-generated text and distinguishing it from human-written
+content.
+To address these challenges, watermarking has emerged as a promising solution. By
+embedding subtle statistical signals into LLM-generated text, watermarking allows for re-
+liable identification of LLM-generated content. In this framework, a third-party user sends
+∗Accepted for publication in STAT, October 28, 2025.
+†Equal contribution
+‡Corresponding author: guanxun@bnu.edu.cn
+1
+arXiv:2511.06645v1  [stat.ML]  10 Nov 2025
+
+=== PDF PAGE 2 ===
+Figure 1: Illustration of the roles of the LLM provider, user and detector.
+prompts to a trusted LLM provider, which embeds a watermark into the generated text.
+The user may subsequently modify the text through substitutions, insertions, deletions, or
+paraphrasing before publication. Despite such edits, the watermark remains detectable. A
+central problem in this setting is to determine whether a given text is watermarked and, if
+so, to accurately detect and localize the watermarked sub-strings. Figure 1 illustrates the
+interactions and roles of the LLM provider, the user, and the detector.
+Early text watermarking techniques primarily utilized post-processing methods, embed-
+ding watermarks after text generation (Liu et al., 2024). In contrast, more sophisticated
+approaches integrate watermarking directly into the generation process. A seminal wa-
+termarking scheme proposed by Kirchenbauer et al. (2023a), known as the ‘red-green list’
+method, partitions vocabulary into two distinct categories, enhancing the probability of
+selecting tokens from the ‘green’ list during next-token prediction. Liu and Bu (2024)
+improved upon this method by adaptively applying watermarking only to token distribu-
+tions with high entropy. Additional studies exploring related watermarking schemes include
+Kirchenbauer et al. (2023b); Lee et al. (2023); Liu et al. (2023); Zhao et al. (2023); Cai
+et al. (2024); Huo et al. (2024); Nemecek et al. (2024); Zhou et al. (2024). Nonetheless,
+such watermarking techniques inherently introduce bias by altering next-token prediction
+distributions, potentially degrading text quality, especially in long or multiple watermarked
+responses.
+In recent years, a series of unbiased watermarking methods have been developed. Aaron-
+son (2023) proposed the Exponential Minimum Sampling (EMS) method, which embeds a
+detectable watermark signal into generated text by multiplying all tokens by an exponential
+factor. This method is closely related to the Gumbel trick (Papandreou and Yuille, 2011)
+widely used in machine learning. The Inverse Transform Sampling (ITS) watermarking
+approach introduced by Kuditipudi et al. (2023) ensures robustness to perturbations while
+preserving the original text distribution. Further unbiased methods and variations of the
+Gumbel trick are discussed in Christ et al. (2023); Fernandez et al. (2023); Hu et al. (2023);
+Wu et al. (2023, 2024); Fu et al. (2024); Zhao et al. (2024a). Recently, statistical analy-
+sis of watermark generation and detection has garnered increased attention. Huang et al.
+(2023) were among the first to frame watermark detection as a hypothesis testing problem,
+analysing minimax Type II errors and identifying optimal testing procedures under the
+simplified assumption of independent and identically distributed tokens. Li et al. (2024a)
+developed a statistical framework for evaluating the asymptotic efficiency of watermark
+detection, assuming an idealized scenario of fully human-written or fully LLM-generated
+texts. Li et al. (2024b) extended this framework by considering the detection of water-
+marked text potentially edited by humans. Xie et al. (2025) proposed a method employing
+maximal coupling to debias the red-green list approach, establishing asymptotic detection
+boundaries. Comprehensive reviews of watermarking techniques in artificial intelligence
+2
+
+=== PDF PAGE 3 ===
+(AI) can be found in Zhao et al. (2024b) and Liu et al. (2024).
+Recent work by Li et al. (2025) introduced a likelihood-ratio-based method for detect-
+ing LLM-generated text, which is particularly effective for watermark detection in short
+contexts. This approach provides a rigorous analysis of Type I and Type II errors in
+watermark detection tests. In this paper, we first generalize their framework to a more
+flexible weighted version and further adapt it to the ITS method. We then address a more
+challenging task—segmenting published text into watermarked and non-watermarked sub-
+strings—a problem that has received limited attention thus far. Kashtan and Kipnis (2023)
+use log-perplexity as the test statistic and propose a method for identifying sentences most
+likely written by humans. Building on the framework of Li et al. (2024c), we formulate this
+task as a change-point detection problem. Specifically, we partition the text into overlap-
+ping substrings of a predetermined length and sequentially test each for the presence of a
+watermark using a randomization-based test. This process yields a sequence ofp-values,
+which are subsequently analysed to detect changes in the underlying distribution. Water-
+marked segments typically producep-values concentrated near zero, while non-watermarked
+segments yieldp-values uniformly distributed between 0 and 1. Identifying these change
+points allows for effective segmentation of the text into watermarked and non-watermarked
+regions.
+Thep-value sequence is generated using our adaptive method. While the original ap-
+proach requires accurate estimation of next-token probabilities (NTPs) (Li et al., 2025),
+which are highly dependent on precise prompt estimation, our framework removes this
+requirement. In practice, accurately estimating prompts is even more challenging than es-
+timating NTPs, and obtaining precise prompt estimates is typically infeasible in real-world
+scenarios. To overcome this limitation, we divide the text into small segments, allowing
+the preceding tokens to naturally serve as prompts and provide accurate NTP estimates
+for each segment. Since the true prompt only influences the initial segment, we simply use
+an empty set as the initial prompt, making precise prompt estimation unnecessary.
+We validate the effectiveness of our approach through extensive numerical experiments
+on texts generated by two language models:Meta-Llama-3-8Bfrom Meta andMistral-7B-v0.1
+from Mistral AI, using prompts extracted from Google’s C4 dataset. Experimental results
+demonstrate that our proposed segmentation method more accurately localizes watermark-
+induced change points than baseline approaches, highlighting the practical benefits of our
+method.
+The remainder of this paper is organized as follows. Section 2 introduces the watermark
+detection problem and the randomization-based test. Section 3 presents the adaptive test
+statistic, and Section 4 describes the segmentation method for detecting watermarked text.
+Section 5 reports the numerical results, demonstrating the efficiency of the proposed ap-
+proach. Finally, Section 6 concludes the paper, with proofs and additional results provided
+in the Supporting Information.
+2 Problem setup
+2.1 Watermarked Text Generation
+LetVdenote a finite vocabulary set of sizeV=|V|. For simplicity, we assign a unique
+index from the set [V] :={1,2, . . . , V}to each token inV. Consider an autoregressive LLM
+P, which maps a stringy −n0:t−1 =y −n0y−n0+1 · · ·y t−1 ∈ V t+n0 to a probability distribution
+overV. Here,y −n0:0 represents the user-provided prompt. Letµ t(·) :=p(· |y −n0:t−1) denote
+the sampling distribution of the token at timet. Suppose a stringy 1:n is generated by the
+3
+
+=== PDF PAGE 4 ===
+LLM. We definep t :=µ t(yt) as the probability of generating tokeny t given the preceding
+tokensy −n0:t−1 (also known as the NTP).
+Letξ 1:t =ξ 1ξ2 · · ·ξ t be the watermark key sequence, whereξ i ∈Ξ with Ξ representing
+the general key space. When a third-party user provides a prompt, the LLM provider uses
+a generator to produce text autoregressively via a decoder function Γ. Specifically, Γ maps
+the current watermark keyξ t and the distributionµ t to a token inV. In this paper, we
+focus on an unbiased watermarking scheme where the original text distribution is preserved:
+P(Γ(ξ t, pt) =y) =p t(y).(1)
+The watermark text generation algorithm recursively constructs the generated stringy 1:n
+asy i = Γ(ξi, p(· |y −n0:i−1)) for 1≤i≤n, wherenis the number of tokens, and eachξ i is
+independently sampled from a distributionνover Ξ. This process ensures that each token
+yi is uniquely determined byξ i and the preceding contexty −n0:i−1, givenp(· |y −n0:i−1).
+Below, we introduce two popular unbiased watermarking schemes: the EMS technique
+by Aaronson (2023) and the ITS method proposed by Kuditipudi et al. (2023).
+Example 1(EMS).To generate theith token, we first independently sampleξ ik ∼
+Unif[0,1] for each 1≤k≤V, denotingξ i = [ξ i1,· · ·, ξ iV ]. Subsequently, the tokeny i
+is determined as:
+yi = arg max
+k
+log(ξik)
+p(k|y−n0:i−1) = arg min
+k
+−log(ξ ik)
+p(k|y−n0:i−1) = arg min
+k
+Eik,
+whereE ik =−log(ξ ik)/p(k|y−n0:i−1)∼Exp(p(k|y −n0:i−1)). Using properties of the expo-
+nential distribution, we can verify thatP(y i =k) =P
+ 
+Eik <min j̸=k Eij
+
+=p(k|y −n0:i−1),
+which confirms the unbiased nature of this generation scheme.
+For a stringey1:n (of the same length as the key) that may be watermarked, Aaronson
+(2023) propose measuring the dependence between the stringey1:n and the key sequenceξ 1:n
+using the metric:
+ϕ(ξ1:n,ey1:n) = 1
+n
+nX
+i=1
+log(ξi,eyi).(2)
+Ifeyi is generated using the scheme above with the keyξ i, thenξ i,eyi tends to be larger than
+the other components ofξ i. Thus, a higher value ofϕsuggests thatey 1:n was likely generated
+with watermarking.
+Example 2(ITS).Letµ i(k) =p(k|y −n0:i−1) for 1≤k≤Vand 1≤i≤n. To generate
+theith token, we first generate a permutationπ i on [V] and sampleu i ∼Unif[0,1], thereby
+forming the keyξ i = (πi, ui). The decoder function Γ is defined as
+Γ((πi, ui), µi) =π −1
+i
+ 
+min{π i(l)|µ i(j:π i(j)≤π i(l))≥u i}
+
+.
+We note that Γ((π i, ui), µi) =kif min{π i(l) :µ i(j:π i(j)≤π i(l))≥u i}=π i(k), which
+implies thatµ i(j:π i(j)≤π i(k))≥u i > µ i(j:π i(j)< π i(k)). As the length of this interval
+isµ i(k), it follows thatP(Γ((π i, ui), µi) =k) =µ i(k).
+For a stringey1:n (of the same length as the key) that may be watermarked, Kuditipudi
+et al. (2023) quantify the dependence betweeney 1:n andξ 1:n using the metric:
+ϕ(ξ1:n,ey1:n) = 1
+n
+nX
+i=1
+(ui −1/2)
+ πi(eyi)−1
+V−1 − 1
+2
+
+.(3)
+Ifeyi is generated using the ITS scheme with the keyξ i = (π i, ui), thenu i andπ i(eyi) are
+positively correlated. Consequently, a large value ofϕsuggests thatey 1:n is likely water-
+marked.
+4
+
+=== PDF PAGE 5 ===
+2.2 Watermarked Text Detection
+In this section, we address the detection problem of determining whether a given text
+is watermarked. In practice, the published textey 1:m may differ from the original text
+y1:n generated by the LLM using the keyξ 1:n. LetTbe a transformation function such
+thatey1:m =T(y 1:n). This transformation may involve substitutions, insertions, deletions,
+paraphrasing, or other edits. Detecting watermarks in such transformed text is challenging
+because the transformationTcan obscure the watermarking signal.
+Consider a published stringey 1:m generated by a third-party user and a key sequence
+ξ1:n provided to the detector. The detector performs a hypothesis test:
+H0 :ey1:m is not watermarked vs.H a :ey1:m is watermarked,
+by computing ap-value based on the test statisticϕ(ξ 1:n,ey1:m).
+The test statisticϕmeasures the dependence betweeney 1:m andξ 1:n. We assume that
+larger values ofϕprovide stronger evidence against the null hypothesis. To compute the
+p-value, we use a randomization test as follows. GenerateTindependent key sequences
+ξ(t) =ξ (t)
+1 · · ·ξ (t)
+n , whereξ (t)
+i ∼νfor 1≤t≤Tand 1≤i≤n, with eachξ (t)
+i independent of
+ey1:m. The randomization-basedp-value is then defined as:
+pT = 1
+T+ 1
+ 
+1 +
+TX
+t=1
+1
+n
+ϕ(ξ1:n,ey1:m)≤ϕ(ξ (t)
+1:n,ey1:m)
+o!
+.
+Given a pre-specified levelα∈(0,1), we reject the null hypothesisH 0 ifp T ≤α.
+To analyse the Type I and Type II errors of this testing procedure, letFm = [y−n0:0,ey1:m].
+Givenϕ(ξ 1:n,ey1:m), defined ξ :=d(ϕ(ξ 1:n,ey1:m)| F m) andE ξ :=E[ϕ(ξ 1:n,ey1:m)| F m]. Simi-
+larly, letd ξ′ andE ξ′ be defined analogously withξ 1:n replaced byξ ′
+1:n, whereξ ′
+1:n is a key
+sequence generated independently ofey1:m in the same manner asξ 1:n.
+The following proposition proved by Li et al. (2025) shows that the proposed random-
+ization test controls both Type I and Type II errors under suitable conditions.
+Proposition 1.(Theorem 1 of Li et al. 2025) For the randomization test, the following
+holds:
+(i) Under the null hypothesis,
+P(p T ≤α) =⌊(T+ 1)α⌋/(T+ 1)≤α,
+where⌊a⌋denotes the greatest integer less than or equal toa.
+(ii) For anyϵ >0, ifT >2/ϵ−1,E ξ′ =o(E ξ),d ξ′ =o(E ξ), andd ξ =o(E ξ), then
+P(p T ≤α| F n)≥1−C 1 exp(−2T ϵ2) +o(1),(4)
+asn→ ∞, whereC 1 >0.
+By applying Proposition 1 to Examples 1 and 2 withϕdefined in (2) and (3) and
+ey1:m =y 1:n forn=m, we identify conditions under which the power of the randomization
+test for these two watermarking schemes converges to 1 asT→ ∞.
+Corollary 1.Ifey 1:n =y 1:n and
+E := 1√n
+nX
+i=1
+(1−p(y i |y −n0:i−1))→ ∞,(5)
+then the conditions of Theorem 1 are satisfied for Examples 1 and 2.
+5
+
+=== PDF PAGE 6 ===
+The quantityEis referred to as the watermark potential by Kuditipudi et al. (2023),
+and it characterizes the entropy of the LLM. This measure indicates the detector’s ability to
+distinguish watermarked text from unwatermarked text. For instance, if the language model
+is deterministic—producing the same output for a given input without randomness—then
+E= 0, asp(y i |y −n0:i−1) = 1 for alli. In this case, it becomes impossible to differentiate
+watermarked text from unwatermarked text.
+When the published textey 1:m is modified, not all tokens will maintain correlation
+with the key sequence. Instead, certain substrings are expected to exhibit correlation
+underH a. To detect this, a scanning method is employed that compares every segment
+of lengthBiney 1:m to each segment of lengthBinξ 1:n. Define the dependence mea-
+sureϕ(ξ a:a+B−1,eyb:b+B−1) according to the chosen watermarking method. We consider the
+maximum test statistic defined as
+M(ξ1:n,ey1:m) = max
+1≤a≤n−B+1
+max
+1≤b≤m−B+1
+ϕ(ξa:a+B−1,eyb:b+B−1).(6)
+Proposition 2.Consider the maximum statistic defined above, where the dependence mea-
+sure is
+ϕ(ξa:a+B−1,eyb:b+B−1) = 1
+B
+B−1X
+i=0
+hi(ξa+i,eyb+i),
+withh is are independent given[ey1:m, y−n0:n]. If
+C−1
+N,B max
+a,b
+E[M(ξ a:a+B−1,eyb:b+B−1)|ey1:m, y−n0:n]→ ∞,
+whereN= max{n, m}andC N,B = log(N)/Bin Example 1, andC N,B =
+p
+log(N)/Bin
+Example 2, then(4)holds.
+3 Adaptive Test Statistics for Watermark Detection
+Recall that the NTP is defined asp i :=p(y i |y −n0:i−1). It is evident that tokens with
+smallerp i contribute more substantially to the quantityEin (5) than those with largerp i.
+In other words, tokens with lowerp i play a more critical role in distinguishing watermarked
+text from unwatermarked text. Motivated by this observation, Li et al. (2025) proposed
+assigning greater weights to tokens with smallerp i in the test statistics. In this section, we
+extend this idea to the ITS method.
+3.1 Adaptive Test Statistics for the EMS Method
+Li et al. (2025) introduced the following general class of test statistics for the EMS method:
+ϕ(ξ1:n,ey1:n;w 1:n) = 1
+n
+nX
+i=1
+wi log(ξi,eyi),(7)
+wherew 1:n = (w 1, . . . , wn) are nonnegative weights. Settingw i = 1 for allirecovers the
+original statistic in (2).
+In Li et al. (2025), the weightsw i in (7) are chosen based on the likelihood ratio (LR)
+test. According to Lemma 1 in Li et al. (2025), under the EMS framework,
+−log(ξ i,eyi)|y −n0:i−1,ey1:i−1 ∼
+(
+Exp(1) ifey i is not generated fromξ i,
+Exp(1/pi) ifey i is generated fromξ i.
+6
+
+=== PDF PAGE 7 ===
+Thus, the log-likelihood ratio test statistic for assessing whetherey i is generated fromξ i is
+L(ξ1:n,ey1:n) = 1
+n
+nX
+i=1
+1−p i
+pi
+ 
+log(ξi,eyi)
+
+.(8)
+Notably, tokens with smaller NTPs receive larger weights in the LR statistic, thereby ampli-
+fying their influence compared to the original statistic. Consequently, even a small number
+of tokens with low NTPs can substantially enhance the detection power of the LR test. In
+Aaronson (2023) and Kuditipudi et al. (2023), the authors proposed using−log(1−ξ i,eyi)
+in practice, which demonstrated superior performance in watermark detection. In our
+sub-string identification problem later, however, we found no significant performance dif-
+ferences between the two test statistics. For completeness, we report the results based on
+−log(1−ξ i,eyi) in Supporting Information B.
+It is worth noting that the weighting approach can be applied to any watermarking
+technique whose test statistic admits a summation form, such as the ITS and SynthId
+methods (Dathathri et al., 2024). In the following section, we demonstrate how this idea
+can be adapted to the ITS method.
+3.2 Adaptive Test Statistic for the ITS Method
+3.2.1 A General F orm of the Adaptive T est Statistic under ITS F ramework
+Motivated by the general formulation in (7), we introduce the following class of test statistics
+tailored to the ITS method:
+ϕ(ξ1:n,ey1:n;w 1:n) = 1
+n
+nX
+i=1
+wi(ui −1/2)
+ πi(eyi)−1
+V−1 − 1
+2
+
+,(9)
+wherew 1:n = (w1, . . . , wn) are nonnegative weights. Settingw i = 1 for allireduces (9) to
+the original ITS statistic (3).
+The following corollary provides a sufficient condition for asymptotic full power of the
+randomization test based on (9) under the ITS framework.
+Corollary 2.If the weights satisfy
+Pn
+i=1 wi(1−p i)qPn
+i=1 w2
+i
+→+∞,(10)
+then the conditions of Theorem 1 hold for the statistic defined in(9). Consequently, the
+power of the randomization-based test converges to one asT→+∞under the ITS frame-
+work.
+The theorem below generalizes Proposition 2 by incorporating the weighted ITS statis-
+tic.
+Theorem 1.Consider the maximum statistic defined in(6)withϕgiven by(9)in the ITS
+setting. If
+C−1
+N,B max
+a,b
+E[ϕ(ξ a:a+B−1,eyb:b+B−1)|ey1:m, y−n0:n]→+∞,
+whereN= max{n, m},C N,B = √Ωmax
+p
+log(N)/B, andΩ max = max i∈[n] w2
+i , then the
+power condition(4)is satisfied.
+7
+
+=== PDF PAGE 8 ===
+Although the weightw i for ITS cannot be derived from the likelihood ratio, it is still
+possible to use the choicew i = (1−p i)/pi. However, empirical results indicate that the
+weighted test statistic in (9) performs poorly in practical settings. Consequently, we propose
+a new approach for constructing an adaptive test statistic specifically designed for the ITS
+framework.
+3.2.2 Robust Adaptive T est Statistic Using Huber’s Contamination Model
+We first clarify why the LR test statistic cannot be directly applied in the ITS setting.
+Defineµ i(k) =p(k|y −n0:i−1) for 1≤k≤Vand 1≤i≤n, and introduce intervals
+Ii := [µi(j:π i(j)< π i(k)), µi(j:π i(j)≤π i(k))]. By the construction of the ITS method,
+we obtain the following lemma:
+Lemma 1.Under the ITS framework, the conditional distribution ofu i is given by
+ui |y −n0:i−1 ∼
+(
+Unif[0,1]ify i is not generated fromξ i,
+Unif[Ii]ify i is generated fromξ i.
+The likelihood ratio for testing the hypothesisH i0 :y i is not generated fromξ i against
+the alternativeH i1 :y i is generated fromξ i is thus Λi = 1/pi ifu i ∈ I i and Λi = 0 otherwise.
+Therefore, the overall likelihood ratio statistic Λ := Qn
+i=1 Λi is equal to Qn
+i=1 1/pi if all
+ui ∈ I i and Λ = 0 otherwise. Since Λ̸= 0 only if allu i ∈ I i, implying all tokensy 1:n are
+generated fromξ 1:n. In practical applications with modified textey 1:m, expecting all tokens
+to retain alignment with the generated sequence is unrealistic. Consequently, the LR test
+statistic always equals zero in practice, rendering it ineffective.
+To overcome this limitation, we propose using Huber’sϵ-contamination model (Huber,
+1973) under the alternative hypothesis:u i ∼(1−ϵ)Unif[I i] +ϵUnif[0,1], whereϵ∈[0,1]
+denotes the contamination proportion. Under this assumption, we obtain the likelihood
+ratio as Λ i = (1−ϵ)/p i1{u i ∈ I i}+ϵ, and thus the log-likelihood ratio statistic is
+log(Λ) =
+nX
+i=1
+log
+1−ϵ
+pi
+1{u i ∈ I i}+ϵ
+
+.
+This motivates our adaptive test statistic for the ITS method:
+ϕ(ξ1:n,ey1:n) = max
+ϵ
+nX
+i=1
+log
+1−ϵ
+pi
+1{u i ∈ I i}+ϵ
+
+,(11)
+which inherently assigns greater weights to more informative tokens, specifically those with
+smallerp i.
+Remark.Notice that although our test statistics are derived from Huber’sϵ-contamination
+model, the problem we address differs from the sparse detection problem extensively studied
+in the statistics literature (Ingster, 1996; Donoho and Jin, 2004; Cai and Wu, 2014; Arias-
+Castro and Ying, 2019). In their work, the hypothesis testing problems are
+H0 :X 1, . . . , Xn ∼Fv.s.H a :X 1, . . . , Xn ∼(1−ϵ)F(·) +ϵF(· −µ),
+whereas in our setting the hypothesis testing problems are
+H0 :X i ∼Fv.s.H a :X i ∼(1−ϵ)F(·) +ϵF i(·),
+fori= 1, . . . , n, whereF i denotes a distribution that depends on the indexi. In fact, our
+framework is more closely related to the setting in Li et al. (2024b). However, we develop the
+model under a different watermark generation framework and propose alternative methods
+to address the problem.
+8
+
+=== PDF PAGE 9 ===
+4 Sub-string identification
+In this paper, we focus on a relatively underexplored question in the existing literature:
+Given that the global null hypothesisH 0 is rejected, how can we identify the AI-generated
+sub-strings within the modified textey1:m?
+To formalize the setup, we assume that the text published by a third-party user has the
+following structure:
+ey1ey2 · · ·eyτ1| {z }
+non-watermarked
+eyτ1+1 · · ·eyτ2| {z }
+watermarked
+eyτ2+1 · · ·eyτ3| {z }
+non-watermarked
+eyτ3+1 · · ·eyτ4| {z }
+watermarked
+· · ·,(12)
+where the sub-stringseyτ1+1 · · ·eyτ2 andeyτ3+1 · · ·eyτ4 are watermarked. Importantly, the or-
+dering of watermarked and non-watermarked sub-strings is arbitrary and does not impact
+the proposed method. The primary objective here is to accurately segment the text into
+watermarked and non-watermarked sub-strings.
+We follow the framework proposed by Li et al. (2024c) to frame it as a change point
+detection problem. We define a sequence of moving windowsI i = [(i−B/2)∨1,(i+
+B/2)∧m], whereBis the window size, assumed to be an even number for simplicity, and
+1≤i≤m. For each sub-string, we calculate a randomization-basedp-value as follows:
+pi = 1
+T+ 1
+ 
+1 +
+TX
+t=1
+1{M(ξ 1:n,eyIi)≤ M(ξ (t)
+1:n,eyIi)}
+!
+,1≤i≤m,(13)
+whereM(ξ 1:n,eyIi) = max1≤k≤n ϕ(ξJk ,eyIi), withJ k = [(k−B/2)∨1,(k+B/2)∧n].
+The text is thereby transformed into a sequence ofp-values:p 1, . . . ,pm. Under the null
+hypothesis, thep-values are approximately uniformly distributed, whereas under the al-
+ternative, they concentrate near zero. In a simplified scenario where the published text
+is divided into two halves—one watermarked and the other non-watermarked (or vice
+versa)—the change point location can be identified via:
+ˆτ= arg max
+1≤τ <m
+S1:m(τ), S 1:m(τ) := sup
+t∈[0,1]
+τ(m−τ)
+m3/2 |F1:τ(t)−F τ+1:m(t)|,(14)
+whereF a:b(t) represents the empirical cumulative distribution function (cdf) of{p i}b
+i=a.
+Observe that the proposed test statistic (14) is closely related to the scan statistic in
+the sparse detection literature (Arias-Castro and Ying, 2019), as both are defined as the
+supremum of the difference between two empirical distributions. Indeed, the underlying
+idea originates from classical goodness-of-fit tests in the nonparametric literature, such as
+the Kolmogorov–Smirnov test.
+To determine whether ˆτis statistically significant, we employ a block bootstrap-based
+approach. Conditional onF m, thep-value sequence exhibitsB-dependence, meaningp i
+andp j are independent only if|i−j|> B. Traditional bootstrap or permutation methods
+for independent data are unsuitable here, as they fail to capture the dependence between
+neighbouringp-values. Instead, we adopt the moving block bootstrap for time series data
+(Kunsch, 1989; Liu et al., 1992).
+Given a block sizeB ′, we constructm−B ′ + 1 blocks as{p i, . . . ,pi+B′−1}for 1≤i≤
+m−B ′ + 1. We then randomly samplem/B ′ blocks (assumingm/B ′ is an integer) with
+replacement and concatenate them to form resampledp-valuesp ∗
+1, . . . ,p∗
+m. Based on these
+bootstrappedp-values, we computeF ∗
+a:b(t) and define:
+S∗
+1:m(τ) = sup
+t∈[0,1]
+τ(m−τ)
+m3/2 |F ∗
+1:τ(t)−F ∗
+τ+1:m(t)|.
+9
+
+=== PDF PAGE 10 ===
+This procedure is repeatedT ′ times, resulting in statisticsS ∗,(t)
+1:m (τ) fort= 1,2, . . . , T ′. The
+corresponding bootstrap-basedp-value is:
+˜pT ′ = 1
+T ′ + 1
+ 
+1 +
+T ′
+X
+t=1
+1
+
+max
+1≤τ <m
+S1:m(τ)≤max
+1≤τ <m
+S∗,(t)
+1:m (τ)
+!
+.(15)
+We conclude that a statistically significant change point exists if ˜pT ′ ≤α.
+Before presenting the details of the algorithm for multiple change-point detection, we
+emphasize the advantages of our proposed method for substring identification. Compared
+to the approach of Li and Zhang (2024), our framework employs adaptive test statistics to
+generate the sequence ofp-values. These adaptive test statistics are more powerful than
+the original test statistics, leading to enhanced watermark detection and the generation
+of higher-qualityp-value sequences, which in turn facilitate more accurate identification of
+true change points. While the original method requires estimating NTPs based on prompt
+estimation—a significantly more challenging task—our framework eliminates the need for
+prompt estimation. Specifically, we partition the text into small segments, allowing the
+preceding tokens to serve as natural prompts and provide accurate NTP estimates for each
+segment. Since the true prompt only affects the initial segment, we simply use an empty
+set as the initial prompt, thereby eliminating the need for precise prompt estimation.
+4.1 Binary Segmentation
+In this section, we present an algorithm for separating watermarked and non-watermarked
+sub-strings by identifying multiple change point locations. The literature on identify-
+ing multiple change points generally features two main types of algorithms: (i) exact or
+approximate optimization through minimizing a penalized cost function (Harchaoui and
+L´ evy-Leduc, 2010; Truong et al., 2020; R. Killick and Eckley, 2012; Li and Zhang, 2024;
+Zhang and Dawn, 2023), and (ii) approximate segmentation algorithms, for example, bi-
+nary segmentation (Vostrikova, 1981), circular binary segmentation (Olshen et al., 2004),
+Wild Binary Segmentation(WBS) (Fryzlewicz, 2014). Our proposed algorithm is based on
+the widely used binary segmentation method, a top-down approach for detecting multiple
+change points.
+Initially proposed by Vostrikova (1981), binary segmentation identifies a single change
+point using a CUSUM-like procedure and subsequently applies a divide-and-conquer ap-
+proach to detect additional change points within sub-segments until a stopping criterion is
+met. However, as a greedy algorithm, binary segmentation can be less effective when mul-
+tiple change points are present. WBS (Fryzlewicz, 2014) and seeded binary segmentation
+(SeedBS) (Kov´ acs et al., 2022) improve upon binary segmentation by considering multiple
+segments to detect and aggregate potential change points. SeedBS further addresses the
+issue of excessively long sub-segments in WBS, which may contain several change points.
+It introduces multiple layers of intervals, each consisting of a fixed number of intervals of
+varying lengths and shifts, to improve the search for change points.
+When comparing multiple candidates for the next change point, the narrowest-over-
+threshold (NOT) method prioritizes narrower sub-segments preventing the algorithm from
+considering sub-segments containing two or more change points (Baranowski et al., 2019).
+Based on these ideas, we propose an effective algorithm to identify the change points that
+separate watermarked and non-watermarked sub-strings. The details of this algorithm
+are presented in Algorithm 1 in Supporting Information B. More discussions about the
+algorithm are deferred to Supporting Information E.
+10
+
+=== PDF PAGE 11 ===
+5 Numerical experiments
+We consider two LLMs:Meta-Llama-3-8Bfrom Meta (AI@Meta, 2024) andMistral-7B-v0.1
+from Mistral AI (Jiang et al., 2023), along with two watermarking techniques, EMS and
+ITS, for watermarked text generation. We select the hyperparameters according to the
+optimal values recommended in Li et al. (2024c) and Li et al. (2025), settingB=B ′ = 20
+throughout our experiments. To study the impact of the window sizeB, we fixB ′ = 20
+and vary the value ofBin the set{10,20,30,40,50}. Table D.1 reports the Rand index
+values for each setting. A common recommendation in the time series literature is to set
+B=Cn 1/3, wherendenotes the sample size, as shown in Corollary 1 of Lahiri (1999).
+Based on our experience, choosingB=⌊3n 1/3⌋(e.g., whenn= 500,B≈20) often yields
+good finite-sample performance. Further discussion is provided in the Supporting Informa-
+tion D. In the main contents, we present results for theMeta-Llama-3-8Bmodel using the
+EMS method, while results for other settings are included in Supporting Information B and
+C.
+5.1 Test Statistics Based on Estimated NTPs
+In practice, the true NTPs{p i}are unknown, even when the LLM is accessible since the
+original prompt is never observed. In Li et al. (2025), the authors proposed to estimate
+prompt and using the estimated prompt to estimate NTP. However, in our segmenting
+framework, we partition the text into small segments, where preceding tokens naturally
+serve as prompts, providing accurate NTP estimates for each segment. The true prompt
+affects only the initial segment, making precise estimation redundant; thus, we can conve-
+niently use an empty set as the initial prompt.
+Letq i be a generic estimate ofp i. In practice, the estimated NTPsq i may be ex-
+tremely small, leading to instability in the proposed method. To mitigate this, we follow
+the idea from Li et al. (2025) to regularize the estimated NTPs to enhances the algorithm’s
+robustness. Specifically, given an estimated NTPq i, we define the regularized NTP as
+S(qi, λ) =λq i + (1−λ)p i,0,
+whereλ∈(0,1) and (p 1,0, . . . , pn,0) is a prespecified vector of probabilities. We then modify
+the test statistic using the regularized NTPs:
+ϕshrinkage(ξ1:n,ey1:n;q 1:n, λ) = 1
+n
+nX
+i=1
+1−S(q i, λ)
+S(qi, λ) log(ξi,eyi).(16)
+We compare three methods, all based on the randomization test proposed in Section 2.2,
+which differ only in the choice of test statistics. Thebaselinemethod uses the original
+test statistic defined in (2), which is also used in Li et al. (2024c). Theoraclemethod
+employs the adaptive test statistic from (8). Theemptymethod uses the test statistic in
+(16) with a shrinkage parameterλ= 0.5 andq i =q ∅,i, whereq ∅,i represents the estimated
+NTPs with an empty prompt. Theoptimmethod uses the same test statistic as theempty
+approach withλ= 0.5 andq i =q opt,i, whereq opt,i is the estimated NTPs derived from
+solving the optimization problem using the instruction setP opt (Li et al., 2025). The
+idea of this approach is to first generate an instruction set containing candidate prompts,
+and then select the “best prompt” by maximizing the likelihood. As the instruction set
+constructed by Li et al. (2025) relies on access to the true prompt—which is not feasible
+in practical applications—we omit the details here. This method is included primarily to
+illustrate that, within our framework, it is unnecessary to estimate the true prompt.
+11
+
+=== PDF PAGE 12 ===
+Additionally, we adapt several state-of-the-art watermark detection methods, including
+Xie et al. (2025) and Li et al. (2024b), to our segmentation framework, and also com-
+pare with the approach of Kashtan and Kipnis (2023). Our proposed method consistently
+outperforms these alternatives across all settings. Due to space constraints, further imple-
+mentation details and results are provided in the Supporting Information B.
+5.2 Segmenting Watermarked Texts
+In this section, followed setting in Li et al. (2024c), we consider two types of attacks—insertion
+and substitution—that can introduce change points in LLM-generated texts. To evaluate
+the effectiveness of the proposed method, we examine four settings with varying numbers
+of change points and segment lengths. In all settings, we perform each experiment with
+T= 99,T ′ = 999 permutations and 100 independent Monte Carlo replications.
+•Setting 1 (No change points).Generate 500 tokens with watermarks. This setting
+is used to evaluate false positives, and the corresponding results are deferred to the
+Supporting Information B.
+•Setting 2 (Insertion attack).Generate 500 tokens with watermarks, then insert up
+to 250 non-watermarked tokens at approximately index 250 while preserving semantic
+coherence. This setting introduces a single change point near index 251.
+•Setting 3 (Substitution attack).Generate 500 tokens with watermarks, then
+substitute tokens with indices ranging from 201 to 300 with non-watermarked text
+following
+eyi =
+(
+Γ(ξi, p(· |ey−n0:i−1)) ife i = 0,
+Multinomial(p(· |ey−n0:i−1)) ife i = 1. (17)
+This setting introduces two change points at indices 201 and 301.
+•Setting 4 (Insertion and substitution attacks).Generate 500 tokens with water-
+marks, substitute tokens with indices ranging from 101 to 200 with non-watermarked
+text following (17), and insert up to 100 non-watermarked tokens at approximately
+index 300. This setting introduces four change points at indices 101, 201, around 301,
+and around 401.
+In these experiments, we evaluate clustering performance by comparing the clusters
+identified via detected change points with the ground truth clusters defined by the true
+change points, using the Rand index (Rand, 1971). A higher Rand index indicates superior
+clustering accuracy. As shown in Figure 2, both adaptive methods consistently outper-
+form thebaselinemethod across all scenarios, further illustrating the advantages of the
+proposed approach. Moreover, theemptymethod performs comparably to, and sometimes
+better than, theoptimmethod. This result supports our claim that prompt estimation is
+unnecessary in our framework.
+Figure 3 further presents thep-value sequences produced by different methods under
+a fixed prompt. Recall that when no watermark is present,p-values follow a Uniform[0,1]
+distribution, whereas the presence of a watermark results inp-values concentrated near
+zero. Relative to thebaselinemethod, the two adaptive methods generate higher-quality
+p-value sequences—that is, sequences that more closely align with the expected distribution
+under each scenario. Since the effectiveness of change point detection critically depends on
+12
+
+=== PDF PAGE 13 ===
+0.2
+0.4
+0.6
+0.8
+1.0
+0.001 0.005 0.01 0.05
+Threshold
+Rand Index
+Setting
+Setting 2, baseline
+Setting 2, empty
+Setting 2, optim
+Setting 3, baseline
+Setting 3, empty
+Setting 3, optim
+Setting 4, baseline
+Setting 4, empty
+Setting 4, optim
+Figure 2: Boxplots of the Rand index comparing clusters identified through detected change
+points with the true clusters defined by the true change points, for different thresholds in
+the EMS framework using theLlamaLLM.
+Setting 1 Setting 2 Setting 3 Setting 4
+baselineemptyoptim
+0 125 250 375 500 0 125 250 375 500 0 125 250 375 500 0 125 250 375 500
+0.0
+0.5
+1.0
+0.0
+0.5
+1.0
+0.0
+0.5
+1.0
+Index
+P−Value
+Figure 3: Comparison ofp-value sequences generated by different methods under a fixed
+prompt. The two adaptive methods produce higher-qualityp-value sequences than the
+baseline, explaining their superior performance in change-point detection. Theempty
+method performs comparably to theoptimmethod, indicating that prompt estimation is
+unnecessary in our framework.
+the quality of thep-value sequences, this finding explains why the proposed methods con-
+sistently outperform the baseline in segmenting watermarked text. Once again, theempty
+method performs comparably to theoptimmethod, reinforcing that prompt estimation is
+not required in our framework.
+6 Conclusion
+In this study, we extended the likelihood-based LLM detection method to a more general
+class of adaptive methods. By formulating the segmentation task as a change-point detec-
+tion problem, we employed adaptive test statistics to accurately identify watermarked sub-
+strings and validated the effectiveness of our approach through extensive simulation studies.
+These experiments demonstrated the substantial advantages of the proposed methods over
+existing techniques.
+An important direction for future work is to address scenarios in which published texts
+contain mixed watermarked content generated by different LLMs employing distinct water-
+marking schemes. This setting introduces the challenge of segmenting text into substrings
+attributable to different LLMs, each characterized by its own sequence of keys,p-values, and
+change points. The development of algorithms capable of aggregating and analysing such
+results represents a promising avenue for advancing watermark detection and segmentation
+13
+
+=== PDF PAGE 14 ===
+research.
+References
+Scott Aaronson. Watermarking of large language models.https://simons.berkeley.
+edu/talks/scott-aaronson-ut-austin-openai-2023-08-17, 2023.
+AI@Meta. Llama 3 model card.https://github.com/meta-llama/llama3/blob/main/
+MODEL_CARD.md, 2024.
+Ery Arias-Castro and Andrew Ying. Detection of sparse mixtures: Higher criticism and
+scan statistic.EJS, 2019.
+Rafal Baranowski, Yining Chen, and Piotr Fryzlewicz. Narrowest-Over-Threshold Detec-
+tion of Multiple Change Points and Change-Point-Like Features.Journal of the Royal
+Statistical Society Series B: Statistical Methodology, 81(3):649–672, 05 2019. ISSN 1369-
+7412. doi: 10.1111/rssb.12322.
+Tony T Cai and Yihong Wu. Optimal detection of sparse mixtures against a given null
+distribution.IEEE Transactions on Information Theory, 60(4):2217–2232, 2014.
+Zhongze Cai, Shang Liu, Hanzhao Wang, Huaiyang Zhong, and Xiaocheng Li. Towards
+better statistical understanding of watermarking llms.arXiv preprint arXiv:2403.13027,
+2024.
+Miranda Christ, Sam Gunn, and Or Zamir. Undetectable watermarks for language models.
+arXiv preprint arXiv:2306.09194, 2023.
+Sumanth Dathathri, Abigail See, Sumedh Ghaisas, Po-Sen Huang, Rob McAdam, Johannes
+Welbl, Vandana Bachani, Alex Kaskasoli, Robert Stanforth, Tatiana Matejovicova, et al.
+Scalable watermarking for identifying large language model outputs.Nature, 634(8035):
+818–823, 2024.
+David Donoho and Jiashun Jin. Higher criticism for detecting sparse heterogeneous mix-
+tures.Annals of Statistics, 2004.
+Pierre Fernandez, Antoine Chaffin, Karim Tit, Vivien Chappelier, and Teddy Furon. Three
+bricks to consolidate watermarks for large language models. In2023 IEEE International
+Workshop on Information Forensics and Security (WIFS), pages 1–6. IEEE, 2023.
+Piotr Fryzlewicz. Wild binary segmentation for multiple change-point detection.The Annals
+of Statistics, 42(6):2243 – 2281, 2014. doi: 10.1214/14-AOS1245.
+Jiayi Fu, Xuandong Zhao, Ruihan Yang, Yuansen Zhang, Jiangjie Chen, and Yanghua Xiao.
+Gumbelsoft: Diversified language model watermarking via the gumbelmax-trick.arXiv
+preprint arXiv:2402.12948, 2024.
+Zaıd Harchaoui and C´ eline L´ evy-Leduc. Multiple change-point estimation with a total
+variation penalty.Journal of the American Statistical Association, 105(492):1480–1493,
+2010.
+Zhengmian Hu, Lichang Chen, Xidong Wu, Yihan Wu, Hongyang Zhang, and Heng Huang.
+Unbiased watermark for large language models.arXiv preprint arXiv:2310.10669, 2023.
+14
+
+=== PDF PAGE 15 ===
+Baihe Huang, Banghua Zhu, Hanlin Zhu, Jason D Lee, Jiantao Jiao, and Michael I Jordan.
+Towards optimal statistical watermarking.arXiv preprint arXiv:2312.07930, 2023.
+Peter J Huber. Robust regression: asymptotics, conjectures and monte carlo.The annals
+of statistics, pages 799–821, 1973.
+Mingjia Huo, Sai Ashish Somayajula, Youwei Liang, Ruisi Zhang, Farinaz Koushanfar,
+and Pengtao Xie. Token-specific watermarking with enhanced detectability and semantic
+coherence for large language models.arXiv preprint arXiv:2402.18059, 2024.
+Yuri I Ingster. On some problems of hypothesis testing leading to infinitely divisible distri-
+butions.Mathematical Methods of Statistics, 1996.
+Albert Q Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh
+Chaplot, Diego de las Casas, Florian Bressand, Gianna Lengyel, Guillaume Lample,
+Lucile Saulnier, et al. Mistral 7b.arXiv preprint arXiv:2310.06825, 2023.
+Idan Kashtan and Alon Kipnis. An information-theoretic approach for detecting edits in
+ai-generated text.arXiv preprint arXiv:2308.12747, 2023.
+John Kirchenbauer, Jonas Geiping, Yuxin Wen, Jonathan Katz, Ian Miers, and Tom Gold-
+stein. A watermark for large language models. InInternational Conference on Machine
+Learning, pages 17061–17084. PMLR, 2023a.
+John Kirchenbauer, Jonas Geiping, Yuxin Wen, Manli Shu, Khalid Saifullah, Kezhi Kong,
+Kasun Fernando, Aniruddha Saha, Micah Goldblum, and Tom Goldstein. On the relia-
+bility of watermarks for large language models.arXiv preprint arXiv:2306.04634, 2023b.
+S Kov´ acs, P B¨ uhlmann, H Li, and A Munk. Seeded binary segmentation: a general method-
+ology for fast and optimal changepoint detection.Biometrika, 110(1):249–256, 10 2022.
+Rohith Kuditipudi, John Thickstun, Tatsunori Hashimoto, and Percy Liang. Robust
+distortion-free watermarks for language models.arXiv preprint arXiv:2307.15593, 2023.
+Hans R Kunsch. The jackknife and the bootstrap for general stationary observations.The
+annals of Statistics, pages 1217–1241, 1989.
+Soumendra N Lahiri. Theoretical comparisons of block bootstrap methods.Annals of
+Statistics, pages 386–404, 1999.
+Taehyun Lee, Seokhee Hong, Jaewoo Ahn, Ilgee Hong, Hwaran Lee, Sangdoo Yun, Jamin
+Shin, and Gunhee Kim. Who wrote this code? watermarking for code generation.arXiv
+preprint arXiv:2305.15060, 2023.
+Xiang Li, Feng Ruan, Huiyuan Wang, Qi Long, and Weijie J Su. A statistical framework
+of watermarks for large language models: Pivot, detection efficiency and optimal rules.
+arXiv preprint arXiv:2404.01245, 2024a.
+Xiang Li, Feng Ruan, Huiyuan Wang, Qi Long, and Weijie J Su. Robust detection of water-
+marks for large language models under human edits.arXiv preprint arXiv:2411.13868,
+2024b.
+Xingchi Li and Xianyang Zhang. fastcpd: Fast change point detection in r.arXiv preprint
+arXiv:2404.05933, 2024.
+15
+
+=== PDF PAGE 16 ===
+Xingchi Li, Guanxun Li, and Xianyang Zhang. Segmenting watermarked texts from lan-
+guage models.arXiv preprint arXiv:2410.20670, 2024c.
+Xingchi Li, Guanxun Li, and Xianyang Zhang. A likelihood based approach for watermark
+detection. InThe 28th International Conference on Artificial Intelligence and Statistics,
+2025.
+Aiwei Liu, Leyi Pan, Xuming Hu, Shuang Li, Lijie Wen, Irwin King, and S Yu Philip.
+An unforgeable publicly verifiable watermark for large language models. InThe Twelfth
+International Conference on Learning Representations, 2023.
+Aiwei Liu, Leyi Pan, Yijian Lu, Jingjing Li, Xuming Hu, Xi Zhang, Lijie Wen, Irwin King,
+Hui Xiong, and Philip Yu. A survey of text watermarking in the era of large language
+models.ACM Computing Surveys, 57(2):1–36, 2024.
+Regina Y Liu, Kesar Singh, et al. Moving blocks jackknife and bootstrap capture weak
+dependence.Exploring the limits of bootstrap, 225:248, 1992.
+Yepeng Liu and Yuheng Bu. Adaptive text watermark for large language models.arXiv
+preprint arXiv:2401.13927, 2024.
+Alexander Nemecek, Yuzhou Jiang, and Erman Ayday. Topic-based watermarks for llm-
+generated text.arXiv preprint arXiv:2404.02138, 2024.
+Adam B Olshen, E Seshan Venkatraman, Robert Lucito, and Michael Wigler. Circular
+binary segmentation for the analysis of array-based dna copy number data.Biostatistics,
+5(4):557–572, 2004.
+George Papandreou and Alan L Yuille. Perturb-and-map random fields: Using discrete
+optimization to learn and sample from energy models. In2011 international conference
+on computer vision, pages 193–200. IEEE, 2011.
+P. Fearnhead R. Killick and I. A. Eckley. Optimal detection of changepoints with a linear
+computational cost.Journal of the American Statistical Association, 107(500):1590–1598,
+2012. doi: 10.1080/01621459.2012.737745.
+William M. Rand. Objective criteria for the evaluation of clustering methods.Journal
+of the American Statistical Association, 66(336):846–850, 1971. doi: 10.1080/01621459.
+1971.10482356.
+Charles Truong, Laurent Oudre, and Nicolas Vayatis. Selective review of offline change
+point detection methods.Signal Processing, 167:107299, 2020. ISSN 0165-1684.
+Lyudmila Yur’evna Vostrikova. Detecting “disorder” in multidimensional random processes.
+InDoklady akademii nauk, volume 259, pages 270–274. Russian Academy of Sciences,
+1981.
+Yihan Wu, Zhengmian Hu, Hongyang Zhang, and Heng Huang. Dipmark: A stealthy, effi-
+cient and resilient watermark for large language models.arXiv preprint arXiv:2310.07710,
+2023.
+Yihan Wu, Zhengmian Hu, Junfeng Guo, Hongyang Zhang, and Heng Huang. A resilient
+and accessible distribution-preserving watermark for large language models.Forty-first
+International Conference on Machine Learning, 2024.
+16
+
+=== PDF PAGE 17 ===
+Yangxinyu Xie, Xiang Li, Tanwi Mallick, Weijie Su, and Ruixun Zhang. Debiasing wa-
+termarks for large language models via maximal coupling.Journal of the American
+Statistical Association, pages 1–21, 2025.
+Xianyang Zhang and Trisha Dawn. Sequential gradient descent and quasi-newton’s method
+for change-point analysis. InInternational Conference on Artificial Intelligence and
+Statistics, pages 1129–1143. PMLR, 2023.
+Xuandong Zhao, Yu-Xiang Wang, and Lei Li. Protecting language generation models via
+invisible watermarking. InInternational Conference on Machine Learning, pages 42187–
+42199. PMLR, 2023.
+Xuandong Zhao, Lei Li, and Yu-Xiang Wang. Permute-and-flip: An optimally robust and
+watermarkable decoder for llms.arXiv preprint arXiv:2402.05864, 2024a.
+Xuandong Zhao, Sam Gunn, Miranda Christ, Jaiden Fairoze, Andres Fabrega, Nicholas
+Carlini, Sanjam Garg, Sanghyun Hong, Milad Nasr, Florian Tramer, et al. Sok: Water-
+marking for ai-generated content.arXiv preprint arXiv:2411.18479, 2024b.
+Tong Zhou, Xuandong Zhao, Xiaolin Xu, and Shaolei Ren. Bileve: Securing text prove-
+nance in large language models against spoofing with bi-level signature.arXiv preprint
+arXiv:2406.01946, 2024.
+17
+
+=== PDF PAGE 18 ===
+Appendices
+A Proofs of the main results
+We provide theoretical proofs for all results to ensure self-containment.
+Proof of Proposition 1.
+(i) For simplicity of notation, letφ :=ϕ(ξ 1:n,ey1:m) andφ (t) :=ϕ(ξ (t)
+1:n,ey1:m) fort= 1, . . . , T.
+Under the null hypothesis,ξ 1:n is independent ofey1:m, which implies that the pairs
+(ξ1:n,ey1:m),(ξ (1)
+1:n,ey1:m), . . . ,(ξ (T)
+1:n ,ey1:m)
+follow the same distribution. Therefore,φ, φ (1), . . . , φ(T) are exchangeable. This exchange-
+ability ensures that the rank ofφrelative to{φ, φ (1), . . . , φ(T) }is uniformly distributed.
+Let the order statistics be denoted asφ (1) ≤ · · · ≤φ (T+1) . Then, we have
+P
+ 
+φ=φ (j)
+
+= 1
+T+ 1 , j= 1, . . . , T+ 1.
+Thus, forj= 1, . . . , T+ 1, we obtain
+P
+
+pT ≤ j
+T+ 1
+
+=P
+ 
+φ∈
+
+φ(T+2−j) , . . . , φ(T+1)
+	
+= j
+T+ 1 .
+Finally, we have
+P(p T ≤α) = ⌊(T+ 1)α⌋
+T+ 1 ≤α.
+(ii) By Chebyshev’s inequality we have
+P
+ 
+|ϕ(ξ′
+1:n,ey1:m)−E ξ′| ≥ϵd ξ′|Fm
+
+≤ Var(ϕ(ξ′
+1:n,ey1:m)|Fm)
+ϵ2d2
+ξ′
+= 1
+ϵ2 ,
+for allϵ≥0. Similarly, we haveϕ(ξ ′
+1:n,ey1:m) =E ξ′ +O p(dξ′) givenF m.
+Let the distribution ofϕ(ξ ′
+1:n,ey1:m) conditional onF m be denoted byF, and the em-
+pirical distribution of{φ (t)}T
+t=0 byF T , where we setφ (0) =φ. Letq 1−α,T =φ (T+2−j α)
+withj α =⌊(T+ 1)α⌋. Note thatF T (q1−α,T ) = 1−(j α −1)/(T+ 1). Our test rejects the
+null wheneverp T ≤α, which is equivalent to rejecting the null ifφ≥φ (T+2−j α). By the
+Dvoretzky–Kiefer–Wolfowitz inequality, we have
+P(|F T (q1−α,T )−F(q 1−α,T )|> ϵ|F m)≤P
+
+sup
+x
+|FT (x)−F(x)|> ϵ|F m
+
+≤C 1 exp(−2T ϵ2)
+for some constantC 1 >0, which implies that, with probability greater than 1−C1 exp(−2T ϵ2),
+F(q 1−α,T )<1−(j α −1)/(T+1)+2ϵ. DefineF −1(t) = inf{s:F(s)≥t}and the eventA T =
+{q1−α,T < F −1(1−(j α −1)/(T+ 1) + 2ϵ)}. Then we haveP(A T |Fm)≥1−C 1 exp(−2T ϵ2).
+In addition, asϕ(ξ ′
+1:n,ey1:m) =E ξ′ +O p(dξ′), we haveF −1(s) =E ξ′ +O(d ξ′) for anys <1.
+18
+
+=== PDF PAGE 19 ===
+Notice thatd −1
+ξ
+ 
+ϕ(ξ1:n,ey1:m)−E ξ)|Fm]
+
+=O p(1). Hence, forT >2/ϵ−1,
+P(ϕ(ξ 1:n,ey1:m)≥q 1−α,T |Fm)
+≥P
+
+d−1
+ξ
+ 
+ϕ(ξ1:n,ey1:m)−E ξ
+
++d −1
+ξ Eξ ≥d −1
+ξ q1−α,T ,A T |Fm
+
+≥P
+
+Op(1) +d −1
+ξ Eξ ≥d −1
+ξ F −1(1−(j α −1)/(T+ 1) + 2ϵ),A T |Fm
+
+≥P
+
+Op(1) +d −1
+ξ Eξ ≥d −1
+ξ F −1(1−α+ 3ϵ),A T |Fm
+
+≥P
+
+Op(1) +d −1
+ξ Eξ ≥d −1
+ξ
+ 
+Eξ′ +O(d ξ′)
+
+,A T |Fm
+
+≥1−C 1 exp(−2T ϵ2) +o(1),
+where we have used Conditiond ξ =o(E ξ),d ξ′ =o(E ξ) andE ξ′ =o(E ξ)to establish the
+convergence.
+Proof of Proposition 2.We only prove the result under the setting of Example 2 as the
+proof for Example 1 is similar with the help of Bernstein’s inequality. Because|h i| ≤1/4,
+by Hoeffding’s inequality, we have
+P(|ϕ(ξ a:a+B−1,eyb:b+B−1)−E[ϕ(ξ a:a+B−1,eyb:b+B−1)|ey1:m, y−n0:n]|> t|ey1:m, y−n0:n)
+≤2 exp
+ 
+−8Bt2
+.
+By the union bound, we have
+P
+ 
+max
+1≤a≤n−B+1,1≤b≤m−B+1
+|ϕ(ξa:a+B−1,eyb:b+B−1)
+−E[ϕ(ξ a:a+B−1,eyb:b+B−1)|ey1:m, y−n0:n]|> t|ey1:m, y−n0:n
+!
+≤2(n−B+ 1)(m−B+ 1) exp
+ 
+−8Bt2
+.
+Integrating out the strings iny 1:n that are not contained iney1:m, we obtain
+P
+ 
+max
+1≤a≤n−B+1,1≤b≤m−B+1
+|ϕ(ξa:a+B−1,eyb:b+B−1)
+−E[ϕ(ξ a:a+B−1,eyb:b+B−1)|ey1:m, y−n0:n]|> t|F m
+!
+≤2(n−B+ 1)(m−B+ 1) exp
+ 
+−8Bt2
+,
+whereF m = [ey1:m, y−n0:0]. Thus, conditional onF m, we have
+max
+a,b
+{|E[ϕ(ξa:a+B−1,eyb:b+B−1)|Fm]−ϕ(ξ a:a+B−1,eyb:b+B−1)|}=O(C N,B).
+Note that
+ϕ(ξ1:n,ey1:m) = max
+a,b
+ϕ(ξa:a+B−1,eyb:b+B−1)
+≥max
+a,b
+E[ϕ(ξa:a+B−1,eyb:b+B−1)|Fm]
+−max
+a,b
+{E[ϕ(ξa:a+B−1,eyb:b+B−1)|Fm]−ϕ(ξ a:a+B−1,eyb:b+B−1)}
+= max
+a,b
+E[ϕ(ξa:a+B−1,eyb:b+B−1)|Fm] +O(C N,B).
+19
+
+=== PDF PAGE 20 ===
+On the other hand, for a randomly generated keyξ ′
+1:n,E[ϕ(ξ ′
+a:a+B−1,eyb:b+B−1)|Fm] = 0 for
+alla, b. By the same argument, we get
+P
+ 
+ϕ(ξ′
+1:n,ey1:m)> t|F m
+
+=P
+
+max
+1≤a≤n−B+1,1≤b≤m−B+1
+ϕ(ξ′
+a:a+B−1,eyb:b+B−1)> t
+Fm
+
+≤2(n−B+ 1)(m−B+ 1) exp
+ 
+−8Bt2
+,
+which suggests thatF −1(s) =O(C N,B) withFbeing the distribution ofϕ(ξ ′
+1:n,ey1:m) con-
+ditional onF m andF −1(t) = inf{s:F(s)≥t}. The rest of the arguments are similar to
+those in the proof of Theorem 1. We skip the details.
+Proof of Theorem 1.Recall in ITS setting that the test statistic is given by:
+ϕ(ξ1:n, y1:n) = 1
+n
+nX
+i=1
+wi(ui −1/2)
+ πi(yi)−1
+V−1 − 1
+2
+
+:= 1
+n
+nX
+i=1
+wihi(ξi, yi).
+Because|h i| ≤1/4, by Hoeffding’s inequality, we have
+P(|ϕ(ξ a:a+B−1,eyb:b+B−1)−E[ϕ(ξ a:a+B−1,eyb:b+B−1)|ey1:m, y−n0:n]|> t|ey1:m, y−n0:n)
+≤2 exp
+ 
+−8Bt2/Ω2
+max
+
+.
+By the union bound, we have
+P
+ 
+max
+1≤a≤n−B+1,1≤b≤m−B+1
+|ϕ(ξa:a+B−1,eyb:b+B−1)
+−E[ϕ(ξ a:a+B−1,eyb:b+B−1)|ey1:m, y−n0:n]|> t|ey1:m, y−n0:n
+!
+≤2(n−B+ 1)(m−B+ 1) exp
+ 
+−8Bt2/Ω2
+max
+
+.
+Integrating out the strings iny 1:n that are not contained iney1:m, we obtain
+P
+ 
+max
+1≤a≤n−B+1,1≤b≤m−B+1
+|ϕ(ξa:a+B−1,eyb:b+B−1)
+−E[ϕ(ξ a:a+B−1,eyb:b+B−1)|ey1:m, y−n0:n]|> t|F m
+!
+≤2(n−B+ 1)(m−B+ 1) exp
+ 
+−8Bt2/Ω2
+max
+
+,
+whereF m = [ey1:m, y−n0:0]. Thus, conditional onF m, we have
+max
+a,b
+{|E[ϕ(ξa:a+B−1,eyb:b+B−1)|Fm]−ϕ(ξ a:a+B−1,eyb:b+B−1)|}=O(C N,B).
+Note that
+ϕ(ξ1:n,ey1:m) = max
+a,b
+ϕ(ξa:a+B−1,eyb:b+B−1)
+≥max
+a,b
+E[ϕ(ξa:a+B−1,eyb:b+B−1)|Fm]
+−max
+a,b
+{E[ϕ(ξa:a+B−1,eyb:b+B−1)|Fm]−ϕ(ξ a:a+B−1,eyb:b+B−1)}
+= max
+a,b
+E[ϕ(ξa:a+B−1,eyb:b+B−1)|Fm] +O(C N,B).
+20
+
+=== PDF PAGE 21 ===
+On the other hand, for a randomly generated keyξ ′
+1:n,E[ϕ(ξ ′
+a:a+B−1,eyb:b+B−1)|Fm] = 0 for
+alla, b. By the same argument, we get
+P
+ 
+ϕ(ξ′
+1:n,ey1:m)> t|F m
+
+=P
+
+max
+1≤a≤n−B+1,1≤b≤m−B+1
+ϕ(ξ′
+a:a+B−1,eyb:b+B−1)> t
+Fm
+
+≤2(n−B+ 1)(m−B+ 1) exp
+ 
+−8Bt2/Ω2
+max
+
+,
+which suggests thatF −1(s) =O(C N,B) withFbeing the distribution ofϕ(ξ ′
+1:n,ey1:m) con-
+ditional onF m andF −1(t) = inf{s:F(s)≥t}. The rest of the arguments are similar to
+those in the proof of Theorem 1. We skip the details.
+Proof of Corollary 1.
+(i) In Example 1, the test statistic is given by
+ϕ(ξ1:n, y1:n) = 1
+n
+nX
+i=1
+{log(ξi,yi) + 1}.
+Observe thatE ik :=−log(ξ ik)/p(k|y−n0:i−1)∼Exp(p(k|y −n0:i−1)). Sinceξ ′
+1:n is indepen-
+dent ofy 1:n, we have−log(ξ ′
+i,yi)|y−n0:n ∼Exp(1). Hence, conditional ony −n0:n, we have
+E[ϕ(ξ′
+1:n, y1:n)|y−n0:n] = 0,Var(ϕ(ξ ′
+1:n, y1:n)|y−n0:n) = 1
+n .
+Giveny −n0:n, we knowE i,yi = min1≤k≤V Eik, which implies−log(ξ i,yi)/p(yi|y−n0:i−1)|y−n0:n ∼
+Exp(1). It is worth noting that
+P(−log(ξ i,yi)≥t) =p
+
+− log(ξi,yi)
+p(yi|y−n0:i−1) ≥ t
+p(yi|y−n0:i−1)
+
+= exp
+
+− t
+p(yi|y−n0:i−1)
+
+.
+That is−log(ξ i,yi)|y−n0:n ∼Exp(1/p(y i|y−n0:i−1)). Sinceξ is are conditionally independent
+giveny −n0:n. Thus, we have
+E[ϕ(ξ1:n, y1:n)|y−n0:n] = 1
+n
+nX
+i=1
+(1−p(y i|y−n0:i−1)),
+Var(ϕ(ξ1:n, y1:n)|y−n0:n) = 1
+n2
+nX
+i=1
+p(yi|y−n0:i−1)2 ≤ 1
+n .
+Therefore, conditions of Theorem 1 are satisfied.
+(ii) Recall in Example 2 that the test statistic is given by:
+ϕ(ξ1:n, y1:n) = 1
+n
+nX
+i=1
+(ui −1/2)
+ πi(yi)−1
+V−1 − 1
+2
+
+:= 1
+n
+nX
+i=1
+hi(ξi, yi),
+whereξ i = (ui, πi). Notice thath i(ξi, yi) is bounded. Sinceξ ′
+1:n is independent ofy −n0:n,
+we haveu ′
+i|y1:n ∼Unif[0,1]. Thus,E[ϕ(ξ ′
+1:n, y1:n)|y1:n] = 0.
+Denoteµ i(·) =p(·|y −n0:i−1). Conditional ony −n0:i andπ i(yi), we know thatu i follows
+the uniform distribution over the interval [µ i(y:π i(y)< π i(yi)), µi(y:π i(y)≤π i(yi))]. As
+21
+
+=== PDF PAGE 22 ===
+a result, we can calculate the expected value ofu i giveny −n0:i andπ i(yi) as
+E[ui|y−n0:i, πi(yi)] = 1
+2 {µi(y:π i(y)< π i(yi)) +µ i(y:π i(y)≤π i(yi))}
+= µi(yi)
+2 +µ i(y:π i(y)< π i(yi))
+= µi(yi)
+2 + πi(yi)−1
+V−1 (1−µ i(yi))
+= 1
+2 + (1−µ i(yi))
+ πi(yi)−1
+V−1 − 1
+2
+
+,
+where the third equality is because givenπ i(yi) =k,π i follows the uniform distribution
+over the permutation space with the restrictionπ i(yi) =k. Then, we have
+E
+
+(ui −1/2)
+ πi(yi)−1
+V−1 − 1
+2
+
+|y−n0:i
+
+=E
+
+E
+
+(ui −1/2)
+ πi(yi)−1
+V−1 − 1
+2
+
+|y−n0:i, πi(yi)
+
+|y−n0:i
+
+=E
+"
+(1−µ i(yi))
+ πi(yi)−1
+V−1 − 1
+2
+2#
+=
+ 
+1−p(y i|y−n0:i−1)
+
+E
+" πi(yi)−1
+V−1 − 1
+2
+2
+|y−n0:i
+#
+.
+Giveny i, (π i(yi)−1)/(V−1) follows the uniform distribution over the discrete space
+{0,1/(V−1), . . . ,1}. Thus we haveE[(π i(yi)−1)/(V−1)] = 1/2 and Var((π i(yi)−1)/(V−
+1)) =C, which is a constant less than 1/12 (i.e., the variance of Unif[0,1]), which further
+implies thatE[ϕ(ξ 1:n, y1:n)] =Cn −1Pn
+i=1
+ 
+1−p(y i|y1:i−1)
+
+. Hence, conditions of Theorem 1
+are satisfied due to (5).
+Proof of Corollary 2.Recall from Example 2 that the test statistic is given by:
+ϕ(ξ1:n, y1:n) = 1
+n
+nX
+i=1
+wi(ui −1/2)
+ πi(yi)−1
+V−1 − 1
+2
+
+:= 1
+n
+nX
+i=1
+wihi(ξi, yi),
+whereξ i = (ui, πi). First, note thath i(ξi, yi) is bounded, with a minimum value of−1/4
+and a maximum value of 1/4. Consequently,d ξ ≤ 1
+4n
+qPn
+i=1 w2
+i andd ξ′ ≤ 1
+4n
+qPn
+i=1 w2
+i .
+Sinceξ ′
+1:n is independent ofy −n0:n, it follows thatu ′
+i |y 1:n ∼Unif[0,1], and henceE ξ′ = 0.
+Defineµ i(·) =p(· |y −n0:i−1). Conditional ony −n0:i andπ i(yi),u i is uniformly dis-
+tributed over the interval [µ i(y:π i(y)< π i(yi)), µi(y:π i(y)≤π i(yi))]. Therefore, the
+expected value ofu i giveny −n0:i andπ i(yi) is:
+E[ui |y −n0:i, πi(yi)] = 1
+2 {µi(y:π i(y)< π i(yi)) +µ i(y:π i(y)≤π i(yi))}
+= µi(yi)
+2 +µ i(y:π i(y)< π i(yi))
+= µi(yi)
+2 + πi(yi)−1
+V−1 (1−µ i(yi))
+= 1
+2 + (1−µ i(yi))
+ πi(yi)−1
+V−1 − 1
+2
+
+,
+22
+
+=== PDF PAGE 23 ===
+where the third equality holds because, givenπ i(yi) =k,π i follows a uniform distribution
+over the permutation space with the restrictionπ i(yi) =k. Thus, we have:
+E
+
+wi(ui −1/2)
+ πi(yi)−1
+V−1 − 1
+2
+
+|y −n0:i
+
+=E
+
+wiE
+
+(ui −1/2)
+ πi(yi)−1
+V−1 − 1
+2
+
+|y −n0:i, πi(yi)
+
+|y −n0:i
+
+=E
+"
+wi(1−µ i(yi))
+ πi(yi)−1
+V−1 − 1
+2
+2
+|y−n0:i
+#
+=wi
+ 
+1−p(y i |y −n0:i−1)
+
+E
+" πi(yi)−1
+V−1 − 1
+2
+2
+|y −n0:i
+#
+.
+Giveny i, (π i(yi)−1)/(V−1) follows a uniform distribution over the discrete space
+{0,1/(V−1), . . . ,1}. Thus,E[(π i(yi)−1)/(V−1)] = 1/2 and Var((π i(yi)−1)/(V−1)) =C,
+whereCis a constant less than 1/12 (the variance of Unif[0,1]). Therefore, we have:
+Eξ =Cn −1
+nX
+i=1
+wi
+ 
+1−p(y i |y 1:i−1)
+
+.
+Thus, the conditions of Theorem 1 are satisfied due to (10).
+Proof of Lemma 1.Ify i is not generated fromξ i, thenu i is independent ofy i, andu i ∼
+Unif[0,1]. On the other hand, ify i is generated fromξ i, thenu i ∈ I i, implying that
+ui ∼Unif[I i].
+23
+
+=== PDF PAGE 24 ===
+B Additional numerical results for the EMS method
+Algorithm 1 is the SeedBS-NOT algorithm for change point detection in partially water-
+marked texts.
+Algorithm 1SeedBS-NOT for change point detection in partially watermarked texts
+Require:Sequence ofp-values{p i}m
+i=1, decay parametera∈[1/2,1) for SeedBS, threshold
+ζfor NOT.
+Ensure:Locations of the change points.
+DefineI 1 = (0, m].▷Initialization for SeedBS
+fork←2, . . . ,⌈log 1/a m⌉do
+Number of intervals in thek-th layer:n k = 2⌈(1/a)k−1⌉ −1.
+Length of intervals in thek-th layer:l k =ma k−1.
+Shift of intervals in thek-th layer:s k = (m−l k)/(nk −1).
+k-th layer intervals:I k =Snk
+i=1{(⌊(i−1)s k⌋,⌈(i−1)s k +l k⌉]}.
+end for
+Define all seeded intervalsI= S⌈log1/a m⌉
+k=1 Ik.▷End of SeedBS
+fori←1, . . . ,|I|do▷Start of NOT
+Define thei-th intervalI i = (ri, si].
+DefineS ri+1:si(τ) := sup t∈[0,1]
+(τ−r i)(si−τ)
+(si−ri)3/2 |Fri+1:τ(t)−F τ+1:s i(t)|.
+Let ˆτi = arg maxri<τ≤s i Sri+1:si(τ).
+Obtain ˜pi using block bootstrap as defined in (15).
+end for
+Define the set of potential change point locationsO={i: ˜p i < ζ}and initialize the final
+set of change points asS=∅.
+whileO ̸=∅do
+Selecti= arg min i=1,...,|O|{|Ii|}= arg min i=1,...,|O|{si −r i}.
+UpdateS ← S ∪ {ˆτ i};O ← {j≤ |O|: ˆτ i ̸∈I j}.
+end while
+returnS.▷End of NOT
+B.1 Additional Numerical Results for the EMS Method Using theLlama
+Model
+Figure B.1 shows thep-value sequence obtained for the first 10 prompts using theLlama
+model with watermarks generated by the EMS method.
+B.2 Additional Numerical Results for the EMS Method Using theMistral
+Model
+Figure B.2 shows the Rand index for different thresholds in the EMS framework using the
+MistralLLM. Finally, Figure B.3 presents thep-value sequences obtained for the first 10
+prompts using theLlamamodel with watermarks generated by the EMS method.
+In all settings, the proposed adaptive method outperforms thebaselinemethod, demon-
+strating the advantages of the proposed approach.
+24
+
+=== PDF PAGE 25 ===
+Prompt 1 Prompt 2 Prompt 3 Prompt 4 Prompt 5 Prompt 6 Prompt 7 Prompt 8 Prompt 9 Prompt 10
+baseline
+Setting 1
+empty
+Setting 1
+optim
+Setting 1
+baseline
+Setting 2
+empty
+Setting 2
+optim
+Setting 2
+baseline
+Setting 3
+empty
+Setting 3
+optim
+Setting 3
+baseline
+Setting 4
+empty
+Setting 4
+optim
+Setting 4
+0 250 500 0 250 500 0 250 500 0 250 500 0 250 500 0 250 500 0 250 500 0 250 500 0 250 500 0 250 500
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+Index
+P−Value
+Figure B.1:p-value sequence calculated using watermarked texts generated from theLlama
+LLM with the EMS method.
+25
+
+=== PDF PAGE 26 ===
+0.2
+0.4
+0.6
+0.8
+1.0
+0.001 0.005 0.01 0.05
+Threshold
+Rand Index
+Setting
+Setting 2, baseline
+Setting 2, empty
+Setting 2, optim
+Setting 3, baseline
+Setting 3, empty
+Setting 3, optim
+Setting 4, baseline
+Setting 4, empty
+Setting 4, optim
+Figure B.2: Boxplots of the Rand index comparing clusters identified through detected
+change points with the true clusters defined by the true change points, for different thresh-
+olds in the EMS framework using theMistralLLM.
+B.3 Illustration of False Detections
+Figure B.4 illustrates the number of false detections for different thresholds. In all settings,
+theoraclemethod consistently achieves the lowest false positive rate, followed by theoptim
+method. Theemptymethod performs similarly to theoptimmethod, and all adaptive
+methods outperform thebaselinemethod.
+B.4 Comparison with Other Test Statistics
+In Kuditipudi et al. (2023), the authors proposed using−log(1−ξ i,eyi) instead of the test
+statistic in (8), showing improved performance in watermark detection. We present results
+based on this statistic in Figures B.5 and B.6, but in our sub-string identification problem,
+we observed no significant performance differences between the two test statistics.
+B.5 Comparison with Other Methods
+We also compare our method with several state-of-the-art methods, including Xie et al.
+(2025), Li et al. (2024b), Kashtan and Kipnis (2023), and test statistics proposed in Aaron-
+son (2023). Since most of these methods are designed for watermark detection rather than
+segmentation, we first describe below how we incorporated them into our framework.
+1. Xie et al. (2025) propose using the Maximal Coupling method to debias the “red–green
+list” approach. In our framework, we apply a sliding window (as in our procedure
+for generating thep-value sequence) to obtain a sequence of testp-values. We then
+apply change-point detection to this sequence and evaluate performance using the
+Rand index. We refer to this method asCoupling.
+2. Li et al. (2024b) develop a mixture-model approach for watermark detection. In our
+setting, we again use a sliding window to generate a sequence of test statistics, apply
+change-point detection to this sequence, and compute the Rand index. We denote
+this method byTr-GoF.
+26
+
+=== PDF PAGE 27 ===
+Prompt 1 Prompt 2 Prompt 3 Prompt 4 Prompt 5 Prompt 6 Prompt 7 Prompt 8 Prompt 9 Prompt 10
+baseline
+Setting 1
+empty
+Setting 1
+optim
+Setting 1
+baseline
+Setting 2
+empty
+Setting 2
+optim
+Setting 2
+baseline
+Setting 3
+empty
+Setting 3
+optim
+Setting 3
+baseline
+Setting 4
+empty
+Setting 4
+optim
+Setting 4
+0 250 500 0 250 500 0 250 500 0 250 500 0 250 500 0 250 500 0 250 500 0 250 500 0 250 500 0 250 500
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+Index
+P−Value
+Figure B.3:p-value sequence calculated using watermarked texts generated from the
+MistralLLM with the EMS method.
+27
+
+=== PDF PAGE 28 ===
+0.0
+2.5
+5.0
+7.5
+10.0
+0.001 0.005 0.01 0.05
+Threshold
+Change Point Count
+baseline empty optim
+Figure B.4: Boxplots of the number of false detections for different thresholds in the EMS
+framework using theLlamaLLM.
+0.2
+0.4
+0.6
+0.8
+1.0
+0.001 0.005 0.01 0.05
+Threshold
+Rand Index
+Setting
+Setting 2, baseline
+Setting 2, empty
+Setting 2, optim
+Setting 3, baseline
+Setting 3, empty
+Setting 3, optim
+Setting 4, baseline
+Setting 4, empty
+Setting 4, optim
+Figure B.5: Boxplots of the Rand index comparing clusters identified through detected
+change points with the true clusters defined by the true change points, for different thresh-
+olds in the EMS framework using theLlamaLLM with test statistic proposed in Kuditipudi
+et al. (2023).
+28
+
+=== PDF PAGE 29 ===
+0.2
+0.4
+0.6
+0.8
+1.0
+0.001 0.005 0.01 0.05
+Threshold
+Rand Index
+Setting
+Setting 2, baseline
+Setting 2, empty
+Setting 2, optim
+Setting 3, baseline
+Setting 3, empty
+Setting 3, optim
+Setting 4, baseline
+Setting 4, empty
+Setting 4, optim
+Figure B.6: Boxplots of the Rand index comparing clusters identified through detected
+change points with the true clusters defined by the true change points, for different thresh-
+olds in the EMS framework using theMistralLLM with test statistic proposed in Kudi-
+tipudi et al. (2023).
+0.2
+0.4
+0.6
+0.8
+1.0
+Setting 2 Setting 3 Setting 4
+Setting
+Rand Index
+Method
+Coupling
+IT−LPPT
+Ours
+Tr−GoF
+Figure B.7: Comparison of four methods based on the Rand index.
+3. Kashtan and Kipnis (2023) propose a method that identifies sentences most likely
+written by humans, where the sentence boundaries directly correspond to change
+points in our framework. We therefore use their reported change points to compute
+the Rand index, referring to this method asIT-LPPT.
+Figure B.7 compares our method with three alternatives above. Here,oursdenotes our
+method with an empty prompt, which is feasible in real applications. Across all settings,
+our method consistently outperforms the alternatives. In the first two settings,IT-LPPT
+performs better than bothTr-GoFandCoupling, whereas in the third setting,Tr-GoFand
+CouplingoutperformIT-LPPT. The relatively weaker performance ofIT-LPPTstems from
+its reliance on sentence boundaries, which do not align with the change-point structure in
+our scenarios. Meanwhile,Tr-GoFandCouplingwere originally designed for watermark
+detection rather than segmentation, and thus require further adaptation for segmentation
+tasks rather than direct incorporation into our framework.
+29
+
+=== PDF PAGE 30 ===
+0.2
+0.4
+0.6
+0.8
+1.0
+0.001 0.005 0.01 0.05
+Threshold
+Rand Index
+Setting
+Setting 2, baseline
+Setting 2, empty
+Setting 2, optim
+Setting 3, baseline
+Setting 3, empty
+Setting 3, optim
+Setting 4, baseline
+Setting 4, empty
+Setting 4, optim
+Figure C.1: Boxplots of the Rand index for different thresholds in the ITS framework using
+theLlamaLLM.
+C Numerical Results for the ITS Method
+C.1 Numerical Results for the ITS Method using theLlamaModel
+Figure C.1 shows the Rand index for different thresholds in the ITS framework using the
+LlamaLLM. Finally, Figure C.2 presents thep-value sequences obtained for the first 10
+prompts using theLlamamodel with watermarks generated by the IS method.
+In all settings, the proposed adaptive method outperforms thebaselinemethod, demon-
+strating the advantages of the proposed approach.
+C.2 Numerical Results for the ITS Method using theMistralModel
+Figure C.3 shows the Rand index for different thresholds in the ITS framework using the
+MistralLLM. Finally, Figure C.4 presents thep-value sequences obtained for the first 10
+prompts using theMistralmodel with watermarks generated by the IS method.
+In all settings, the proposed adaptive method outperforms thebaselinemethod, demon-
+strating the advantages of the proposed approach.
+30
+
+=== PDF PAGE 31 ===
+Prompt 1 Prompt 2 Prompt 3 Prompt 4 Prompt 5 Prompt 6 Prompt 7 Prompt 8 Prompt 9 Prompt 10
+baseline
+Setting 1
+oracle
+Setting 1
+empty
+Setting 1
+optim
+Setting 1
+baseline
+Setting 2
+oracle
+Setting 2
+empty
+Setting 2
+optim
+Setting 2
+baseline
+Setting 3
+oracle
+Setting 3
+empty
+Setting 3
+optim
+Setting 3
+baseline
+Setting 4
+oracle
+Setting 4
+empty
+Setting 4
+optim
+Setting 4
+0 50100150200250 0 50100150200250 0 50100150200250 0 50100150200250 0 50100150200250 0 50100150200250 0 50100150200250 0 50100150200250 0 50100150200250 0 50100150200250
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+Index
+P−Value
+Figure C.2:p-value sequence calculated using watermarked texts generated from theLlama
+LLM with the ITS method.
+31
+
+=== PDF PAGE 32 ===
+0.2
+0.4
+0.6
+0.8
+1.0
+0.001 0.005 0.01 0.05
+Threshold
+Rand Index
+Setting
+Setting 2, baseline
+Setting 2, empty
+Setting 2, optim
+Setting 3, baseline
+Setting 3, empty
+Setting 3, optim
+Setting 4, baseline
+Setting 4, empty
+Setting 4, optim
+Figure C.3: Boxplots of the Rand index for different thresholds in the ITS framework using
+theMistralLLM.
+D Choice of Hyperparameters
+First, to study the impact of the window sizeB, we fixT= 999,B ′ = 20 and vary the
+value ofBin the set{10,20,30,40,50}. Table D.1 shows the rand index value for each
+setting, with a higher rand index indicating better performance.
+It is crucial to select an appropriate value forB. IfBis too small, the corresponding
+window may not contain enough data to reliably detect watermarks, as longer strings
+generally make the watermark more detectable. Conversely, ifBis excessively large, it
+might prematurely shift the detected change point locations, thus reducing the rand index.
+For instance, let us consider a scenario with 200 tokens where the first 100 tokens are
+non-watermarked, and the subsequent 100 are watermarked, with the true change point
+at index 101. Assuming our detection test is highly effective, then it will yield a p-value
+uniformly distributed over [0,1] over a non-watermarked window and a p-value around zero
+over a window containing watermarked tokens. WhenB= 50, the window beginning at
+the 76th token contains one watermarked token, which can lead to a small p-value and thus
+erroneously indicate a watermark from the 76th token onwards. In contrast, ifB= 20, the
+window starting at the 91st token will contain the first watermarked token, leading to a
+more minor error in identifying the change point location. The above phenomenon is the
+so-called edge effect, which will diminish asBgets smaller.
+The trade-off in the choice of window size is recognized in the time series literature.
+For instance, a common recommendation for the window size in time series literature is to
+setB=Cn 1/3, wherenis the sample size, as seen in Corollary 1 of (Lahiri, 1999). Based
+on our experience, settingB=⌊3n 1/3⌋(for example, whenn= 500,B= 23) often results
+in good finite sample performance. A more thorough investigation of the choice ofBis
+deferred to future research.
+Our experimental results indicate that settingB=B ′ is unnecessary. In practice, the
+sequence ofp-values isB-dependent, withp i andp j being independent only if|i−j|> B.
+Consequently, we recommend usingB ′ =Bto ensure that the block bootstrap adequately
+captures this dependence.
+32
+
+=== PDF PAGE 33 ===
+Prompt 1 Prompt 2 Prompt 3 Prompt 4 Prompt 5 Prompt 6 Prompt 7 Prompt 8 Prompt 9 Prompt 10
+baseline
+Setting 1
+oracle
+Setting 1
+empty
+Setting 1
+optim
+Setting 1
+baseline
+Setting 2
+oracle
+Setting 2
+empty
+Setting 2
+optim
+Setting 2
+baseline
+Setting 3
+oracle
+Setting 3
+empty
+Setting 3
+optim
+Setting 3
+baseline
+Setting 4
+oracle
+Setting 4
+empty
+Setting 4
+optim
+Setting 4
+0 50100150200250 0 50100150200250 0 50100150200250 0 50100150200250 0 50100150200250 0 50100150200250 0 50100150200250 0 50100150200250 0 50100150200250 0 50100150200250
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+0.00
+0.25
+0.50
+0.75
+1.00
+Index
+P−Value
+Figure C.4:p-value sequence calculated using watermarked texts generated from the
+MistralLLM with the ITS method.
+B 10 20 30 40 50
+rand index 0.8808 0.9429 0.9641 0.9570 0.9243
+Table D.1: Results for different choices ofBwhenT= 999.
+33
+
+=== PDF PAGE 34 ===
+surveys 
+have 
+found. 
+Business 
+organizations, 
+universities 
+and 
+nonprofit 
+groups 
+came 
+out 
+strongly 
+for 
+the 
+deal. 
+But 
+a 
+small, 
+vocal 
+group 
+of 
+activists 
+has 
+sought 
+to 
+block 
+the 
+project, 
+saying 
+that 
+the 
+county 
+and 
+commonwealth 
+should 
+not 
+give 
+any 
+incentives 
+to 
+one 
+of 
+the 
+world
+'s 
+largest 
+corporations, 
+which 
+they 
+believe 
+makes 
+too 
+much 
+money 
+already. 
+Local 
+electronics 
+retailers 
+complain 
+the 
+deal 
+gives 
+Best 
+Buy 
+an 
+unfair 
+advantage. 
+And 
+citizens 
+groups 
+such 
+as 
+Recycle, 
+Act 
+Orange 
+and 
+Green 
+the 
+Charlottesville 
+Region 
+have 
+said 
+they 
+oppose 
+the 
+deal 
+because 
+it 
+does 
+little 
+to 
+promote 
+capital 
+spending 
+to 
+build 
+the 
+city's 
+economy. 
+Joy 
+Phillips, 
+a 
+local 
+businessman 
+who 
+has 
+fought 
+so 
+loudly 
+that 
+he 
+has 
+earned 
+a 
+column 
+in 
+the 
+local 
+newspaper 
+all 
+about 
+him, 
+summed 
+up 
+his 
+take 
+on 
+the 
+deal 
+in 
+a 
+recent 
+letter 
+to 
+the 
+editor: 
+No 
+price 
+for 
+local 
+businesses, 
+almost 
+no 
+price 
+for 
+a 
+national 
+retailer 
+that 
+currently 
+exists 
+in 
+Charlottesville, 
+and 
+only 
+a 
+few 
+new 
+employees." 
+Trash 
+Tax 
+After 
+All 
+Remember 
+when 
+the 
+Charlottesville 
+City 
+Council 
+said 
+it 
+was 
+going 
+to 
+tax 
+trash? 
+Don't 
+worry; 
+the 
+recyclingwatch.org 
+intelligensia 
+won't 
+be 
+able 
+to 
+fight 
+this 
+one. 
+After 
+all, 
+recycling 
+is 
+a 
+hobby 
+(for 
+some), 
+not 
+an 
+economic 
+driver. 
+Today, 
+however, 
+Councilmember 
+Rob 
+Schilling 
+argued 
+for 
+rolling 
+back 
+the 
+city's 
+tax
+ 
+on 
+trash 
+pickup 
+because 
+the 
+cost 
+of 
+collection, 
+particularly 
+container 
+policies, 
+have 
+soared 
+over 
+the 
+past 
+eight 
+years. 
+But 
+his 
+fellow 
+Council 
+members 
+voted 
+down 
+his 
+motion 
+to 
+revisit 
+the 
+issue, 
+and 
+the 
+two 
+new 
+Council 
+members 
+voted 
+with 
+the 
+proposal's 
+critics. 
+Actually, 
+I'm 
+surprised 
+that 
+Waste 
+Management 
+didn't 
+come 
+out 
+with 
+an 
+even 
+larger 
+proposal 
+with 
+the 
+calculated 
+cost 
+for 
+buying-out 
+existing 
+can. 
+flotsam 
+collection 
+fleets. 
+OT: 
+Virginia 
+delegation 
+plays 
+both 
+sides 
+of 
+the 
+field 
+on 
+Social 
+Security 
+vote 
+Good 
+news: 
+There 
+were 
+two 
+No 
+votes 
+from 
+Hill 
+Country 
+representatives, 
+"but 
+a 
+bit 
+of 
+bad 
+news 
+for 
+Virginia 
+Conservatives 
+& 
+our 
+three 
+Republican 
+congressmen's 
+(Riggs, 
+Goodlatte 
+and 
+and 
+Cantor) 
+positions 
+both 
+publicly 
+and 
+practically 
+border 
+on 
+unprincipled." 
+Virginia 
+supports 
+National 
+Endowment 
+for 
+the 
+Arts 
+KILLING 
+THE 
+NATIONAL 
+ENDOWMENT 
+FOR 
+THE 
+ARTS 
+Colbert 
+(I 
+know, 
+I 
+know) 
+discusses 
+Henry 
+Waxman's 
+proposal 
+to 
+cut 
+off 
+taxpayer 
+funding 
+to 
+the 
+National 
+Endowment 
+for 
+the 
+Arts
+ 
+And 
+that 
+is 
+what 
+it 
+is. 
+Waxman 
+is 
+using 
+Art 
+as 
+a 
+Compass 
+always 
+to 
+the 
+left 
+Assimilation 
+politics 
+This 
+is 
+Zak 
+Rockledge 
+(aka 
+Ponta 
+Mason) 
+doing 
+his 
+version 
+of 
+R. 
+Kelly's 
+Wifey; 
+40 
+stones 
+in 
+his 
+yard 
+under 
+a 
+sign 
+that 
+says 
+either 
+Rockledge 
+or 
+Mason. 
+Reasonable 
+Charlottesvillians 
+shouldn't 
+be 
+expected 
+to 
+have 
+to 
+give 
+a 
+rat's 
+ass 
+about 
+this 
+guy's 
+inner 
+struggle, 
+complete 
+with 
+cussing. 
+At 
+this
+Figure E.1: Example prompt and generated text from theLlamamodel with watermarked
+texts highlighted with bold font.
+E Illustration of the change point detection algorithm
+Here, we present one partially watermarked text generated using theLlamamodel with the
+EMS method. The prompt used to generate the text is marked in the upper box, and the
+generated text is marked below in Figure E.1.
+The change points are located at the tokens:editor,on trash pickup,were two No votes
+andAnd that is what it is, corresponding to the change points located at 100,200,300 and
+400 after tokenization. The second and fourth segments: “editor ...... city’s tax” and “were
+two No votes ...... for the Arts” are watermarked with the EMS method. The generated
+SeedBS intervals can be found in Figure E.2, and thep-values sequence can be found in
+Figure E.3. According to Algorithm 1, segments with significant change points for the
+p-value distributions are marked in red in Figure E.4 and by NOT, the final change points
+are marked using red dots, near 100,200,300 and 400, corresponding to the texts:a recent
+letter,on trash pickup,There were twoandto cut off, respectively.
+34
+
+=== PDF PAGE 35 ===
+0
+10
+20
+30
+40
+0 100 200 300 400 500
+Token Index
+Segment Index
+Figure E.2: SeedBS intervals in Algorithm 1 withI 1 = (0,500] and the decay parameter
+a=
+√
+2.
+0.00
+0.25
+0.50
+0.75
+1.00
+0 100 200 300 400 500
+Token Index
+P−value
+Figure E.3:p-value sequence from Setting 4 in Section 5.2 with four change points located
+at 100,200,300 and 400. The second and fourth segments are watermarked.
+0
+10
+20
+30
+40
+0 100 200 300 400 500
+Token Index
+Segment Index
+Significance
+> 0.005
+<= 0.005
+Figure E.4: Segments with significant change points are marked in red, and the final esti-
+mated change points are marked with red dots.
+35

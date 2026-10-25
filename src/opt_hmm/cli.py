@@ -29,6 +29,12 @@ def main(argv=None):
     generate.add_argument("--tensor-parallel", type=int, default=1)
     generate.add_argument("--gpu-memory", type=float, default=.8)
     generate.add_argument("--dtype", default="float16", choices=["float16", "bfloat16", "float32"])
+    generate.add_argument('--pivot-diagnostics', action='store_true', help='Record actual pre-sampling probabilities and analytic pivot laws')
+    diagnose = sub.add_parser('diagnose-pivots', help='GPU probability replay and conditional emission experiment')
+    diagnose.add_argument('--input', required=True)
+    diagnose.add_argument('--output', required=True)
+    diagnose.add_argument('--model')
+    diagnose.add_argument('--device', default='cuda', choices=['cuda', 'cpu'])
     evaluate = sub.add_parser("evaluate", help="Calibrate each method and evaluate saved observations")
     evaluate.add_argument("--input", required=True, help="Generation run directory")
     evaluate.add_argument("--output", required=True)
@@ -38,6 +44,9 @@ def main(argv=None):
     if args.command == "check-runtime":
         from .runtime import adapter_selftest, check_runtime
         result = {**check_runtime(), **adapter_selftest()}
+    elif args.command == 'diagnose-pivots':
+        from .pivot_experiment import run as run_pivot_experiment
+        result = run_pivot_experiment(args.input, args.output, args.model, args.device)
     elif args.command == "evaluate":
         from .experiment import run_evaluation
         metadata = read_json(Path(args.input) / "metadata.json")
@@ -68,7 +77,7 @@ def main(argv=None):
         else:
             from .generate import generate as generate_text
             result = generate_text(config, args.model or config["model"], args.prompts, args.output,
-                                   args.tensor_parallel, args.gpu_memory, args.dtype)
+                                   args.tensor_parallel, args.gpu_memory, args.dtype, args.pivot_diagnostics)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 

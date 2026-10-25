@@ -1,0 +1,2346 @@
+=== PDF PAGE 1 ===
+Provable Robust Watermarking for AI-Generated Text
+Xuandong Zhao Prabhanjan Ananth Lei Li Yu-Xiang Wang
+UC Santa Barbara
+{xuandongzhao,prabhanjan,leili,yuxiangw}@cs.ucsb.edu
+Abstract
+We study the problem of watermarking large language models (LLMs) generated text — one of
+the most promising approaches for addressing the safety challenges of LLM usage. In this paper, we
+propose a rigorous theoretical framework to quantify the effectiveness and robustness of LLM watermarks.
+We propose a robust and high-quality watermark method,Unigram-W atermark, by extending an
+existing approach with a simplified fixed grouping strategy. We prove that our watermark method enjoys
+guaranteed generation quality, correctness in watermark detection, and is robust against text editing and
+paraphrasing. ExperimentsonthreevaryingLLMsandtwodatasetsverifythatour Unigram-W atermark
+achieves superior detection accuracy and comparable generation quality in perplexity, thus promoting the
+responsible use of LLMs. Code is available athttps://github.com/XuandongZhao/Unigram-Watermark.
+Contents
+1 Introduction 3
+2 Problem setup and method 4
+2.1 Definition of language model watermarking . . . . . . . . . . . . . . . . . . . . . . . . . . . . 4
+2.2 Threat models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5
+2.3 Method . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 5
+3 Main theoretical results 7
+3.1 Quality guarantee of Unigram-W atermark. . . . . . . . . . . . . . . . . . . . . . . . . . . 7
+3.2 Type I error of Unigram-W atermark . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+3.3 Type II error of Unigram-W atermark. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 8
+3.4 Security property of Unigram-W atermark . . . . . . . . . . . . . . . . . . . . . . . . . . . 9
+4 Experiment 9
+4.1 Experiment setting . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9
+4.2 Watermarking results . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 9
+4.3 Robustness results . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10
+4.4 Distinguishing human-written text . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11
+5 Conclusion and discussion 12
+A More on related work 16
+B Additional experiment results 17
+B.1 Empirical error rates . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+B.2 Different watermark parameters . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+B.3 Additional robustness results . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18
+B.4 White-box attack . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18
+B.4.1 Estimating the Green List tokens . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18
+B.4.2 Evasion attack (white-box and estimated) . . . . . . . . . . . . . . . . . . . . . . . . . 20
+1
+arXiv:2306.17439v2  [cs.CL]  13 Oct 2023
+
+=== PDF PAGE 2 ===
+B.5 Testing on scaled language models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+B.6 Results for deduplicated detection . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+C Main theoretical results with proofs 21
+C.1 Quality guarantees . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+C.2 Robustness / Security guarantees . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+C.3 No false positive (Type I error guarantees) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23
+C.4 Only true detection (Type II error guarantees) . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+C.4.1 On-average high entropy assumption . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24
+C.4.2 A “homophily” assumption . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+C.5 Theorem statement on “Only true detection” . . . . . . . . . . . . . . . . . . . . . . . . . . . 27
+C.6 Proof of Theorem C.13 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 28
+C.6.1 Many green list tokens with high probability . . . . . . . . . . . . . . . . . . . . . . . 28
+C.6.2 Many green list tokens in expectation . . . . . . . . . . . . . . . . . . . . . . . . . . . 31
+C.7 Security property . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 32
+D Analysis of Kirchenbauer et al. [2023] 32
+D.1 Soft watermarking scheme of Kirchenbauer et al. [2023] . . . . . . . . . . . . . . . . . . . . . 32
+D.2 Security property of Kirchenbauer et al. [2023] . . . . . . . . . . . . . . . . . . . . . . . . . . 33
+E Alternative detector “Unique” and its desirable properties 33
+E.1 Alternative detection “Unique” is robust to Emoji attack and other tricky attacks . . . . . . . 35
+F Technical lemmas 36
+2
+
+=== PDF PAGE 3 ===
+1 Introduction
+Generative Artificial Intelligence (AI) [Brown et al., 2020, Ramesh et al., 2022, Saharia et al., 2022, OpenAI,
+2023a] has achieved significant progress in recent years, spanning from computer vision (CV) to natural
+language processing (NLP). Large language models (LLMs) such as ChatGPT [OpenAI, 2022] can generate
+coherent and contextually relevant long-form text in response to user-specified prompts. However, the ease
+of using LLMs has raised concerns about their potential misuse [Zellers et al., 2019, Weidinger et al., 2021,
+Stokel-Walker, 2022]. For example, LLMs could be used to generate fake news, contaminate web content, or
+assist in academic dishonesty. Additionally, the proliferation of synthetic data from LLMs poses challenges
+for training new models, as synthetic data needs to be detected and excluded before model training [Radford
+et al., 2022, Carlini et al., 2023].
+There are two main camps of existing attempts to address these challenges. One camp, inspired by Turing
+[1950], aims at generically distinguishing machine-generated text from that of the humans [Gehrmann et al.,
+2019, Mitchell et al., 2023, Hovy, 2016, Zellers et al., 2019, OpenAI, 2023b]. These works primarily leverage
+hand-crafted or learned “statistical patterns” of generated text, thus their performance is not robust to
+distribution changes (e.g., by prompting / conditioning), prone to biases [Liang et al., 2023], and vulnerable
+to adversarial attacks.
+The other camp advocates active intervention by injecting carefully-designed watermarks to machine-generated
+text [Kirchenbauer et al., 2023, Zhao et al., 2023]. The watermarking approach does not search for statistical
+patterns (which could be hit-or-miss), but rather deliberatelyplant subtle but distinctive patterns within the
+content to enable downstream detection. Compared to the passive detection approaches, the watermarking
+methods aim at determining whether the text is coming from aspecificlanguage model rather than solving
+the Turing test generically. As a result, watermarking approaches are robust to distribution-shift and can
+essentially prove — rather thanpredict — the origin of the suspect text.
+The most notable challenge for the watermarking approach is that the planted patterns could be post-processed
+away. As an example, Kirchenbauer et al. [2023]’s soft watermarking method divides the vocabulary into a
+“green list” and a “red list” based on the prefix token, and subtly increases the probability of choosing from
+the green list. If the watermarked sentence is edited by changing every other token into its synonym, then it
+is no longer possible to determine the green/red lists for each candidate token, thus ruining the detector.
+One could also simply paraphrase the sentence as a whole using another off-the-shelf LLM.
+In this paper, we take a first stab at formally defining robustness in the context of watermarking LLMs. Our
+contributions are fourfold.
+1. We devise a rigorous theoretical framework for quantifying the performance drop, the correctness of
+detection, and the security property against post-processing.
+2. We propose to simplify the scheme of Kirchenbauer et al. [2023] by using a fixed Green-Red split consistently
+and show that the new watermark, namedUnigram-W atermark, is twice as robustto edits as the
+baseline, provably.
+3. We prove that the watermarked LLM is close to the original LLM (in all Renyi divergences) and show
+that the Type I/Type II errors of the detection algorithm decay exponentially as the suspect text length
+gets longer and more diverse.
+4. We conduct experiments utilizing various large language models on diverse datasets. The results indicate
+that our method achieves superior detection accuracy and improved robustness against different attacks,
+thus promoting the responsible use of LLMs.
+To the best of our knowledge, we are the first to obtain provably robust guarantees for watermarks for LLMs
+against arbitrary edits.
+Related work. We build upon the work of Kirchenbauer et al. [2023] in which the family ofK-gram
+(statistical) watermark was proposed1. The main method we consider choosesK = 1, thus its nameUnigram-
+1Note the changed name. Kirchenbauer et al. [2023] referred to its (unnamed) soft-watermark that determines the green/red
+list using a prefix of length(K − 1). We thinkK-gram watermark is the most concise and informative name for this family.
+3
+
+=== PDF PAGE 4 ===
+W atermark. Our work provides formal theoretical guarantees to this family ofK-gram watermark. For
+the sake of a clean presentation, we focus on the case whenK = 1 and discuss the applicability of our
+results for K > 1 in the discussion section. Our work is independent of the concurrent work of cryptographic
+watermarks [Aaronson, 2023, Christ et al., 2023]. In particular, Aaronson [2023]’s proprietary work can also
+be viewed as an alternativeK-gram watermark, but uses a cryptographic approach for measuring utility
+drop, which results in a different kind of tradeoff. We defer detailed discussion to an extended discussion
+of the related work in Appendix A. Technically, the main theoretical tool we used for analyzing dependent
+random variables and their concentration tightly is due to Albert [2019], the instantiation to our problem is
+new and nontrivial.
+2 Problem setup and method
+We start with an overview of the language model watermarking problem. The definitions and notations
+introduced in this section will be used throughout the paper.
+Language models. A language model (LM)M is a statistical model that describes the probability of
+a sequence of words occurring in a sentence. Common neural language models (e.g., GPT-2/3 [Radford
+et al., 2019, Brown et al., 2020]) are designed for next-word prediction which typically uses a transformer
+neural network [Vaswani et al., 2017]. The LM has a “vocabulary”V with N := |V| = 50, 000 tokens or more
+[Radford et al., 2019, Liu et al., 2019]. Letx be an input prompt.y := [y1, . . . , yn] are n tokens generated by
+M. During inference, M receives the input promptx as the prefix of generation. It iteratively computes
+logit scores ℓt for every next token. The logits transform into a probability distribution via soft-(arg)max
+function pt[v] = exp(ℓt[v])P i∈V exp(ℓt[i]) for all v ∈ V. The LM then samples the next token from this distribution:
+yt ∼ pt.
+2.1 Definition of language model watermarking
+In the language model watermarking problem, the objective for the model owner is to embed a secret
+message known as “watermark” within the generated sequencey for a given promptx. There are two desired
+requirements for watermarking. First, the quality of the watermarked model should be comparable to the
+quality of the original, un-watermarked model. Second, an adversary needs to modify sufficiently many
+AI-generated text in order to evade detection.
+Definition 2.1 (Edit distance). The edit distance, denoted asED(y, z), quantifies the number of basic
+operations required to transform a sequencey into another sequencez. These operations include “insertion”,
+“deletion”, and “replacement” of tokens.
+Definition 2.2(Language model watermarking). A language model watermarking schemeconsists of
+two probabilistic polynomial-time algorithms(Watermark, Detect):
+• Watermark(M): Let M be a language model and let pt := PM(x)[yt = ·|y1:t−1] be the conditional
+probability distribution oft-th token onV generated by M. This algorithm produces a new model ˆM
+with a new conditional distributionˆpt := P ˆM(x)[yt = ·|y1:t−1] on V. Additionally, it outputs a detection
+key k associated with ˆM. The watermark could contain certain randomness.
+• Detect(k, y): This algorithm takes input detection keyk and sequence y, then outputs 1 (indicating it was
+generated by ˆM) or 0 (indicating it wasnot generated by ˆM).
+We require the followingthree correctness propertiesto hold:
+• ω-Quality of watermarked output, forω ∈ R: Assume the original language modelM generates a probability
+vector pt for the token at positiont. The watermarked model ˆM predicts the token at positiont using the
+modified probability vectorˆpt. It is required that the distance between the two probability distributions
+satisfies: D (ˆpt∥pt) ≤ ω for any fixed prompts and prefixes.
+4
+
+=== PDF PAGE 5 ===
+• αy-Type I error (“No false positives”): for any fixedy (i.e., independent tok), it holds that
+P
+h
+Detect(k, y) = 1 ; ( ˆM, k) ∼ Watermark(M)
+i
+≤ αy.
+• β(x,M)-Type II error (“No false negatives”):
+P
+h
+Detect(k, y) = 0 ; ( ˆM,k)∼Watermark(M)
+y∼ ˆM(x)
+i
+≤ β(x,M).
+We also require the followingsecurity property(parameterized by ϵ ≥ 0 and η(y, k, ϵ)):
+• For any adversaryA that postprocesses y with auxiliary informationaux and any promptx ∈ V ∗
+P
+
+Detect(k, yA) = 1 or ED(y, yA) ≥ η(k, y, ϵ)
+
+y,k,
+Detect(k,y)=1 ;
+( ˆM,k)∼Watermark(M)
+y∼ ˆM(x)
+yA∼A(y,aux)
+
+≥ 1 − ϵ.
+Remark 2.3 (Discussion on Definition 2.2). Informally, our definition allows us to formally quantify the
+essential properties of a language model watermarking scheme including its generation quality relative to
+the input LM, the accuracy of detection in terms of both false positives and false negatives, as well as the
+robustness to attacks.
+The security property, in particular, states the following: suppose a malicious adversary intends to evade
+the detection algorithm, then the adversarial answer, to some input promptx, should be far away (in edit
+distance) from any AI-generated answer. In other words, the optimal strategy to evade the detection algorithm
+would necessitate executing a minimum number of insert/delete/replacement operations, captured by the
+function η(·) in Definition 2.2. This conceptually suggests that the adversary must exert considerable effort
+to successfully elude detection.
+Admittedly, there are other attacks where edit distance does not capture either the effort or the utility loss.
+For example, if one prompts an unwatermarked LLM to paraphrasey then the number of edits can be large
+but the semantic meaning is retained. However, edit distance is a natural metric that smoothly interpolates
+the gray zone between the world whereyA = y in which it should clearly be caught and the other world
+where yA is independently createdwithout using ˆM in which it would be a false positive ifDetect returns 1.
+2.2 Threat models
+Adversary’s objective.The primary objective of the adversary is to render the watermark detection
+algorithm ineffective. Specifically, the adversary aims to produce ayA such that Detect(k, yA) = 0 while at
+the same time,yA is a minor modification of an AI-generated texty.
+Adversary’s capabilities.We consider an adversary with black-box input-output access to the language
+model. This adversary has the capacity to modify the sequence within abounded edit distance. Given an input
+prompt x, the watermarked language model generates a text outputy ← ˆM(x). The adversary, equipped
+with arbitrary side-information and computational resources, can then produce a modified outputyA such that
+the edit distance between the original and modified output,ED(y, yA), is bounded, i.e.ED(y, yA) < η.
+2.3 Method
+Now let us instantiate Definition 2.2 with concrete algorithms. We will focus onUnigram-W atermark
+— a variant of theK-gram watermark proposed by Kirchenbauer et al. [2023] but with a choice ofK = 1.
+Pseudocodes of our approachWatermark and Detect are provided in Algorithm 1 and 2. In Algorithm 1, we
+randomly partition the vocabulary into two distinct sets: the green list withγN tokens and the red list with
+the remaining tokens. In ˆM, the logits of the language model for the green list tokens are increased byδ
+while the logits for tokens in the red list remain unchanged. Then at detection time (Algorithm 2), we count
+the number of green tokens in the suspect text, normalize the test-statistic, then make a calibrated decision
+5
+
+=== PDF PAGE 6 ===
+Algorithm 1 Unigram-W atermark: Watermark
+1: Input: random number generatorF, green list sizeγ ∈ (0, 1), watermark strengthδ.
+2: Randomly generate a watermark keyk using F.
+3: Use watermark key to partition the vocabulary ofM into a “green list”G ⊂ V of size γ|V|, and a “red
+list”R = Gc.
+4: Define a new language model ˆM where for t and any prefix[x, y1:t−1], the resulting logits satisfy
+ˆℓt[v] := ℓt[v] + δ1(v ∈ G), (1)
+where 1(·) is the indicator function and the logit vectorℓt ∈ R|V| is obtained by the passing the same
+prefix to M.
+5: Output: watermark key k, watermarked language model ˆM.
+Algorithm 2 Unigram-W atermark: Detect
+1: Input: suspect text y, watermark detection keyk, threshold τ.
+2: Output: 1 or 0 (whether the text is watermarked).
+3: Use the watermark detection keyk to find the “green list”G.
+4: Calculate the number of green list tokens|y|G =Pn
+t=1 1(yt ∈ G) in [y1, . . . , yn].
+5: Compute the z-statistic:
+zy = (|y|G − γn) /
+p
+nγ(1 − γ). (2)
+6: if zy > τ then return1, i.e., “The suspect text is watermarked.”
+7: else return0, i.e., “The suspect text is not watermarked.”
+on whether we think the suspect text is generated fromˆM or not. We show the examples of real prompts
+and watermarked outputs in Table 1.
+The watermarking procedure is parameterized by twowatermark strength parametersγ, δ. γ determines the
+fraction of the vocabulary included in the green list. We typically setγ to be a constant, e.g.,1/3 or 0.5. δ
+specifies the increase in the logits associated with the green list tokens. The largerδ is, the lower the quality
+of the watermarked LM, but the easier it is to detect.
+Our Unigram-W atermarkenjoys all good properties of the generalK-gram watermark from Kirchenbauer
+et al. [2023]. It runs in linear time and does not require access to the language model or the prompt used for
+generation. It is also intuitively robust to cropping and minor edits.
+Overall, the proposed watermarking scheme requires almost no overhead in its implementation, is extremely
+simple, and is easy to maintain. The big question is:
+How well does this watermark scheme work?
+The remainder of this paper provides answers to this question with provable guarantees (Section 3) on the
+properties from Definition 2.2 and extensive experiments (Section 4).
+Before that, let us address two burning questions that a knowledgeable reader may have.
+Why choosing K = 1? Recall that the generalK-gram watermark works in the same way as ours, but
+randomly generates a different Green list for each prefix of lengthK − 1. In contrast, choosingK = 1 means
+we have a consistent green list for every new token the language model generates. The main advantage of
+choosing K = 1 is that it is the most robust choice within this family — and we believe robustness is the
+single most important feature of a watermarking scheme in practice.
+Robustness to other attacks.Besides the robustness to edits, which we will prove in Section 3 and
+compare to that ofK ≥ 2. Unigram-W atermarkis also resilient to many other kinds of generation time
+attacks that people can apply such as reversing, shuffling, as well as the “Emoji insertion attack” that will
+6
+
+=== PDF PAGE 7 ===
+Prompt Is it possible to fail several times and succeed once?
+LLaMA-13B
+(un-watermarked)
+PPL: 12.19
+z-score: -2.425
+Of course it is, and that is how we improve.\nSaying "I can’t do that" is never a good
+thing.\nSometimes we think we’ve tried all we can and that "isn’t enough". That
+is the time when we ask for help.\nThe root of all evils is to be a secret. Honesty
+and self-criticism is necessary for improvement. \nThe measure of intelligence is the
+ability to change. [continues...]
+LLaMA-13B
+(watermarked)
+PPL: 12.47
+z-score: 11.085
+When most people are confronted with failure, they cannot imagine such a thing
+happening. When one faces business reverses and bankruptcy, it seems impossible.
+When we are rejected it looks as if we are going to be rejected forever. However, it
+does not need to be this way. The human spirit simply will not give up. When we
+face failure and it looks like we [continues...]
+Table 1: Comparison of un-watermarked and watermarked text using the LLaMA-13B model. Green and red
+tokens are color-coded respectively.Unigram-W atermarkproduces watermarked text of similar quality
+without noticeable degradation, yet with significant differences inz-scores for watermark detection.
+completely break the watermark forK ≥ 2 but not forK = 1. We provide a detailed discussion of this in
+Appendix E.1.
+The price for robustness?Kirchenbauer et al. [2023] did not consider the choice ofK = 1 for an obvious
+reason. The watermark is now so simple that an attacker who observes the generated text may learn to
+guess the consistent green list. This is an issue forK ≥ 2 too but certainly more so forK = 1. There
+is a robustness-learnability tradeoff as we adjustK which deserves a more rigorous treatment in future
+work. That said, we are ready to argue for biasing towards robustness. Why? We argue that in practice,
+it could be surprisingly difficult for an attacker to construct a meaningful attack when they do not have
+access to the original LM. We provide a more detailed experimental study with a faithful practical attack in
+Appendix B.4. Moreover, there are alternative ways to get around this issue by refreshing the green list once
+in a while.
+3 Main theoretical results
+In this section, we present the quality, correctness, and security properties ofUnigram-W atermarkas
+described in Definition 2.2.
+3.1 Quality guarantee of Unigram-W a termark
+We first show that the distance between the original probability vectorpt and the watermarked probability
+vector ˆpt are very close to each other in any Renyi-divergence.
+Theorem 3.1. Consider h as the input to the language model at stept, denoted ash = [x, y1:t−1]. Fix
+green list G. Let δ represent the watermark strength. For anyh, the α-th order Renyi-divergence between
+the watermarked probability distributionˆpt = ˆpt(·|h) at time stept and the original probability distribution
+pt = pt(·|h) satisfies:
+∀h, max
+ 
+Dα
+ ˆpt∥pt
+
+, Dα
+ 
+pt∥ˆpt
+
+≤ min{δ, αδ2/8}.
+The proof, deferred to the appendix, leverages a surprising connection to modern techniques in the differential
+privacy literature [Dwork et al., 2006, Dong et al., 2020].
+Remark 3.2 (KL-divergence and other probability distance metrics). Renyi-divergence is very general.
+Kullback-Leibler-divergence and chi-square divergence are directly implied by theα-Renyi divergence bound
+of min{δ, αδ2/8} by choosing α = 1 and α = 2 respectively and swap ˆp and p. Hellinger distance can
+be obtained by choosing α = 0 .5. By Pinsker’s inequality, we get a Total Variation distance bound
+of min{
+p
+δ/2, δ/4}. Moreover, by choosing α → ∞ , we obtain an upper bound ofδ for a very strong
+multiplicative guarantee known as max-divergence. The resulting two distributionsˆp and p are referred to
+7
+
+=== PDF PAGE 8 ===
+by cryptographers as(δ, 0)-indistinguishable, which says that for any measurable eventS, the log-odds ratio
+satisfies
+−δ ≤ log ˆpt(yt ∈ S|h)
+pt(yt ∈ S|h) ≤ δ.
+To summarize, our result shows that Algorithm 1 producesˆM that satisfies ω-quality of watermarked output
+with ω (as a function ofδ) for almost all commonly used probability distanceD.
+3.2 Type I error of Unigram-W a termark
+Theorem 3.3(No false positives (short version of Theorem C.4)). Consider y = y1:n as any fixed text.
+Define Cmax(y) := maxi∈[N]
+Pn
+j=1 1(yj = i) and V (y) := 1
+n
+PN
+i=1(Pn
+j=1 1(yj = i))2. With probability1 − α
+(over only the randomness ofG):
+zy ≤
+s
+64V (y) log(9/α)
+1 − γ + 16Cmax(y) log(9/α)p
+nγ(1 − γ)
+.
+The theorem says that thez-score for any sufficiently diverse text is˜O(1) and it is applicable to any text not
+generated by the watermarked LMˆM.
+Remark 3.4 (Controlling false positive rate). The theorem implies that if we chooseτ >
+q
+64V log(9/α)
+1−γ +
+16Cmax log(9/α)√
+nγ(1−γ)
+, then the false-positive rate is smaller thanα. Note thatV and Cmax can be computed directly
+from y, allowing us to choose an input-dependentτ as a function ofV, Cmax that achieves aα-Type I error
+guarantee with a fixedα for all inputs. In particular, the Type I errorα decreases exponentially as we
+increase the thresholdτ.
+3.3 Type II error of Unigram-W a termark
+To bound the Type II error, i.e., false negative rates, we need to make certain assumptions aboutp of the
+language model and the promptx. These assumptions include a“on-average high entropy”assumption
+and a“homophily”condition. We will provide a detailed definition and discussion of these assumptions in
+Appendix C.4.1 and Appendix C.4.2.
+The “on-average high entropy” assumption requires the probability of the roll-out text to be “sufficiently
+diverse” on average. It is related but different from the “spike entropy” assumption used by Kirchenbauer
+et al. [2023]. The “homophily” assumption is new to this paper. It is an assumption about the distribution
+induced by the state-transitions of the language modelM, which says that increasing the probability of a
+green-list token at timet does not decrease the probability of seeing that token in the future. This may seem
+counter-intuitive, but we will give concrete examples in Appendix C.4.2 to show why this is fundamental for
+any statistical watermark to work effectively.
+Theorem 3.5 (Only true positive (informal version of Theorem C.13)). Assume “average-high entropy”
+and “homophilly” to be valid with appropriate parameters, and in additionn ≥ ˜Ω(log(1/β)/δ2), then with
+probability 1 − β,
+zy ≥ Ω
+
+(eδ − 1)
+p
+nγ(1 − γ)
+
+.
+Remark 3.6. The bounds on Type I/II error together say thatzy ≍ δ√n if y is from ˆM while zy ≍ O(1)
+otherwise, i.e., there is a large margin between them so we can chooseτ in between. Also, the α and β
+parameters decay exponentially as then gets larger.
+8
+
+=== PDF PAGE 9 ===
+3.4 Security property of Unigram-W a termark
+We demonstrate the robustness of our watermarking scheme against editing attempts through Theorem 3.7.
+As a baseline of comparison, we also obtain new robustness guarantees for the soft watermarking method
+proposed in Kirchenbauer et al. [2023]. The detailed proof is deferred to the Appendix C.
+Theorem 3.7(Robustness to editing). Let y = [y1, . . . , yn] represent the watermarked sequence. Suppose
+the adversary A follows Definition 2.2 and outputs a modified textu = [u1, . . . , um]. Following Equation 2,
+we calculate z-score zy and zu. Assume edit distance betweeny and u (denoted as η) satisfies η < n. Then
+we have
+zu ≥ zy − max
+(1 + γ/2)η√n , (1 − γ/2)η√n − η
+
+.
+In particular, whenη ≤ 2γn
+(1+γ/2)2, we can drop the second term in the max.
+This theorem bounds the changes to our testz-score when η edits are performed. As we established for a
+high-entropy sequence, zy typically grows inO((eδ − 1)√n), which means that whenδ is a constant, with an
+appropriate choice ofτ, the watermark is robust up toO(n) arbitrary edits!
+Finally, compared to Kirchenbauer et al. [2023]’s watermark, ours is twice as robust (see Appendix D).
+4 Experiment
+In this section, we aim to conduct experiments to evaluate watermark detection performance, watermarked
+text quality, and robustness against attacks compared to the baseline. Additional experiment results including
+different parameters, white-box attacks, scaled language models, etc. are deferred to Appendix B.
+4.1 Experiment setting
+Datasets and prompts.We utilize two long-form text datasets: OpenGen and LFQA. OpenGen, collected
+by Krishna et al. [2023], consists of 3K two-sentence chunks sampled from the validation split of WikiText-103
+[Merity et al., 2017]. The subsequent 300 tokens serve as the human-written continuation. LFQA is a
+long-form question-answering dataset created by Krishna et al. [2023] by scraping questions from Reddit,
+posted between July and December 2021, across six domains. Krishna et al. [2023] randomly select 500
+questions from each domain and pair them with their corresponding longest human-written answers, resulting
+in 3K QA pairs. In our experiments, we use the questions as prompts and the corresponding answers as
+human-written text.
+Language models. We conduct experiments using three state-of-the-art public language models of varying
+sizes from different model families: GPT2-XL with 1.5B parameters [Radford et al., 2019], OPT-1.3B [Zhang
+et al., 2022], and LLaMA-7B [Touvron et al., 2023]. Nucleus Sampling [Holtzman et al., 2020] is employed
+as the default decoding algorithm to introduce randomness while maintaining human-like text output. The
+models are loaded from the Huggingface library [Wolf et al., 2019], and thegenerate API function is used to
+adjust the logits distribution of the language model.
+Evaluation methods. Maintaining a low false positive rate is crucial to prevent misclassifying un-
+watermarked text as watermarked. To ensure this, we set the false positive rates at 1% and 10% for
+all detection algorithms and adjust the detection threshold accordingly. We report true positive rate (TPR),
+F1 score, and ROC curves. GPT3 (text-davinci-003) [Ouyang et al., 2022], is used as the oracle model for
+perplexity evaluation. The experiments are conducted on Nvidia A100 GPUs.
+4.2 Watermarking results
+We use a watermark strength ofδ = 2.0 and a green list ratio ofγ = 0.5. We also use different watermark
+keys k for different models. Stronger watermarks can be achieved for shorter sequences for a smallerγ and a
+larger δ. From the two datasets, we generate 500 watermarked sentences and 500 un-watermarked sentences
+using three different models (GPT2-XL, OPT-1.3B, and LLaMA-7B). We label them as “watermarked” and
+9
+
+=== PDF PAGE 10 ===
+Watermarked Un-watermarked Human
+5
+0
+5
+10
+15z score
+dataset-model
+OpenGen-GPT2
+OpenGen-OPT
+OpenGen-LLaMA
+LFQA-GPT2
+LFQA-OPT
+LFQA-LLaMA
+(a) z-scores of watermarked and un-watermarked
+machine-generated text, along with the z-score of
+human-generated text. The watermarked textz-score
+surpasses the empirical threshold ofz = 6.0.
+GPT2 OPT LLaMA
+0
+20
+40
+60
+80T ext Perplexity
+Human
+Un-watermarked
+KGW+23 watermark
+Ours
+(b) Text perplexity comparison (evaluated by GPT-3)
+between human-generated text and text generated by
+various models on the OpenGen dataset.
+Figure 1: z-score comparison and text perplexity comparison.
+“un-watermarked” respectively. We also have corresponding human-written text for each prompt, referred
+to as "human". All sentences are cropped to a length of 200 tokens.z-scores are calculated for hypothesis
+testing as shown in Algorithm 2 between different sentence groups. The results (Figure 1a) indicate a clear
+distinction between watermarked and non-watermarked text. A default threshold ofz-score = 6.0 can be
+used to determine if a text is watermarked. For a fair comparison with Kirchenbauer et al. [2023], we also set
+δ = 2.0 and γ = 0.5 for their method.
+Figure1bdemonstratesthetextperplexityofhuman, un-watermarkedmachine-generated, andtwowatermarking-
+generated texts, evaluated on the OpenGen dataset. The perplexity of human text is significantly lower,
+likely due to the expertise contributed in the Wikipedia-based dataset used to train GPT3. We observe that
+Avg Score STD
+Un-watermarked 3.660 0.655
+Watermarked 3.665 0.619
+Table 3: Human evaluation result.
+the perplexity of the watermarked text is comparable to that of
+human-generated text, especially with the use of the largest model
+LLaMA-7B. This finding further supports the effectiveness of our
+method in preserving linguistic characteristics and coherence, ensur-
+ing seamless integration of watermarks without compromising overall
+text quality. One example of the prompt questions and machine-
+generated answers can be found in Table 1. We also conduct human
+evaluations to assess text quality. We enlist crowd workers from
+Amazon Mechanical Turk (AMT) to evaluate the quality of both
+watermarked and unwatermarked texts. From the LLaMA-7B model on the OpenGen dataset, we select 100
+watermarked and 100 unwatermarked texts, anonymize the sentences, and ask workers to rate the quality on
+a scale of 1 (poor) to 5 (excellent). Each sentence undergoes two evaluations. The average score and standard
+deviation are computed and presented in Table 3.
+4.3 Robustness results
+One of the key advantages of our method is its robustness. To provide comprehensive evidence of its resilience,
+we conduct experiments to test its resilience against various attacking methods.
+Paraphrasing attack.To demonstrate the superior robustness of our method, supported by our theorem,
+we devise experiments to compare its performance against Kirchenbauer et al. [2023]. We employ different
+paraphrase attack techniques targeting the removal of the watermark. Firstly, we utilized two versions of the
+DIPPER model [Krishna et al., 2023], we denote them as “DIPPER-1” and “DIPPER-2”. DIPPER-2 has
+greater diversity than DIPPER-1. Additionally, we leverage the ChatGPT API, generating paraphrased text
+10
+
+=== PDF PAGE 11 ===
+OpenGen LFQA
+Setting Method 1% FPR 10% FPR 1% FPR 10% FPR
+TPR F1 TPR F1 TPR F1 TPR F1
+No attack KGW+23 1.000 0.995 1.000 0.952 1.000 0.995 1.000 0.952
+Unigram-W atermark1.000 0.995 1.000 0.952 1.000 0.995 1.000 0.952
+ChatGPT KGW+23 0.565 0.704 0.853 0.747 0.327 0.453 0.673 0.490
+Unigram-W atermark0.866 0.910 0.961 0.818 0.442 0.568 0.865 0.584
+DIPPER-1 KGW+23 0.386 0.546 0.738 0.720 0.372 0.534 0.740 0.767
+Unigram-W atermark0.729 0.830 0.922 0.837 0.639 0.770 0.909 0.865
+DIPPER-2 KGW+23 0.490 0.646 0.810 0.769 0.432 0.595 0.845 0.839
+Unigram-W atermark0.777 0.862 0.941 0.852 0.693 0.810 0.948 0.894
+BART KGW+23 0.342 0.505 0.667 0.759 0.457 0.617 0.783 0.836
+Unigram-W atermark0.590 0.730 0.861 0.857 0.656 0.784 0.885 0.897
+Table 2: Performance comparison of our method (Unigram-W atermark) and the soft watermarking method
+proposed in Kirchenbauer et al. [2023] (denoted as KGW+23). Both methods employ LLaMA-7B with
+nucleus sampling, utilizingδ = 2.0 and γ = 0.5. We use ChatGPT, DIPPER, and BART for paraphrasing the
+watermarked text as paraphrasing attacks. True positive rate and F1 score are presented for fixing the false
+positive rates at 1% and 10%. When there is no attack, both methods exhibit perfect watermark detection.
+Nevertheless, when subjected to paraphrasing attacks,Unigram-W atermarkconsistently outperforms
+KGW+23.
+by providing prompts such as “Rewrite the following paragraph:”. Furthermore, we employ BART [Lewis
+et al., 2019] (bart-large-cnn, a large-sized model fine-tuned on the CNN Daily Mail dataset [Hermann
+et al., 2015]) for text summarization as another type of paraphrasing attack. The results of our experiments
+are shown in Figure 2 and Table 2. The results illustrate the substantial improvement in robustness achieved
+by our method compared to Kirchenbauer et al. [2023]. Notably, our method achieves an accuracy rate of
+over 85% with a false positive rate of 10%.
+Editing attack. To further evaluate the robustness ofUnigram-W atermarkagainst edit attacks, we
+examine its performance when subjected to synonym replacement, random deletion, and random swapping.
+These edit attack scenarios represent common techniques used to manipulate text and potentially remove
+watermarks. We conduct these attacks for the watermarked text ofUnigram-W atermarkand KGW+23.
+The results are shown in Figure 2. In each scenario, our method consistently outperforms Kirchenbauer et al.
+[2023] watermarking scheme, showcasing its enhanced resilience and effectiveness in protecting the integrity
+of the embedded watermarks.
+4.4 Distinguishing human-written text
+OriginalityAIQuil SaplingHFOpenAIGPTZeroCrossplagZeroGPTOurs
+0%
+20%
+40%
+60%
+80%
+100%Misclassified rate
+76% 75%
+68%
+58%
+52% 52% 48%
+0%
+Ours
+3
+2
+1
+0
+1
+2
+z score
+Figure 3: Distinguishing human-written text
+on TOEFL dataset.
+An interesting observation emphasized by Liang et al. [2023]
+is the misclassification of non-native English writing samples
+as AI-generated by existing AI content detectors. Our method
+can effectively establish text origin and maintain robustness
+to distribution shifts. We evaluateUnigram-W atermark
+in distinguishing human-written text on a dataset of human-
+written TOEFL essays collected by Liang et al. [2023]. Our
+method demonstrates a remarkable ability to accurately clas-
+sify human-written text, as evidenced by significantly lower
+z-scores compared to the empirical threshold ofz = 6.0. This
+outcome underscores the effectiveness of our watermark in dis-
+cerning text generated by human authors, further enhancing
+its practical utility and reliability.
+11
+
+=== PDF PAGE 12 ===
+0.0 0.2 0.4 0.6 0.8 1.0
+False Positive Rate
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0True Positive Rate
+ChatGPT KGW+23 AUC: 0.949
+ChatGPT Ours        AUC: 0.989
+0.0 0.2 0.4 0.6 0.8 1.0
+False Positive Rate
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0True Positive Rate
+BART KGW+23 AUC: 0.892
+BART Ours        AUC: 0.949
+0.0 0.2 0.4 0.6 0.8 1.0
+False Positive Rate
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0True Positive Rate DIPPER-1 KGW+23 AUC: 0.903
+DIPPER-1 Ours        AUC: 0.974
+DIPPER-2 KGW+23 AUC: 0.926
+DIPPER-2 Ours        AUC: 0.979
+(a) Unigram-W atermarkagainst paraphrasing attacks on OpenGen dataset with LLaMA-7B.
+0.0 0.2 0.4 0.6 0.8 1.0
+False Positive Rate
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0True Positive Rate
+Replace-0.1 KGW+23 AUC: 0.886
+Replace-0.1 Ours        AUC: 0.900
+Replace-0.3 KGW+23 AUC: 0.821
+Replace-0.3 Ours        AUC: 0.850
+Replace-0.5 KGW+23 AUC: 0.770
+Replace-0.5 Ours        AUC: 0.803
+0.0 0.2 0.4 0.6 0.8 1.0
+False Positive Rate
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0True Positive Rate
+Delete-0.1 KGW+23 AUC: 0.931
+Delete-0.1 Ours        AUC: 0.966
+Delete-0.3 KGW+23 AUC: 0.896
+Delete-0.3 Ours        AUC: 0.963
+Delete-0.5 KGW+23 AUC: 0.841
+Delete-0.5 Ours        AUC: 0.970
+0.0 0.2 0.4 0.6 0.8 1.0
+False Positive Rate
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0True Positive Rate
+Swap-0.1 KGW+23 AUC: 0.881
+Swap-0.1 Ours        AUC: 0.966
+Swap-0.3 KGW+23 AUC: 0.738
+Swap-0.3 Ours        AUC: 0.975
+Swap-0.5 KGW+23 AUC: 0.702
+Swap-0.5 Ours        AUC: 0.978
+(b) Unigram-W atermarkagainst editing attacks on LFQA dataset with LLaMA-7B. We vary the rates
+of synonym replacement, random deletion, and random swapping (0.1, 0.3, 0.5) to demonstrate different
+attack scenarios.
+Figure 2: ROC curves with corresponding AUC values for watermark detection against various attack methods.
+Complete results can be found in the Appendix B.
+5 Conclusion and discussion
+In this paper, we have addressed the concerns surrounding the potential misuse of large language models
+and proposed an effective watermarking approach,Unigram-W atermark, for detecting machine-generated
+text from aspecific language model. Our contributions include the development of a rigorous theoretical
+framework, designing a provable effective, and robust watermarking scheme under this framework, as well as
+conducting extensive experiments to demonstrate the effectiveness and robustness of our method in practice.
+We anticipate that our work will inspire future research to develop more resilient watermarking methods
+capable of withstanding a broader range of attacks.
+Applicability to generalK-Gram watermark. While we focused onUnigram-W atermark, most
+of our results apply to K-Gram watermarks with K ≥ 2 too. These include the Type I error bound,
+security properties (Robustness to edits), as well as the “Unique” alternative detector which we presented in
+Appendix E. While our Type II error bound does notdirectly work for K ≥ 2, some of our intermediate steps
+can be applied.
+Limitations. While our watermarking method,Unigram-W atermark, demonstrates improved robustness
+against edits, its reliance on a fixed Green-Red split may not be universally optimal. The performance and
+robustness of watermarking methods can vary depending on the specific characteristics of the LLM and the
+generated text. Additionally, although our method enhances detection capabilities, it is not immune to all
+possible attacks.
+Future work.Future work includes constructingunlearnable watermarks, understanding the robustness-
+learnability tradeoff as well as unifying cryptographical and statistical watermarks.
+12
+
+=== PDF PAGE 13 ===
+References
+John Kirchenbauer, Jonas Geiping, Yuxin Wen, Jonathan Katz, Ian Miers, and Tom Goldstein. A watermark
+for large language models.International Conference on Machine Learning, 2023.
+Tom Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared D Kaplan, Prafulla Dhariwal, Arvind
+Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, et al. Language models are few-shot learners.
+Advances in neural information processing systems, 33:1877–1901, 2020.
+Aditya Ramesh, Prafulla Dhariwal, Alex Nichol, Casey Chu, and Mark Chen. Hierarchical text-conditional
+image generation with clip latents.ArXiv, abs/2204.06125, 2022.
+Chitwan Saharia, William Chan, Saurabh Saxena, Lala Li, Jay Whang, Emily L Denton, Kamyar Ghasemipour,
+Raphael Gontijo Lopes, Burcu Karagol Ayan, Tim Salimans, et al. Photorealistic text-to-image diffusion
+models with deep language understanding. Advances in Neural Information Processing Systems, 35:
+36479–36494, 2022.
+OpenAI. Gpt-4 technical report.ArXiv, abs/2303.08774, 2023a.
+OpenAI. Chatgpt: Optimizing language models for dialogue.OpenAI blog, 2022. URLhttps://openai.
+com/blog/chatgpt/.
+Rowan Zellers, Ari Holtzman, Hannah Rashkin, Yonatan Bisk, Ali Farhadi, Franziska Roesner, and Yejin
+Choi. Defending against neural fake news.Advances in neural information processing systems, 32, 2019.
+Laura Weidinger, John F. J. Mellor, Maribeth Rauh, Conor Griffin, Jonathan Uesato, Po-Sen Huang, Myra
+Cheng, Mia Glaese, Borja Balle, Atoosa Kasirzadeh, Zachary Kenton, Sande Minnich Brown, William T.
+Hawkins, Tom Stepleton, Courtney Biles, Abeba Birhane, Julia Haas, Laura Rimell, Lisa Anne Hendricks,
+William S. Isaac, Sean Legassick, Geoffrey Irving, and Iason Gabriel. Ethical and social risks of harm from
+language models. ArXiv, abs/2112.04359, 2021.
+Chris Stokel-Walker. Ai bot chatgpt writes smart essays - should professors worry?Nature, 2022.
+Alec Radford, Jong Wook Kim, Tao Xu, Greg Brockman, Christine McLeavey, and Ilya Sutskever. Robust
+speech recognition via large-scale weak supervision.ArXiv, abs/2212.04356, 2022.
+Nicholas Carlini, Matthew Jagielski, Christopher A. Choquette-Choo, Daniel Paleka, Will Pearce, H. Anderson,
+A. Terzis, Kurt Thomas, and Florian Tramèr. Poisoning web-scale training datasets is practical.ArXiv,
+abs/2302.10149, 2023.
+Alan M Turing.Computing machinery and intelligence. 1950.
+Sebastian Gehrmann, Hendrik Strobelt, and Alexander M. Rush. Gltr: Statistical detection and visualization
+of generated text. InAnnual Meeting of the Association for Computational Linguistics, 2019.
+Eric Mitchell, Yoonho Lee, Alexander Khazatsky, Christopher D. Manning, and Chelsea Finn. Detectgpt:
+Zero-shot machine-generated text detection using probability curvature.ArXiv, abs/2301.11305, 2023.
+Dirk Hovy. The enemy in your own camp: How well can we detect statistically-generated fake reviews – an
+adversarial study. InAnnual Meeting of the Association for Computational Linguistics, 2016.
+OpenAI. New ai classifier for indicating ai-written text.OpenAI blog, 2023b. URLhttps://openai.com/
+blog/new-ai-classifier-for-indicating-ai-written-text .
+Weixin Liang, Mert Yuksekgonul, Yining Mao, Eric Wu, and James Y. Zou. Gpt detectors are biased against
+non-native english writers.ArXiv, abs/2304.02819, 2023.
+Xuandong Zhao, Yu xiang Wang, and Lei Li. Protecting language generation models via invisible watermarking.
+ArXiv, abs/2302.03162, 2023.
+Scott Aaronson. Simons institute talk on watermarking of large language models, 2023. URL https:
+//simons.berkeley.edu/talks/scott-aaronson-ut-austin-openai-2023-08-17 .
+13
+
+=== PDF PAGE 14 ===
+Miranda Christ, Sam Gunn, and Or Zamir. Undetectable watermarks for language models.arXiv preprint
+arXiv:2306.09194, 2023.
+Mélisande Albert. Concentration inequalities for randomly permuted sums. InHigh Dimensional Probability
+VIII: The Oaxaca Volume, pages 341–383. Springer, 2019.
+Alec Radford, Jeff Wu, Rewon Child, David Luan, Dario Amodei, and Ilya Sutskever. Language models are
+unsupervised multitask learners.OpenAI blog, 2019.
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser,
+and Illia Polosukhin. Attention is all you need.Advances in neural information processing systems, 30,
+2017.
+Yinhan Liu, Myle Ott, Naman Goyal, Jingfei Du, Mandar Joshi, Danqi Chen, Omer Levy, Mike Lewis, Luke
+Zettlemoyer, and Veselin Stoyanov. Roberta: A robustly optimized bert pretraining approach.ArXiv,
+abs/1907.11692, 2019.
+Cynthia Dwork, Frank McSherry, Kobbi Nissim, and Adam Smith. Calibrating noise to sensitivity in private
+data analysis. InTheory of cryptography, pages 265–284. Springer, 2006.
+Jinshuo Dong, David Durfee, and Ryan Rogers. Optimal differential privacy composition for exponential
+mechanisms. InInternational Conference on Machine Learning, pages 2597–2606. PMLR, 2020.
+Kalpesh Krishna, Yixiao Song, Marzena Karpinska, John Wieting, and Mohit Iyyer. Paraphrasing evades
+detectors of ai-generated text, but retrieval is an effective defense.ArXiv, abs/2303.13408, 2023.
+Stephen Merity, Caiming Xiong, James Bradbury, and Richard Socher. Pointer sentinel mixture models. In
+International Conference on Learning Representations, 2017.
+Susan Zhang, Stephen Roller, Naman Goyal, Mikel Artetxe, Moya Chen, Shuohui Chen, Christopher Dewan,
+Mona Diab, Xian Li, Xi Victoria Lin, Todor Mihaylov, Myle Ott, Sam Shleifer, Kurt Shuster, Daniel
+Simig, Punit Singh Koura, Anjali Sridhar, Tianlu Wang, and Luke Zettlemoyer. Opt: Open pre-trained
+transformer language models.ArXiv, abs/2205.01068, 2022.
+Hugo Touvron, Thibaut Lavril, Gautier Izacard, Xavier Martinet, Marie-Anne Lachaux, Timothée Lacroix,
+Baptiste Rozière, Naman Goyal, Eric Hambro, Faisal Azhar, Aur’elien Rodriguez, Armand Joulin,
+Edouard Grave, and Guillaume Lample. Llama: Open and efficient foundation language models.ArXiv,
+abs/2302.13971, 2023.
+Ari Holtzman, Jan Buys, Maxwell Forbes, and Yejin Choi. The curious case of neural text degeneration. In
+International Conference on Learning Representations, 2020.
+Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Clement Delangue, Anthony Moi, Pierric
+Cistac, Tim Rault, Rémi Louf, Morgan Funtowicz, and Jamie Brew. Huggingface’s transformers: State-of-
+the-art natural language processing.ArXiv, abs/1910.03771, 2019.
+Long Ouyang, Jeff Wu, Xu Jiang, Diogo Almeida, Carroll L. Wainwright, Pamela Mishkin, Chong Zhang,
+Sandhini Agarwal, Katarina Slama, Alex Ray, John Schulman, Jacob Hilton, Fraser Kelton, Luke E. Miller,
+Maddie Simens, Amanda Askell, Peter Welinder, Paul Francis Christiano, Jan Leike, and Ryan J. Lowe.
+Training language models to follow instructions with human feedback.ArXiv, abs/2203.02155, 2022.
+Mike Lewis, Yinhan Liu, Naman Goyal, Marjan Ghazvininejad, Abdel rahman Mohamed, Omer Levy, Veselin
+Stoyanov, and Luke Zettlemoyer. Bart: Denoising sequence-to-sequence pre-training for natural language
+generation, translation, and comprehension. InAnnual Meeting of the Association for Computational
+Linguistics, 2019.
+Karl Moritz Hermann, Tomas Kocisky, Edward Grefenstette, Lasse Espeholt, Will Kay, Mustafa Suleyman,
+and Phil Blunsom. Teaching machines to read and comprehend.Advances in neural information processing
+systems, 28, 2015.
+Katzenbeisser Stefan, AP Fabien, et al. Information hiding techniques for steganography and digital
+watermarking, 2000.
+14
+
+=== PDF PAGE 15 ===
+Umut Topkara, Mercan Topkara, and Mikhail J. Atallah. The hiding virtues of ambiguity: quantifiably
+resilient watermarking of natural language text through synonym substitutions. InWorkshop on Multimedia
+& Security, 2006.
+Mikhail J. Atallah, Victor Raskin, Michael Crogan, Christian F. Hempelmann, Florian Kerschbaum, Dina
+Mohamed, and Sanket Naik. Natural language watermarking: Design, analysis, and a proof-of-concept
+implementation. InInformation Hiding, 2001.
+Mikhail J. Atallah, Victor Raskin, Christian F. Hempelmann, Mercan Topkara, Radu Sion, Umut Topkara,
+and Katrina E. Triezenberg. Natural language watermarking and tamperproofing. InInformation Hiding,
+2002.
+Xi Yang, Jie Zhang, Kejiang Chen, Weiming Zhang, Zehua Ma, Feng Wang, and Nenghai Yu. Tracing text
+provenance via context-aware lexical substitution. InProceedings of the AAAI Conference on Artificial
+Intelligence, volume 36, pages 11613–11621, 2022.
+Honai Ueoka, Yugo Murawaki, and Sadao Kurohashi. Frustratingly easy edit-based linguistic steganography
+with a masked language model. InProceedings of the 2021 Conference of the North American Chapter of
+the Association for Computational Linguistics: Human Language Technologies, 2021.
+Margherita Gambini, Tiziano Fagni, F. Falchi, and Maurizio Tesconi. On pushing deepfake tweet detection
+capabilities to the limits.Proceedings of the 14th ACM Web Science Conference 2022, 2022.
+Max Wolff. Attacking neural text detectors.ArXiv, abs/2002.11768, 2020.
+Vinu Sankar Sadasivan, Aounon Kumar, S. Balasubramanian, Wenxiao Wang, and Soheil Feizi. Can
+ai-generated text be reliably detected?ArXiv, abs/2303.11156, 2023.
+Souradip Chakraborty, Amrit Singh Bedi, Sicheng Zhu, Bang An, Dinesh Manocha, and Furong Huang. On
+the possibilities of ai-generated text detection.arXiv preprint arXiv:2304.04736, 2023.
+Colin Raffel, Noam Shazeer, Adam Roberts, Katherine Lee, Sharan Narang, Michael Matena, Yanqi Zhou,
+Wei Li, and Peter J Liu. Exploring the limits of transfer learning with a unified text-to-text transformer.
+The Journal of Machine Learning Research, 21(1):5485–5551, 2020.
+Frank McSherry and Kunal Talwar. Mechanism design via differential privacy. InSymposium on Foundations
+of Computer Science (FOCS’07), pages 94–103. IEEE, 2007.
+Mark Cesar and Ryan Rogers. Bounding, concentrating, and truncating: Unifying privacy loss composition
+for data analytics. InAlgorithmic Learning Theory, pages 421–457. PMLR, 2021.
+15
+
+=== PDF PAGE 16 ===
+A More on related work
+Watermarking natural languages. The concept of watermarking, which involves hiding identifying
+information within data, has a long history. However, watermarking digital text has been challenging due to
+its discrete nature [Stefan et al., 2000]. Early approaches relied on techniques such as synonym substitution
+[Topkara et al., 2006], syntactic structure restructuring [Atallah et al., 2001], or paraphrasing [Atallah et al.,
+2002]. Later, advancements in modern neural language models led to improved methods that move away from
+rule-based approaches. Different approaches have been proposed, such as encoding messages by context-aware
+lexical substitution [Yang et al., 2022] or using mask-infilling models for editing text [Ueoka et al., 2021].
+Recent studies [Zhao et al., 2023, Kirchenbauer et al., 2023] explore modifying the logits of language models
+during token generation and embedding invisible watermarks in the decoding process. Our objective is to
+develop a robust watermarking technique for natural language models that maintain high text quality while
+effectively concealing identifying information.
+Post-hoc detection. Rather than watermarking, an alternative approach involves developing detection
+models for post-hoc analysis of machine-generated text. Some detection methods use statistical outlier
+detection techniques without requiring additional training. For example, GLTR [Gehrmann et al., 2019]
+assesses the expected probability of individual tokens and applies thresholding to identify AI-generated
+content. DetectGPT [Mitchell et al., 2023] suggests that AI-generated passages tend to reside in the negative
+curvature of the log probability of texts. Another set of methods relies on classifiers that are fine-tuned
+to distinguish between human-written and machine-generated text. Initial efforts in this domain focus on
+detecting fake reviews [Hovy, 2016] and fake news [Zellers et al., 2019]. More recently, OpenAI releases
+a web interface that uses a finetuned GPT model for this discrimination task [OpenAI, 2023b]. However,
+as language models improve, AI-generated text is becoming increasingly similar to human-generated text,
+making it more challenging to detect. Gambini et al. [2022] find that existing detection strategies designed
+for GPT-2 struggle with GPT-3. Moreover, known detectors are found to be fragile to adversarial attacks
+[Wolff, 2020] and biased towards non-native English writers [Liang et al., 2023].
+Impossibility results? Sadasivan et al. [2023] poses the question of whether detecting machine-generated
+text is possible and argue that as the human distribution and LLM distribution of texts get closer, any
+classifier will have to either have a large Type I error or a large Type II error. The authors also argue that (in
+Corollary 2) if the watermarking scheme can be learned then paraphrasing attacks either evade the detector
+or also classify humans with a similar distribution as false positives. This does not invalidate our results as we
+made no theoretical claim about paraphrasing. We do claim that in Theorem 3.1 that the watermarked LM
+ˆM and original LMM is statistically close — in fact, indistinguishable in the “differential privacy” sense. But
+the indistinguishability is for each token. As the number of tokens gets larger, they will eventually become
+distinguishable, that is why our Theorem C.4 and Theorem C.13 are not contradicting Theorem 3.1. This
+argument was initially pointed out by Chakraborty et al. [2023], showing that detection is possible.
+Language model watermarks with provable guarantees.Concurrent to our work, Christ et al. [2023]
+consider the problem of formally defining watermarking language models and propose a construction with
+provable guarantees. The main differences between their work and ours are:
+• In Christ et al. [2023], the watermarked distribution is computationally indistinguishable (i.e., indistinguish-
+able against probabilistic polynomial-time algorithms) from the un-watermarked distribution whereas in our
+case, we insist that the watermarked distribution is statistically close to the un-watermarked distribution
+(of each token). The Type-I/Type-II error guarantees and the security properties are qualitatively different
+in both works.
+• We both use different approaches to achieve our definitions. The advantage of our construction is that
+it satisfies robustness to edits property whereas they have no such guarantees. On the other hand, our
+construction uses a very different set of assumptions (e.g., high entropy) on the language model and prompt
+that appears to be incompatible with theirs.
+• Finally, we implement our construction and conduct a thorough empirical evaluation to demonstrate its
+practicality while they don’t provide any implementation of their construction.
+Statistical vs Cryptographic Watermarks.Christ et al. [2023] and Aaronson [2023] are examples of
+16
+
+=== PDF PAGE 17 ===
+cryptographic watermarks, while Kirchenbauer et al. [2023] and this paper studystatistical watermarks.
+There are several prominent differences that make it a bit challenging to compare the two kinds, but we
+will try. To start, we argue that both Christ et al. [2023] and Aaronson [2023] use a similar definition of
+language model watermarks as Definition 2.2 and considered a similar set of properties. Specifically, the
+“soundness”, “completeness” from Christ et al. [2023] directly map to our “Type I error” and “Type II error”
+requirements. As we understand from the materials in Aaronson [2023]’s talk, their “indistinguishability” is a
+form of performance guarantee for ˆM. The difference to ours is that they require (in our notation)
+P
+ˆM(prompt)
+[Next token] = E
+k
+"
+P
+ˆM(prompt)
+[Next token|k]
+#
+= P
+M(prompt)
+[Next token]
+where the random keyk is marginalized out. while our results require that for everyk the next token
+P
+ˆM(prompt)
+[Next token|k] ≈δ P
+M(prompt)
+[Next token]
+to be statistically close (in the same sense ofδ-differential privacy). By our metric, however, Aaronson [2023]’s
+watermark does not appear to satisfy any nontrivialδ guarantee, since it only requiresunbiasedness. For
+that reason, the detection guarantee and its tradeoff with quality that we discussed in Remark C.15 is not
+applicable to the cryptographic watermarks.
+B Additional experiment results
+B.1 Empirical error rates
+We perform experiments on two datasets (OpenGen and LFQA) using three different models (GPT2-XL,
+OPT-1.3B, and LLaMA-7B). Table 4 presents the error rates, showcasing the sensitivity of the resulting
+hypothesis test based on observedz-scores. The results demonstrate that there are no Type-I (false positive)
+errors for all models, with true positive rates exceeding 0.94 for a threshold ofz = 6.0.
+z = 6.0 z = 7.0
+Dataset Model FPR TNR TPR FNR FPR TNR TPR FNR
+OpenGen
+GPT2-XL 0.0 1.0 0.943 0.057 0.0 1.0 0.832 0.168
+OPT-1.3B 0.0 1.0 0.998 0.002 0.0 1.0 0.996 0.004
+LLaMA-7B 0.0 1.0 0.974 0.026 0.0 1.0 0.911 0.089
+LFQA
+GPT2-XL 0.0 1.0 0.948 0.052 0.0 1.0 0.889 0.111
+OPT-1.3B 0.0 1.0 1.000 0.000 0.0 1.0 0.997 0.003
+LLaMA-7B 0.0 1.0 0.976 0.024 0.0 1.0 0.942 0.058
+Table 4: Empirical error rates for watermark detection using different models on two datasets. All models
+employ nucleus sampling withδ = 2.0 and γ = 0.5. No Type-I (false positive) errors are observed across all
+models.
+B.2 Different watermark parameters
+We conduct an analysis to understand the impact of changing watermark strength (δ), green list size (γ), and
+sampling methods on two datasets. The results are summarized in Table 5. When using nucleus sampling
+with a fixedγ = 0.5, increasing the watermark strength resulted in higher true positive rates (TPR), but it
+also led to an increase in perplexity (lower quality). Furthermore, for the same watermark strengthδ, varying
+the green list ratio from 0.25 to 0.5 and 0.75 showed improved detection results with smallerγ. Additionally,
+we explore different decoding methods, transitioning from nucleus sampling to multinomial sampling and
+beam search. Remarkably, watermark detection performed effectively with all decoding methods. It is worth
+noting that the perplexity score for beam search is significantly lower than that of nucleus sampling. However,
+beam search tends to generate shorter sequences with repeated words.
+17
+
+=== PDF PAGE 18 ===
+z = 6.0 z = 7.0
+Dataset decoding δ γ PPL FPR TNR TPR FNR FPR TNR TPR FNR
+OpenGen
+nucleus 1.0 0.5 18.376.45 0.0 1.0 0.576 0.424 0.0 1.0 0.310 0.690
+nucleus 2.0 0.5 19.428.78 0.0 1.0 0.998 0.002 0.0 1.0 0.996 0.004
+nucleus 5.0 0.5 19.4415.02 0.0 1.0 1.000 0.000 0.0 1.0 1.000 0.000
+nucleus 10.0 0.5 19.2018.01 0.0 1.0 1.000 0.000 0.0 1.0 1.000 0.000
+nucleus 2.0 0.25 17.969.54 0.0 1.0 1.000 0.000 0.0 1.0 1.000 0.000
+nucleus 2.0 0.75 20.037.67 0.0 1.0 0.820 0.180 0.0 1.0 0.485 0.515
+m-nom. 2.0 0.5 1.750.59 0.0 1.0 0.951 0.049 0.0 1.0 0.924 0.076
+4-beams 2.0 0.5 1.830.97 0.0 1.0 0.992 0.008 0.0 1.0 0.982 0.018
+6-beams 2.0 0.5 1.891.10 0.0 1.0 0.984 0.016 0.0 1.0 0.982 0.018
+8-beams 2.0 0.5 1.961.23 0.0 1.0 0.986 0.014 0.0 1.0 0.984 0.016
+LFQA
+nucleus 1.0 0.5 18.637.19 0.0 1.0 0.455 0.545 0.0 1.0 0.199 0.801
+nucleus 2.0 0.5 19.1411.11 0.0 1.0 1.000 0.000 0.0 1.0 0.997 0.003
+nucleus 5.0 0.5 16.3715.39 0.0 1.0 1.000 0.000 0.0 1.0 1.000 0.000
+nucleus 10.0 0.5 16.0714.25 0.0 1.0 0.998 0.002 0.0 1.0 0.998 0.002
+nucleus 2.0 0.25 15.2710.00 0.0 1.0 1.000 0.000 0.0 1.0 1.000 0.000
+nucleus 2.0 0.75 19.448.20 0.0 1.0 0.893 0.107 0.0 1.0 0.582 0.418
+m-nom. 2.0 0.5 3.172.39 0.0 1.0 0.934 0.066 0.0 1.0 0.914 0.086
+4-beams 2.0 0.5 3.242.85 0.0 1.0 0.990 0.010 0.0 1.0 0.986 0.014
+6-beams 2.0 0.5 3.202.52 0.0 1.0 0.994 0.006 0.0 1.0 0.994 0.006
+8-beams 2.0 0.5 3.132.37 0.0 1.0 0.994 0.006 0.0 1.0 0.992 0.008
+Table 5: Comparison of empirical error rates for watermark detection using nucleus sampling, multinomial
+decoding, and beam search. Each row represents the average of 500 sequences. While sequences generated
+with beam search exhibit lower perplexity, they tend to favor shorter outputs, potentially resulting in less
+diverse text.
+B.3 Additional robustness results
+In addition to the previously discussed robustness evaluations, we provide further analysis of our method’s
+resilience against paraphrasing attacks and editing attacks. The results are presented in Figure 4. Notably,
+our proposed method (Unigram-W atermark) consistently outperforms the baseline approach (KGW+23)
+across various datasets and attack scenarios. This demonstrates the superior robustness of our method in
+accurately detecting watermarked text.
+B.4 White-box attack
+A potential attack forUnigram-W atermarkis to estimate the fixed green and red list. Then the adversary
+may attempt to bypass detection using these estimated lists. We conduct experiments on white-box attacks
+and we find that it is difficult to accurately estimate the green list. Even if the green list is known, our
+watermark is still somewhat effective thanks to our added robustness.
+B.4.1 Estimating the Green List tokens
+The question arises: how can the adversary estimate the green list? We simulate an adversary attempting to
+learn the green list tokens by querying the model multiple times. The adversary collects token distributions
+from watermarked text and compares them to natural human distributions.
+In our experiment, we query the LLaMA-13B watermarked model with watermark strengthδ = 2.0, watermark
+ratio γ = 0 .5 (same setting in the paper) 2500 times, collecting 0.7 million tokens of watermarked text
+generated from the prompts in LFQA and OpenGen dataset.
+Then we simulate three human data distributions:
+18
+
+=== PDF PAGE 19 ===
+0.0 0.2 0.4 0.6 0.8 1.0
+False Positive Rate
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0True Positive Rate
+ChatGPT KGW+23 AUC: 0.877
+ChatGPT Ours        AUC: 0.949
+0.0 0.2 0.4 0.6 0.8 1.0
+False Positive Rate
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0True Positive Rate
+BART KGW+23 AUC: 0.925
+BART Ours        AUC: 0.959
+0.0 0.2 0.4 0.6 0.8 1.0
+False Positive Rate
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0True Positive Rate DIPPER-1 KGW+23 AUC: 0.901
+DIPPER-1 Ours        AUC: 0.967
+DIPPER-2 KGW+23 AUC: 0.943
+DIPPER-2 Ours        AUC: 0.984
+(a) Unigram-W atermarkagainst paraphrasing attacks on LFQA dataset with LLaMA-7B.
+0.0 0.2 0.4 0.6 0.8 1.0
+False Positive Rate
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0True Positive Rate
+Replace-0.1 KGW+23 AUC: 0.896
+Replace-0.1 Ours        AUC: 0.923
+Replace-0.3 KGW+23 AUC: 0.842
+Replace-0.3 Ours        AUC: 0.877
+Replace-0.5 KGW+23 AUC: 0.789
+Replace-0.5 Ours        AUC: 0.861
+0.0 0.2 0.4 0.6 0.8 1.0
+False Positive Rate
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0True Positive Rate
+Delete-0.1 KGW+23 AUC: 0.929
+Delete-0.1 Ours        AUC: 0.959
+Delete-0.3 KGW+23 AUC: 0.879
+Delete-0.3 Ours        AUC: 0.951
+Delete-0.5 KGW+23 AUC: 0.817
+Delete-0.5 Ours        AUC: 0.956
+0.0 0.2 0.4 0.6 0.8 1.0
+False Positive Rate
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0True Positive Rate
+Swap-0.1 KGW+23 AUC: 0.855
+Swap-0.1 Ours        AUC: 0.959
+Swap-0.3 KGW+23 AUC: 0.773
+Swap-0.3 Ours        AUC: 0.963
+Swap-0.5 KGW+23 AUC: 0.688
+Swap-0.5 Ours        AUC: 0.967
+(b) Unigram-W atermarkagainst editing attacks on OpenGen dataset with LLaMA-7B. We
+vary the rates of synonym replacement, random deletion, and random swapping (0.1, 0.3, 0.5)
+to demonstrate different attack scenarios.
+Figure 4: ROC curves with corresponding AUC values for watermark detection against various attack
+methods.
+1. The human response from the same prompt (LFQA and OpenGen dataset). The corresponding human
+output is 0.4 million tokens. We denote it as the “LFQA & OpenGen dataset”
+2. Most times, human responses are not known. So we collect 2000 samples from the C4 [Raffel et al., 2020]
+dataset to form an approximate human dataset with 1 million tokens. We denote it as the “C4 dataset”.
+3. To simulate the distribution from non-native speakers. We also collect a non-native speaker (TOEFL
+essay) dataset from Liang et al. [2023] with 12k tokens. We denote it as the “Non-native dataset”.
+We calculate token frequencies for the three “human” datasets and the watermarked dataset. We use the
+following decision rule (Algorithm 3) to decide whether a token is green or red.
+Algorithm 3Estimating the Green List tokens
+1: for every token v in the vocabularyV do
+2: ∆(v) ← Frequency(v in watermarked text) − Frequency(v in human text)
+3: if ∆(v) ≥ 0 then
+4: v is in the Green List.
+5: else
+6: v is in the Red List.
+7: end if
+8: end for
+The estimation results for the green list tokens are shown in the table below.
+The results suggest that while it is possible to make non-trivial inferences about which token is green, it is
+hard to say for sure. Notice that we are using a rather big watermark strength. For smaller and more esoteric
+contexts (prompt, e.g., Non-native TOEFL dataset), such determination is harder.
+19
+
+=== PDF PAGE 20 ===
+Dataset TPR FPR FNR F1
+LFQA & OpenGen dataset 0.692 0.830 0.170 0.755
+C4 dataset 0.591 0.806 0.194 0.609
+Non-native dataset 0.323 0.923 0.077 0.463
+B.4.2 Evasion attack (white-box and estimated)
+In situations where the adversary has either an estimated version or full knowledge of the green and red lists,
+they can formulate an evasion strategy. We simulate this by assuming the adversary employs WordNet from
+NLTK to identify token synonyms. Tokens identified as in the green list are replaced with red list synonyms,
+noting that some tokens may not have synonyms or may only have green synonyms.
+Green List Detect AUC Avg PPL (eval by GPT-3)
+No attack 1.000 45.413
+Know all green tokens 0.8413 193.410
+Estimated from LFQA & OpenGen dataset 0.9397 189.423
+Estimated from C4 dataset 0.9291 189.070
+Estimated from Non-native dataset 0.9998 125.380
+Table 6: Evasion attack results: analysis of detection AUC and perplexity.
+The results in Table 6 show it is difficult to evade detection even with known green list tokens. The detection
+AUC for the watermarked text is still somewhat high. In addition, the honest attempt to evade the attack by
+automatic synonym replacement has led to a significant drop in the text quality.
+B.5 Testing on scaled language models
+OpenGen LFQA
+LLaMA-13B
+No attack 1.000 1.000
+ChatGPT attack 0.783 0.854
+LLaMA-65B
+No attack 1.000 1.000
+ChatGPT attack 0.831 0.697
+Table 7: Detection results (TPR at 1% FPR) for scaled models LLaMA-13B and LLaMA-65B.
+We conduct supplementary experiments on the scaled models LLaMA-13B and LLaMA-65B. Using the
+same experimental settings as in the main paper, our preliminary results show that our method maintains
+effectiveness on these larger models. For LLaMA-13B, we are able to use the same test set size as in the
+original paper. For LLaMA-65B, due to computational constraints, we test on a sample of 100 sentences.
+The results (TPR at 1% FPR) are shown in Table 7.
+B.6 Results for deduplicated detection
+An alternative detector, named “Unique” demonstrates improved robustness in detection and offers advantages
+in controlling false positives with ease (Section E). We conduct experiments to evaluate deduplicated detection
+performance, with the outcomes presented in Table 8.
+20
+
+=== PDF PAGE 21 ===
+OpenGen LFQA
+LLaMA-13B
+No attack - Unique Detector 1.000 1.000
+ChatGPT attack - Unique Detector 0.679 0.773
+LLaMA-65B
+No attack - Unique Detector 1.000 1.000
+ChatGPT attack - Unique Detector 0.783 0.682
+Table 8: Detection results (TPR at 1% FPR) with “Unique” detector.
+C Main theoretical results with proofs
+In this section, we state and prove the guarantees forUnigram-W atermarkwhich certifies the required qual-
+ity, correctness, and security properties of a language model watermarking scheme from Definition 2.2.
+Symbols and mathematical notations. We use P[·], E[·], P[·|·] and E[·|·] to denote the probability,
+expectation operator, conditional probability and conditional expectation respectively. Whenever there
+is ambiguity on which distribution the random variables are drawn from, we explicitly state them, e.g.,
+P(X,Y )∼D[X < 3|Y = y], or equivalently P[X < 3|Y = y ; ( X, Y ) ∼ D ]. To avoid clutter, we do not
+distinguish between random variables and constants as the distinctions are clear from the context. Boldface
+symbols denote a vector, e.g., a probability mass functionp or a sequence of tokensy. ∥ · ∥2, ∥ · ∥∞ denotes
+the standard ℓ2 and ℓ∞-norms of a vector. In addition,[n] is a shorthand for{1, 2, ..., n}. Other symbols and
+their meanings will be defined as we encounter them.
+C.1 Quality guarantees
+We start by providing a strong utility analysis of the watermarked language model than the “perplexity”
+bound from [Kirchenbauer et al., 2023]. Our results work for the entire family of Rényi-divergence and imply
+guarantees in Kullback-Leibler (KL) divergence and Total Variation-distance.
+The Renyi-divergence of two distributionsP, Q is defined as
+Dα
+ 
+P ∥Q
+
+= 1
+α − 1 log E
+x∼Q
+
+( dP
+dQ)α
+
+where dP
+dQ is the Radon–Nikodym derivative. Whenα → 1, the Renyi divergence converges to the KL-
+divergence. Additionally, whenα = 0.5, it serves as an upper bound for the TV-distance.
+On the technical level, we leverage a surprising connection to a modern machinery developed in the differential
+privacy literature known as “bounded range” analysis [Dong et al., 2020] of the classical exponential mechanism
+[McSherry and Talwar, 2007].
+Theorem C.1 (Restatement of Theorem 3.1). Consider h as the input to the language model at stept,
+denoted as h = [x, y1:t−1]. Fix green listG. Let δ represent the watermark strength. For anyh, the α-th
+order Renyi-divergence between the watermarked probability distributionˆpt = ˆpt(·|h) at time stept and the
+original probability distributionpt = pt(·|h) satisfies:
+∀h, max
+ 
+Dα
+ ˆpt∥pt
+
+, Dα
+ 
+pt∥ˆpt
+
+≤ min{δ, αδ2/8}.
+Proof. We defineδv = 0 when v ∈ R and δv = δ when v ∈ G. Using this definition, we have:
+ˆp(v|h) = exp(ℓv + δv)P
+w exp(ℓw + δw) ≤ exp(δ) exp(ℓv)
+exp(−δ)P
+w exp(ℓw) = e2δp(v|h)
+Similarly, ˆp(v|h) ≥ e−2δp(v|h).
+21
+
+=== PDF PAGE 22 ===
+Consequently, ˆpand pare 2δ-closeintermsofmax-divergence, whichcanbeinterpretedas (ϵ, ˜δ)-indistinguishable,
+similar to the concept of Differential Privacy [Dwork et al., 2006] with˜δ = 0 and ϵ = 2δ.
+Additionally, ˆp(v|h) and p(v|h) satisfy δ-BoundedRange (Proposition 1 in Dong et al. [2020]) with parameter
+δ, since the changes toℓv is monotonic. Lemma 3.2 in Cesar and Rogers [2021] shows thatδ-Bounded Range
+implies δ2/8-concentrated differential privacy, which says thatDα(ˆp∥p) ≤ δ2α
+8 for all α ≥ 1 (where Dα
+represents Rényi Divergence of orderα). Specifically, whenα = 1, the KL-divergence satisfiesDKL(ˆp∥p) ≤ δ2
+8 .
+Furthermore, δ-BoundedRange implies δ-DP (or rather(δ, 0)-indistinguishability, since we are dealing with
+just two distributions rather than a family of neighbor distributions). It follows from the that
+DKL(ˆp∥p) ≤ D∞(ˆp∥p) ≤ δ
+Corollary C.2. For any promptx, the KL-divergence between the probability distribution of the watermarked
+sequence and the original sequence satisfies:
+∀x, max{DKL
+ ˆp(y1:n|x)∥p(y1:n|x)
+
+, DKL
+ 
+p(y1:n|x)∥ˆp(y1:n|x)
+
+} ≤ α min{nδ, nδ2/8}
+Proof. The proof follows from the adaptive composition theorem for Renyi-divergence, and max-divergence
+(from the DP literature) for the autoregressive decomposition ofˆp(y1:n|x) and p(y1:n|x) and then invoke
+Theorem 3.1 for each factor.
+C.2 Robustness / Security guarantees
+In this section, we provide the proof for Theorems 3.7, D.1, and 3.1 to ensure completeness and precision. We
+begin by restating the theorems and providing the corresponding proofs with necessary modifications.
+Theorem C.3 (Robustness to editing (Restatement of Theorem 3.7) ). Let y = [y1, . . . , yn] represent
+the watermarked sequence. Suppose the adversary A follows Definition 2.2 and outputs a modified text
+u = [u1, . . . , um]. Following Equation 2, we calculatez-score zy and zu. Assume edit distance betweeny and
+u (denoted as η) satisfies η < n. Then we have
+zu ≥ zy − max{(1 + γ/2)η√n , (1 − γ/2)η√n − η }.
+In particular, whenη ≤ 2γn
+(1+γ/2)2, we can drop the second term in the max.
+Proof. Define bivariate functionf(x, y) = x−γy√y . By Taylor’s theorem
+f(x − kx, y − ky) = f(x, y) +
+
+∂xf(x − ˜kxy − ˜ky)
+∂yf(x − ˜kxy − ˜ky)
+T
+−kx
+−ky
+
+= f(x, y) −
+
+ kxq
+y − ˜ky
+− γky
+2
+q
+y − ˜ky
+
+
+where ˜kx is between 0 and kx and ˜ky is between 0 and ky. We also know that|kx| ≤ k and |ky| ≤ k.
+A lower bound of the above can be obtained by finding an upper bound to
+kxq
+y − ˜ky
+− γky
+2
+q
+y − ˜ky
+= kx − γ
+2 kyq
+y − ˜ky
+First observe that we can always choosekx = k. Next we discuss two possibilities ofky. If ky is negative,
+then choosing ky = −k and ˜k = 0 maximizes the bound, which gives(1+γ/2)k√y .
+22
+
+=== PDF PAGE 23 ===
+If ky is positive, then we should always choose˜ky = ky to maximize the expression, which gives us an upper
+bound of
+k − γ
+2 kyp
+y − ky
+= k + γ
+2 (y − ky) − γ
+2 yp
+y − ky
+= k − γ
+2 yp
+y − ky
++ γ
+p
+y − ky
+2 .
+We will discuss two cases again, the first case is whenk − γy/2 ≤ 0. In this case, the functiong(u) = a/u + bu
+with a ≤ 0 has a derivative of−a/u2 + b ≥ 0, thus g is monotonically increasing. Thus we should choose
+ky = 0. The second case is whenk − γy/2 > 0, in this case thea > 0 in the aboveg(u) and g(u) is convex,
+thus maxumin≤u≤umax g(u) = max{g(umax), g(umin)}. Thus we should just compare the two cases whenky = 0
+and ky = k, i.e., max{ k√y , (1−γ/2)k√y−k }.
+Collect everything together, we get an upper bound o
+max{(1 + γ/2)k√y , k√y , (1 − γ/2)k√y − k } = max
+(1 + γ/2)k√y , (1 − γ/2)k√y − k
+
+i.e.,
+f(x − kx, y − ky) − f(x, y) ≥ − max
+(1 + γ/2)k√y , (1 − γ/2)k√y − k
+
+.
+Now notice that ourz-score has the same form as thef(x, y) function. We can takey = n and x = |y|G.
+Instantiate k be the maximum number of editsη. Observe that given that the adversary has a bounded edit
+distance, each operation of “insertion”, “deletion”, or “edit” can, at most, alter one token from the green list to
+the red list. They also can only alter the length by the number of edits. The above result translates into
+zu ≥ zy − max{(1 + γ/2)η√n , (1 − γ/2)η√n − η },
+where η denotes the edit distance betweeny and u.
+The robustness theorem above implies the security guarantees as we discussed in Corollary C.23.
+C.3 No false positive (Type I error guarantees)
+Theorem C.4(No false positives ). Consider y = y1:n as any fixed suspect text. LetN =: |V| and G ⊂ |V|
+satisfying |G| = γN. G is selected through Algorithm 1, using a uniform random choice. Let|y|G denote the
+number of tokens inG and zy := |y|G−γn√
+nγ(1−γ)
+as in Algorithm 2. Then the following statements hold true:
+1. Assume n ≥ 1, then
+E[|y|G|y] = γn and E[zy|y] = 0.
+2. Define Cmax(y) := maxi∈[N]
+Pn
+j=1 1(yj = i) and V (y) := 1
+n
+PN
+i=1(Pn
+j=1 1(yj = i))2, then with probability
+1 − α (over only the randomness ofG),
+P
+h
+|y|G ≥ γn +
+p
+64γnV log(9/α) + 16Cmax log(9/α)
+y
+i
+≤ α
+or equivalently (whenn ≥ 1)
+P
+"
+zy ≥
+s
+64V log(9/α)
+1 − γ + 16Cmax log(9/α)p
+nγ(1 − γ)
+y
+#
+≤ α.
+Proof. To prove the first statement, observe that any fixed token has a probabilityγ to be included in the
+green list, thus by the linearity of the expectation and the independence ofy in G.
+E[|y|G|y] =
+nX
+i=1
+E[1(yi ∈ G)|y] =
+nX
+i=1
+γ = γn.
+23
+
+=== PDF PAGE 24 ===
+Next, we will prove the second statement by applying Lemma F.1 to obtain the result stated in the third
+statement. Let ai,j = 1(j ≤ γN )Pn
+ℓ=1 1(yℓ = i). By our assumption0 ≤ ai,j ≤ Cmax for all i, j. Observe
+thatPN
+i=1 ai,ΠN(i) is identically distributedwith |y|G.
+By Lemma F.1 witht = 16 log(8e1/16/α), we get that with probability1 − α,
+||y|G − γn| < 2
+r
+16 log(9/α)
+N N γnV + 16Cmax log(9/α)
+where we used that8e1/16 ≤ 9 and the fact that onlyγN columns of theai,j matrix ai,j is nonzero, and for
+each non-zero column L2-norm of the column is bounded by
+√
+nV by our definition ofV. The result for the
+z-score follows trivially.
+Remark C.5 (Wide applicability). Note that the theorem does not impose assumptions on howy is generated.
+It covers any procedure (including human generation) that producesy in a mannerindependently of the
+secret partition G. In cases wherey is generated by a language model, it could be the output of greedy search
+from p(yt|x, y1:t−1), nucleus sampling, beam search, or any other decoding methods.
+Remark C.6 (Diversity parameters). The V and Cmax parameters in Theorem C.4 measure thediversity of the
+suspect text y and are necessary for the high-probability bound. As an example, if the prompt says “Repeat
+“Goal” for a hundred thousand times like a soccer commentator.” Then the resulting generated
+sequence will be “Goal goal goal ...”, and has eithern green tokens or0 green tokens. No meaningful
+Type I error bound can be obtained.
+Remark C.7 (Controlling false positive rate). The theorem implies that if we chooseτ >
+q
+64V log(9/α)
+1−γ +
+16Cmax log(9/α)√
+nγ(1−γ)
+, then the false-positive rate is smaller thanα. Note thatV and Cmax can be computed directly
+from y, allowing us to choose an input-dependentτ as a function ofV, Cmax that achieves aα-Type I error
+guarantee with a fixedα for all inputs. In particular, the Type I errorα decreases exponentially as we
+increase the thresholdτ.
+C.4 Only true detection (Type II error guarantees)
+For bounding the Type II error, i.e., false negative rates, we will work with our proposed method that
+generates y from the language model, i.e., sampling from the watermarked distributionˆp recursively one
+token at a time.
+Let’s first recall a few notations.h is the input to the language model at stept, i.e., h = [x, y1:t−1]. Let
+δ represent the watermark strength from Equation 1. The green listG ⊂ [N] is a random index set of the
+vocabulary of sizeγN. The watermarked probability distributionˆpt = ˆpt(·|h) at time stept. The process of
+generating the sentencey1, y2, . . . , yn involves recursively sampling fromˆpt, which we refer to as a “roll-out”
+procedure.
+We need to make a few assumptions about the language model’s probability distributionp and the promptx.
+We will first state them and then explain why these are natural and arguably needed for the Type II error to
+be small.
+C.4.1 On-average high entropy assumption
+The first such assumption requires the probability of the roll-out to be “sufficiently diverse” on average. We
+will introduce the notation∥p∥2 :=
+qPN
+i=1 p[i]2.
+Assumption C.8(On-average-high-entropy). We say a language model’s probability distributionp with a
+prompt x satisfies ξ-on-average-high-entropy if
+1
+n
+nX
+t=1
+E
+y1:t−1∼p(·|x)
+[∥pt∥2] ≤ ξ.
+24
+
+=== PDF PAGE 25 ===
+This assumption requires the distribution of the roll-out to be sufficiently diffuse on average (either in
+expectation or with high probability).
+The purpose of these assumptions is to rule out the cases wheny1:n is almost deterministic underp and
+perturbing the logits byδ does not change the distribution much at all.
+For example, if the prompt writes
+“Generate the English alphabet in capital letters for 200 times please.”
+Then the language model would generate
+“ABC...XYZ, ABC...XYZ, ...”.
+Despite that the generated sequence is very long, i.e.,n is as large as5, 200, the added watermark does not
+change the distribution very much at all. To see this, ifp(y3 = “C”|x, h) ≥ 1 − ϵ for a tinyϵ, and then by our
+quality guarantee, ˆp(y3 = “C”|x, h) ≥ 1 − ϵeδ.
+Quantitatively, for nearly uniformpt, ξ = O(1/N), if pt concentrates on a single token for allt, e.g., when a
+football commentator exclaims “Goal goal goal goal ....”, then we cannot obtain a better bound than
+the trivial ξ ≤ 1. In the alphabet example aboveξ ≤ 1/26.
+Why is it called entropy?Assumption C.8 is related to the “high-entropy” assumption in Kirchenbauer
+et al. [2023] but for a slightly different kind of entropy. In a more formal sense, the quantity∥pt∥2 is connected
+to the Tsallis entropy of order 2, defined asS2(pt) = kB(1 − ∥pt∥2) where kB is known as the Boltzmann
+constant. Our assumption requires the expected Tsallis entropy of the conditional distributionpt over the
+roll-out of p to be larger thankB(1 − ξ) on average amongt = 1, ..., n.
+For a high-probability result, we also need a stronger version.
+Assumption C.9(On-average-high-entropy (high probability)). We say that a language model’s probability
+distribution p with a promptx satisfies (ξ, β)-on-average-high-entropy if with probability at least1 − β over
+the generated sequencey1:n,
+1
+n max
+(
+nX
+t=1
+pt
+ ,
+nX
+t=1
+∥pt∥2 ,
+
+nX
+t=1
+pt
+
+∞
+,
+nX
+t=1
+∥pt∥2
+∞
+)
+≤ ξ.
+The behavior is similar to that of the expectation version of the assumption. Whenpt is nearly uniform,
+pt[i] = O(1/N), then ξ = O(1/
+√
+N). When pt is supported only on one token, thenξ = 1. In practice, ξ is a
+small constant. As we will present in the main theorem, as long asξ ≍ δ, the number of green list tokens is
+guaranteed to grow fasterγn as n gets larger.
+One may also ask whether it is necessary to make entropy assumptions on the conditional probabilities instead
+of the marginal probabilities induced byp or ˆp, but this is unfortunately not sufficient as illustrated in the
+following example.
+Example C.10(Marginal high entropy is insufficient). Let the promptx be
+“Generate the first token uniformly at random, then repeat the token you generated for
+the remaining n − 1 tokens”.
+In this case, a good language model that follows the instruction will havePp(yt = i) = 1/N for all i and all
+t = 1, ..., nmarginally, which implies that the entropy is the maximum and for any green listG, Pp(yt ∈ G) = γ.
+On the other hand, with probabilityγ, |y|G = n and with probability1 − γ, |y|G = 0. There isn’t any
+concentration around γn possible. Moreover, check that if we apply watermark, thenPˆp(yt ∈ G) = γeδ
+γeδ+(1−γ)
+for all t and all G. This changes the probability of seeing|y|G = n slightly but the two world remains
+indistinguishable.
+25
+
+=== PDF PAGE 26 ===
+C.4.2 A “homophily” assumption
+The second assumption that we need to make is called “homophily”, which says that increasing the probability
+of a group of tokens by adding the watermarks will not decrease the probability of generating the same group
+of tokens in the future as the language model rolls out.
+Assumption C.11(“Homophily”). We say a language model’s probability distributionp and prompt x
+satisfy “homophily” if for anyG, the corresponding watermarkedˆp satisfies that
+E
+h∼ˆp(·|x)
+
+P
+y∼ˆp(·|h,x)
+(y ∈ G)
+
+≥ E
+h∼p(·|x)
+
+P
+y∼ˆp(·|h,x)
+(y ∈ G)
+
+where h denotes the generated sequence beforey.
+This assumption says that by increasing the probability of tokens inG, the induced distribution of the prefix
+h cannot counter-intuitively reduce the probability of tokens inG in the future on average.
+The assumption is not unreasonable, because we expect a language model to be more likely to refer to text it
+has generated in the prefix than those that did not appear in the prefix.
+This “homophily” assumption is needed to rule out the unnatural situation where increasing the green list
+tokens initially ends up reducing the number of green list tokens in the long run. To illustrate this, consider
+the following example utilizing the prompt:
+x = “Randomly select a color, state what it is. Then write a short poem about it without
+naming this color at all.”
+The generated text from a commercial language model is
+“Color choice: green. Emerald whispers in the meadow’s sway, Life’s verdant rhythm in
+ceaseless play. It cradles the world in a leafy embrace, A silent serenade to nature’s
+grace.”
+Notice that if the token “green”∈ G, it increases the probability of the language model generating “green”
+at the beginning. However, regardless of the text’s length, the subsequent portion of the generated text will
+not contain the word “green”, as instructed by the prompt. This decreases the expected number of times the
+token “green” appears.
+To hammer it home, consider the following more quantitative construction of that works no matter which
+random green listG realizes.
+x = “Choose the first k token by random sampling without replacement. Then sample from
+all but the token you choose uniformly for n-k rounds.”
+It’s easy to calculate that the expected number of times any token appears in a language model that perfectly
+follows the instruction will ben/N. However, the watermarked language model, let’s say we use a very large
+δ such that the firstk tokens are from the green list, then the expected number of times a green-list token
+appears is k
+γN + γN −k
+γN
+(n−k)(γN −k)
+N −k which is bounded by1 if k = γN instead of growing linearly inn as in
+the original language model.
+To obtain a concentration bound, we also need a stronger version of the homophily assumption as follows.
+Assumption C.12(High probability on-average homophily). There exists a coupling – a joint distribution
+of y1:n and ˆy1:n where marginally y1:n ∼ p(·|x), ˆy1:n ∼ ˆp(·|x) – such that for anyG, with probability1 − β
+over the joint distribution,
+1
+n
+nX
+t=1
+ˆpt(G|ˆy1:t−1)) ≥ 1
+n
+nX
+t=1
+ˆpt(G|y1:t−1)).
+The reason for defining the existence of a coupling is for technical reasons, but the purpose of the assumption
+is identical to that of the in-expectation version.
+26
+
+=== PDF PAGE 27 ===
+C.5 Theorem statement on “Only true detection”
+Now we are ready to state the main theorem.
+Theorem C.13(Only true detection). For a fixed language modelM and a promptx. The sentence y1:n
+generated from ˆM(x) where ˆM is an output of our watermarking schemeWatermarkδ,γ(M) with parameter
+δ, γ. Then the following statements are true.
+1. Assume homophily (Assumption C.11), then
+E[|y|G] ≥ nγeδ
+1 + (eδ − 1)γ − γ(1 − γ)eδ
+nX
+t=1
+E
+y1:t−1∼p(·|x)
+∥pt∥2.
+In particular, if Assumption C.8 condition is true with parameterξ ≤ (1 − κ) eδ−1
+(1+(eδ−1)γ)eδ for a parameter
+0 < κ < 1, then
+E[|y|G] ≥ nγ
+
+1 + κ(eδ − 1)(1 − γ)
+1 + (eδ − 1)γ
+
+or equivalently E[zy] ≥ κ(eδ − 1)
+p
+nγ(1 − γ)
+1 + (eδ − 1)γ .
+2. Assume high-probability version of homophily (Assumption C.12). There exists a parameterCδ,γ that
+depends only δ, γ such that with probability at least1 − β for any β > 0 (over both G and y ∼ ˆp(·|x, G) ),
+∥y∥G ≥ nγeδ
+1 + (eδ − 1)γ −
+p
+2n log(6/β)
+− Cδ,γ log2 27(n + 1)
+β
+ 
+∥
+nX
+t=1
+pt∥ +
+nX
+t=1
+∥pt∥2 + ∥
+nX
+t=1
+pt∥∞ +
+nX
+t=1
+∥pt∥2
+∞
+!
+.
+In particular, if for a parameter0 < κ < 1,
+n ≥ 8 log(6/β)(1 − γ + eδγ)2
+(1 − κ)2γ2(1 − γ)2(eδ − 1)2 = ˜Ω(1/δ2) (3)
+and Assumption C.9 condition is true with parameter(ξ, β/3) where
+ξ ≤ (1 − κ)γ(1 − γ)(eδ − 1)
+8Cδ,γ(1 − γ + eδγ) log2
+
+27(n+1)
+β
+ = ˜O(δ), (4)
+then
+P
+
+∥y∥G < nγ(1 + κ(eδ − 1)(1 − γ)
+1 − γ + γeδ )
+
+= P
+"
+zy < κ(eδ − 1)
+p
+nγ(1 − γ)
+1 + (eδ − 1)γ
+#
+≤ β.
+Remark C.14 (ExponentiallysmallTypeIandTypeIIerrorguarantees) . RecallthataccordingtoTheoremC.4,
+in order to have a false positive rate controlled at levelα, we need to set the thresholdτ ≳
+p
+log(1/α) for
+sufficiently high-entropy sequences. Theorem C.13 says that if we want the false negative rate to be smaller
+than β, we only need the thresholdτ ≲ κδn under similar (slightly different) high-entropy sequences for
+n ≳ log(1/β)/δ2. Observe that there is a wide range of valid choices ofτ for us to have a detection algorithm
+that does not make Type I or Type II error with high probability. These observations together suggest that
+we can afford to chooseδ ≍ 1/√n if the sequence is sufficiently high-entropy.
+Remark C.15 (Information-theoretic optimality). The sample complexity of n ≳ 1/δ2 is information-
+theoretically optimal (up to a logarithmic factor) inδ because, our accuracy guarantee (together with
+the composition theorem) indicates that the KL-divergence between a sequence of lengthn generated from
+p and that generated fromˆp is nδ2 indistinguishable, i.e., n > 1/δ2 for any classifier — even the uniform
+most-powerful Neyman-Pearson likelihood-ratio test (which requires additional information, e.g.,x and p
+which we do not have) — to make no mistakes with a constant probability.
+27
+
+=== PDF PAGE 28 ===
+C.6 Proof of Theorem C.13
+In the false negative error cases,y is drawn from the watermarked language modelˆM. To be explicit, let us
+write y = [ˆy1, ..., ˆyn] = ˆy1:n. Now let’s also define a hypothetical (possibly coupled) sequencey1:n which is
+drawn from the original (un-watermarked) language modelM.
+For convenience, we define the following shorthandp(G) := Py∼p[y ∈ G]. for a probability mass functionp
+defined on the vocabularyV. Specifically, ˆpt(G|ˆy1:t−1) means Py∼ˆpt(·|x,ˆy1:t−1)[y ∈ G], parameterized by a
+fixed green listG. Similarly, pt(G|y1:t−1) denotes Py∼pt(·|x,y1:t−1)[y ∈ G].
+The proof of Theorem C.13 considers the following decomposition
+|y|G =|y|G −
+X
+t
+ˆpt(G|ˆy1:t−1) (5)
++
+X
+t
+ˆpt(G|ˆy1:t−1) −
+X
+t
+ˆpt(G|y1:t−1) (6)
++
+X
+t
+ˆpt(G|y1:t−1) (7)
+steps to prove a lower bound to each of the three terms. We will start with the high probability bound (the
+second statement in Theorem C.13) then deal with the expectation.
+C.6.1 Many green list tokens with high probability
+To obtain a high-probability lower bound, it requires us to obtain concentration for each of the three terms.
+Specifically,
+1. To bound Term(5), we use Lemma C.16 which invokes Martingale concentration over the randomness in
+y to show |y|G is close toP
+t ˆpt(G|ˆy1:t−1).
+2. We will show Term(6) is non-negative with high probability by using the homophily assumption (Assump-
+tion C.12). This allows us to study the roll-outˆy1:t−1 under ˆM(x) (or ˆp) by studying a hypothetical
+alternative roll-out y1:t−1 sampled under M(x) (or p).
+3. Then we control Term(7) by first Taylor expanding it into quantities involvingpt(G|y1:t−1) instead of
+ˆp(G|y1:t−1), then apply concentration inequalities for each expanded terms over the randomness ofG
+(while fixing y1:t−1) to obtain a high probability lower bound. Proposition C.19 gives the results.
+We start by tackling (5) via Martingale concentration.
+Lemma C.16. For any green listG and prompt x.
+E
+"
+|y|G −
+nX
+t=1
+P
+yt∼ˆp(·|x,y1:t−1)
+[yt ∈ G]
+#
+= 0.
+Moreover, with probability at least1 − β over the roll-out
+|y|G ≥
+nX
+t=1
+P
+yt∼ˆp(·|x,y1:t−1)
+[yt ∈ G] −
+p
+2n log(2/β).
+Proof. We fixG and construct a martingale sequenceX1, X2, ..., Xn where X0 = 0 and:
+Xt = Xt−1 + 1(yt ∈ G) − P
+yt∼ˆp(·|x,y1:t−1)
+[yt ∈ G].
+Check that E[Xt|y1:t−1] = Xt−1. The underlying filtration is the sigma-field generated byy1:t.
+The claim about the expectation follows from thatX0 = 0 and an inductive argument following the tower
+property of conditional probabilities.
+28
+
+=== PDF PAGE 29 ===
+By the fact that|Xt − Xt−1| ≤ 1 we can apply Azuma-Hoeffding’s inequality and get
+P [|Xn − E[Xn]| ≥ u] ≤ 2e− u2
+2n .
+Check that by an inductive argumentE[Xn] = 0. So we get that with probability at least1 − δ
+|Xn| =
+
+nX
+t=1
+1(yt ∈ G) −
+nX
+t=1
+P
+yt∼ˆp(·|x,y1:t−1)
+[yt ∈ G]
+ ≤
+p
+2n log(2/δ).
+To handle(6), we apply Assumption C.12 with parameterβ/3, which says that with probability1 − β/3
+(6)≥ 0. This converts a roll-out fromˆy ∼ ˆp to a roll-out from the originalp.
+Before we deal with(7), let us write a lemma that rewritesˆpt(G|y1:t−1) into a more convenient form.
+Lemma C.17. For any t, ht. Fix G. Denote short hands ˆp(G) := Pyt∼ˆpt(·|x,ht)[yt ∈ G] and p(G) :=
+Pyt∼pt(·|x,ht)[yt ∈ G].
+ˆp(G) = eδp(G)
+1 + (eδ − 1)p(G) =
+
+1 + (eδ − 1)(1 − p(G))
+1 + (eδ − 1)p(G)
+
+p(G).
+Proof. By definition,
+ˆp(G) =
+P
+y∈G eℓy+δ
+P
+y∈G eℓy+δ +P
+y /∈G eℓy
+= eδp(G)
+eδp(G) + 1 − p(G) = eδ
+1 + (eδ − 1)p(G) p(G)
+=
+
+1 + (eδ − 1)(1 − p(G))
+1 + (eδ − 1)p(G)
+
+p(G).
+The lemma implies thatˆp(G) ≥ p(G) and that ifp(G) is bounded away from1, ˆp(G) ≥ (1+ O(δ))p(G).
+Lemma C.18. For any t, ht. Fix G.
+ˆp(G) ≥ eδγ
+1 + (eδ − 1)γ + eδ
+(1 + (eδ − 1)γ)2 (p(G) − γ) − eδ(p(G) − γ)2
+Proof. By the second-order Taylor’s theorem
+eδx
+1 + (eδ − 1)x = eδγ
+1 + (eδ − 1)γ + eδ
+(1 + (eδ − 1)γ)2 (x − γ) − eδ
+(1 + (eδ − 1)˜x)3 (x − γ)2
+where ˜x ∈ [x, γ] is a function ofx. By relaxing ˜x to 0 we obtain the lower bound as claimed.
+Now we are ready to handle (7) with high probability in the following proposition.
+Proposition C.19(Concentration). For any fixed sequencey1:n, and the corresponding language model’s
+probability distributionp that gives conditional distributionsp1, ..., pn. There exists a parameterCδ,γ that
+depends only δ, γ. Then with probability at least1 − β for any β > 0 (over G),
+nX
+t=1
+P
+yt∼p(·|x,y1:t−1)
+[yt ∈ G] ≥ nγeδ
+1 + (eδ − 1)γ
+−Cδ,γ log2 9(n + 1)
+β
+ 
+∥
+nX
+t=1
+pt[·]∥ +
+nX
+t=1
+∥pt[·]∥2 + ∥
+nX
+t=1
+pt[·]∥∞ +
+nX
+t=1
+∥pt[·]∥2
+∞
+!
+.
+29
+
+=== PDF PAGE 30 ===
+Proof. By Lemma C.17 and C.18
+nX
+t=1
+P
+yt∼ˆp(·|x,y1:t−1)
+[yt ∈ G]
+=
+X
+t
+eδpt(G)
+1 + (eδ − 1)pt(G)
+≥
+X
+t
+eδγ
+1 + (eδ − 1)γ + eδ(pt(G) − γ)
+(1 + (eδ − 1)γ)2 − eδ(pt(G) − γ)2
+= nγeδ
+1 + (eδ − 1)γ + eδ
+(1 + (eδ − 1)γ)2
+
+
+X
+t
+N γX
+i=1
+pt[π[i]] − nγ
+| {z }
+(∗)
+
+
+− eδX
+t
+
+
+N γX
+i=1
+pt[π[i]] − γ
+| {z }
+(∗∗)
+
+
+2
+where π is a random permutation of the index set{1, ..., N}.
+We will now apply Lemma F.1 to lowerbound(∗) with high probability and to bound the absolute value of
+(∗∗) with high probability.
+Remark C.20. The reason why we can apply these lemmas even after we condition ony1:t−1 is due to the
+“high-probability homophily” assumption which allows us to use the fact thaty1:t−1 is independent toG, i.e.,
+the distribution of the green list remains uniform at random after we condition on each qualifyingy1:t−1
+separately.
+Using a similar argument from the proof of Theorem C.4, we can apply Lemma F.1 and get that with
+probability 1 − β,
+(∗) ≥ −
+vuut64γ∥
+nX
+t=1
+pt(·)∥2 log(9/β) − ∥
+nX
+t=1
+pt(·)∥∞ log(9/β).
+Similarly by Lemma F.1 again to bound(∗∗) =PN γ
+i=1 pt[π[i]] − γ w.h.p for eacht.
+(∗∗)
+ ≤
+p
+64γ∥pt(·)∥2 log(9/β) + ∥pt(·)∥∞ log(9/β).
+To put things together, with probability1 − (n + 1)β,
+nX
+t=1
+P
+yt∼p(·|x,y1:t−1)
+[yt ∈ G]
+≥ nγeδ
+1 + (eδ − 1)γ − eδ
+(1 + (eδ − 1)γ)2
+
+
+vuut64γ∥
+nX
+t=1
+pt[·]∥2 log(9/β) + ∥
+nX
+t=1
+pt[·]∥∞ log(9/β)
+
+
+− eδγ(1 − γ)
+X
+t
+∥pt[·]∥2 − 2eδ
+ 
+64γ
+nX
+t=1
+∥pt[·]∥2
+2 log(9/β) +
+nX
+t=1
+∥pt[·]∥2
+∞ log2(9/β)
+!
+≥ nγeδ
+1 + (eδ − 1)γ − Cδ,γ log(9/β)2
+ 
+∥
+nX
+t=1
+pt[·]∥ +
+nX
+t=1
+∥pt[·]∥2 + ∥
+nX
+t=1
+pt[·]∥∞ +
+nX
+t=1
+∥pt[·]∥2
+∞
+!
+for a constantCδ,γ that depends only inδ, γ. The proof is complete by defining˜β = 9(n + 1)β, and get the
+same result under probability1 − ˜β.
+30
+
+=== PDF PAGE 31 ===
+C.6.2 Many green list tokens in expectation
+To obtain the lower bound in expectation, we just need to bound the expectation of(5), (6) and (7).
+1. Observe that E[Term (5)|G] = 0 (from Lemma C.16)
+2. Also, observe that (6)≥ 0 under thehomophily assumption (Assumption C.11).
+3. Term (7) can be further lower bounded by a second-order Taylor expansion argument (Lemma C.18) and
+a variance calculation for sampling without replacement (Lemma C.21), which ends up depending on the
+on-average high-entropyparameter from Definition C.8. The formal result is stated in Proposition C.22.
+Lemma C.21. Fix pt
+E
+G
+[(pt(G) − γ)2] ≤ γ(1 − γ)∥pt[·]∥2.
+Proof. First observe that EG[pt(G)] = γ because every token hasγ probability to be included. By the
+variance formula for sampling without replacement (N choose N γ),
+VarG[pt(G)|y1:t−1] = γN 1
+N
+NX
+i=1
+(pt[i]2 − N −2)(1 − γN − 1
+N − 1 ) ≤ γ(1 − γ)
+NX
+i=1
+pt[i]2.
+Proposition C.22. Assume homophily, then
+E
+" nX
+t=1
+P
+yt∼ˆp(·|x,y1:t−1)
+[yt ∈ G]
+#
+≥ nγ
+ 
+eδ
+1 + (eδ − 1)γ − (1 − γ)eδ
+n
+nX
+t=1
+E
+y1:t−1∼p(·|x)
+NX
+i=1
+pt[i]2
+!
+.
+Proof. By homophily,
+E
+" nX
+t=1
+P
+yt∼ˆp(·|x,y1:t−1)
+[yt ∈ G]
+#
+=
+nX
+t=1
+E
+G,y1:t−1∼ˆp(·|x)
+"
+P
+yt∼ˆp(·|x,y1:t−1)
+[yt ∈ G]
+#
+≥
+nX
+t=1
+E
+G,y1:t−1∼p(·|x)
+"
+P
+yt∼ˆp(·|x,y1:t−1)
+[yt ∈ G]
+#
+=
+nX
+t=1
+E
+y1:t−1∼p(·|x)
+E
+G
+"
+eδ Pyt∼pt(·|y1:t−1)[yt ∈ G]
+1 + (eδ − 1) Pyt∼pt(·|y1:t−1)[yt ∈ G]
+y1:t−1
+#
+(8)
+By Lemma C.18, we can decompose (8). Also observe that EG
+
+pt(G)
+y1:t−1
+
+= γ where pt(G) :=
+Pyt∼pt(·|y1:t−1)[yt ∈ G] is short hand for clarity. To see the second observation, notice thatyt is inde-
+pendent to G, thus we can apply Statement 1 of Theorem C.4).
+Apply the two observations to (8), we have
+(8) ≥
+nX
+t=1
+E
+y1:t−1∼p(·|x)
+E
+G
+ eδγ
+1 + (eδ − 1)γ + eδ(pt(G) − γ)
+(1 + (eδ − 1)γ)2 − eδ(pt(G) − γ)2
+y1:t−1
+
+= eδnγ
+1 + (eδ − 1)γ +
+nX
+t=1
+E
+y1:t−1∼p(·|x)
+ eδ(EG[pt(G)|y1:t−1] − γ)
+(1 + (eδ − 1)γ)2 − eδ E
+G
+[(pt(G) − γ)2|y1:t−1]
+
+= eδnγ
+1 + (eδ − 1)γ −
+nX
+t=1
+eδ E
+y1:t−1∼p(·|x)
+VarG[pt(G)|y1:t−1].
+31
+
+=== PDF PAGE 32 ===
+By the variance formula for sampling without replacement (N choose N γ),
+VarG[pt(G)|y1:t−1] = γN 1
+N
+NX
+i=1
+(pt[i]2 − N −2)(1 − γN − 1
+N − 1 ) ≤ γ(1 − γ)
+NX
+i=1
+pt[i]2.
+Thus it follows that
+(8) ≥ eδnγ
+1 + (eδ − 1)γ −
+nX
+t=1
+eδ E
+y1:t−1∼p(·|x)
+γ(1 − γ)
+NX
+i=1
+pt[i]2
+= nγ
+ 
+eδ
+1 + (eδ − 1)γ − (1 − γ)eδ
+n
+nX
+t=1
+E
+y1:t−1∼p(·|x)
+NX
+i=1
+pt[i]2
+!
+.
+C.7 Security property
+Corollary C.23. Algorithm 2 with thresholdτ satisfies the security property from Definition 2.2 with
+ϵ = 0 and
+η(y, k, ϵ) =
+√n(zy − τ)
+1 + γ/2 1
+
+zy − τ ≥ γ√n
+1 + γ/2
+
+.
+In comparison, the best bound on the security property parameter one can obtain for the scheme of
+Kirchenbauer et al. [2023] is (a formal statement and proof are included in Appendix D.2)
+η(y, k, ϵ) =
+√n(zy − τ)
+2 + γ/2 1
+
+zy − τ ≥ γ√n
+2 + γ/2
+
+.
+To say it differently, our method,Unigram-W atermark, utilizing a fixed Green-Red split, achievestwice
+the robustnessto edits compared to Kirchenbauer et al. [2023]’s baseline approach.
+D Analysis of Kirchenbauer et al. [2023]
+D.1 Soft watermarking scheme of Kirchenbauer et al. [2023]
+This section illustrates the soft watermarking scheme proposed by Kirchenbauer et al. [2023]. This straight-
+forward algorithm only requires access to the language model’s logits at each time step. Lety = [y1, . . . , yn]
+represent the output sentence of language modelM given the promptx. The watermarking scheme generates
+y1:n by hashingyt−1 to a partition of the token space (Green List and Red List) and amplifies the probability
+of tokens on the Green List. Specifically,[y1, . . . , yn] is derived from the following Markov chain:
+1. y1 ∼ Softmax
+ 
+logitsM
+ 
+y1 = ·|x
+
+2. For t = 2 : n,
+yt ∼ Softmax
+ 
+logitsM(yt = ·|[x, y1 . . . , yt−1]) + δ1(· ∈ Green(yt−1))
+
+Typically, γ|V| tokens are selected to form a Green List, whereγ symbolizes the fraction of tokens to be
+watermarked (by default,γ = 0.5). The logit value for each green token is augmented by a constantδ (default
+value = 2), which denotes the watermark strength. This elevation enhances the likelihood of sampling green,
+watermarked tokens, particularly for high-entropy distributions.
+Validation of whether a text was generated by a watermarked language model is achievable given knowledge
+of the hash function and tokenizer. The adversary constructsu = [u1, . . . , um] from x, y1:n and any auxiliary
+input. The detection algorithm calculates the quantity of green tokens|u|G =Pm
+t=2 1(ut ∈ Green(ut−1)).
+One can assume the null hypothesis, denoted asH0: The text sequence is produced independently of the green
+list rule. Following this, a z-statistic score is computed asz = (|u|G − γm) /
+p
+mγ(1 − γ). If the z-score
+exceeds a predetermined threshold, the algorithm declares, “This was generated fromˆM!”.
+32
+
+=== PDF PAGE 33 ===
+D.2 Security property of Kirchenbauer et al. [2023]
+We also demonstrate the robustness property of the soft watermarking algorithm in Kirchenbauer et al. [2023]
+in the following Theorem D.1
+Theorem D.1 (Robustness to editing in the watermarking scheme of Kirchenbauer et al. [2023]). Let
+y = [y1, . . . , yn] represent the watermarked sequence. Suppose the adversaryA follows the definition 2.2
+and outputs a modified textu = [u1, . . . , um]. Following Equation 2, we calculate thez-score of the soft
+watermarking Kirchenbauer et al. [2023]zy and zu. Then we have
+zu ≥ zy − max{(2 + γ/2)η√n , (2 − γ/2)η√n − η }.
+Proof. The proof is similar to that of Theorem 3.7 except that the maximum perturbation to|y|G is now 2η
+rather than η. We now justify that the maximum perturbation has really doubled below, but ignore the part
+that is the same as in the proof of Theorem 3.7.
+Let BiGrams(u) = {{u1, u2}, {u2, u3}, ..., {un−1, un}} and similarly BiGrams(y) enumerates the set of all two
+grams in sequencey1:m.
+We claim that each edit can modify at most two elements in the above set. To see this, consider “insertion”,
+“deletion”, and “edit” separately.
+• If we “insert” one token˜u at t, then {ut−1, ut} and {ut, ut+1} become {ut−1, ˜u}, {˜u, ut} and {ut, ut+1}.
+Only one element ofBiGrams(u) is modified —{ut−1, ut}.
+• For “deletion” att, {ut−1, ut} and {ut, ut+1} become {ut−1, ut+1}. So two elements fromBiGrams(u) are
+gone.
+• For “edit” att, {ut−1, ut} and {ut, ut+1} become {ut−1, ˜u} and {˜u, ut+1}. Thus again only two elements
+from BiGrams(u) are gone.
+It follows that wheny is obtained after up toη edits
+|BiGrams(u) ∩ BiGrams(y)| ≥ | BiGrams(u)| − 2η
+Observe thatPn
+t=2 1(ut ∈ Green(ut−1)) counts the number of qualifying elements inBiGrams(u), which
+completes the proof.
+For this reason, our watermark is twice as robust as that of Kirchenbauer et al. [2023]. This
+provides the theoretical guarantee to our empirical results presented in the experiments!
+Remark D.2. We can view our watermark as a trivial Markovian watermarking scheme withk = 0, and
+what Kirchenbauer et al. [2023] proposed to bek = 1. For the more generalk-Markovian watermarking
+scheme that depends on a prefix of lengthk, the robustness deteriorates by a factor ofk, as the maximum
+perturbation will become ((k+1)+γ/2)η√n . To say it differently, choosingk = 0 gives the maximum robustness
+and maximum simplicity at the same time, and the benefit leads to significant gains in our experiments,
+especially against paraphrasing attacks.
+E Alternative detector “Unique” and its desirable properties
+Our theoretical analysis suggests a promising alternativeDetect algorithm for Unigram-W atermarkthat
+simply involves calling Algorithm 2 with a deduplicatedy.
+The simple change actually results in a number of interesting new properties. For example, we can state its
+Type I error bound a lot more cleanly now as a Corollary of Theorem C.4
+33
+
+=== PDF PAGE 34 ===
+Algorithm 4 Unigram-W atermark: Detect (Alternative)
+1: Input: suspect text y, watermark detection keyk, threshold τ.
+2: Output: 1 or 0 (whether the text is watermarked).
+3: Return Algorithm 2 with suspect textUnique(y), detection keyk and threshold τ.
+Corollary E.1(No false positive for Deduplicated Detection). Consider y = y1:n as any fixed suspect text.
+Let m = |Unique(y)| be the number of unique tokens iny. Let G be selected through Algorithm 1, using a
+uniform random choice. Then the following statements hold true:
+1. Assume m ≥ 1, then
+E[|Unique(y)|G|y] = γn and E[zUnique(y)|y] = 0.
+2. With probability1 − α (over only the randomness ofG),
+P
+h
+|Unique(y)|G ≥ γm +
+p
+64γm log(9/α) + log(9/α)
+y
+i
+≤ α
+or equivalently (whenn ≥ 1)
+P
+"
+zUnique(y) ≥
+s
+64 log(9/α)
+(1 − γ) + log(9/α)p
+mγ(1 − γ)
+y
+#
+≤ α.
+The above gives a clean finite-sample concentration bound of the Type I error using Algorithm 4. Notably,
+while deduplicating reduces the length of the suspect text, i.e.,m < n, it improves the bound by ensuring
+both Cmax and V are 1.
+Remark E.2 (Asymptotic choice ofτ for controlling false positives). Lemma C.21 gives that
+Var [|Unique(y)|G|y] = mγ(1 − γ)(1 − m − 1
+N − 1)
+i.e., the conditional variance ofzUnique(y) is (1 − m−1
+N −1). This means that if we want to control the asymptotic
+false positive rate toα, all we have to do is to choose the thresholdτ to be
+τ =
+r
+1 − m − 1
+N − 1Φ−1(1 − α) (9)
+where Φ is the standard normal CDF.
+Type II error.How about Type II error? Our results in Theorem C.13 are still applicable but require
+us to apply that with a special language model derived from the original that directly generatesUnique(y)
+(ordered in the same order they appear iny). This is still a valid autoregressive language model but has
+different roll-out probabilities.
+RobustnesstoEdits. Observethatadding/removing/replacingonetokento y intheresultsinadding/removing/replacing
+one token toUnique(y) respectively, the robustness of thez-score for Unique(y) thus directly follows Theo-
+rem D.1.
+“Unique” inK-gram watermark section withK ≥ 2. Clearly, the same idea of deduplication works
+for the whole family ofK-gram watermark proposed in Kirchenbauer et al. [2023]. In fact, it was briefly
+mentioned in a remark from their paper as a mitigation measure to reduce correlation. All arguments we
+make about Type I error and Robustness to Edits above work forK ≥ 2. We defer the Type II error bound
+for this family to a longer version of the paper.
+Emperical analysis on controlling false positives.We conduct experiments to demonstrate the results
+for the asymptotic choice ofτ in controlling false positives. The negative examples are sampled from diverse
+datasets, including human data in LFQA and OpenGen dataset [Krishna et al., 2023], C4 dataset [Raffel
+34
+
+=== PDF PAGE 35 ===
+10 3
+ 10 2
+ 10 1
+ (Theoretical)
+10 3
+10 2
+10 1
+Experimental False Positive Rate (FPR)
+random seed 0
+random seed 1
+random seed 2
+random seed 3
+random seed 4
+FPR=
+Figure 5: Empirical vs. theoretical false positive rates across variousα values, using multiple green list
+initializations.
+et al., 2020], and TOEFL dataset [Liang et al., 2023]. In total, we collect 6,200 unwatermarked text samples
+with varied lengths. We then use the dynamic thresholdτ with different choices ofα as shown in Equation 9.
+By choosing different random seeds, we obtain different green lists. The results in Figure 5 show the empirical
+false positive rate aligns well with the theoreticalα.
+E.1 Alternative detection “Unique” is robust to Emoji attack and other tricky
+attacks
+Kirchenbauer et al. [2023] discussed a number of interesting attacks on theK-gram watermarks. In this
+section, we inspect the robustness ofUnigram-W atermark(with both Algorithm 2 and 4 asDetect) to
+these attacks.
+We will focus on those trickier generative attacks, as those non-generative attacks on the surface level (e.g.,
+synonym substitution, Unicode substitution) were rather satisfactorily addressed in Kirchenbauer et al. [2023].
+The same arguments work forUnigram-W atermark. However, there are trickier ones that breakK-gram
+watermarks for K ≥ 2 but not forK = 1, especially when we use Algorithm 4 for detection.
+Emoji attack the Emoji attack, also known as the Pineapple attack, asks the language model to inject
+a special symbol, e.g., an Emoji, in between the actual text that the LM is supposed to generate in
+response to a prompt. For example, a user of the language model can prompt an LM with “Write
+my college admission essay. Insert an emoji in between every word. ”. Then the user can
+simply remove the artificially injected symbol before submitting the essay. Clearly, this attack breaks all
+K-gram watermarks forK > 1 [Kirchenbauer et al., 2023] (but also [Aaronson, 2023]). OurUnigram-
+W atermarkremains effective because half of the tokens iny are still watermarked. The repeated
+Emoji symbol with lengthn/2 is a problem for both Type I and Type II error, but after “Unique”, this
+corresponds to just an Edit Distance of1 on Unique(y)!
+Alphabet attack We can also make the Emoji attack stronger by injecting a known sequence of “alphabets”
+instead of one single symbol. For example, “Write my college admission essay. Insert, in
+the order of the vocabulary, a token in between every word you generate.”. The alphabet
+35
+
+=== PDF PAGE 36 ===
+attack breaks K-gram watermarks in the same way an Emoji attack does, but since the added tokens
+are different, “Unique” does not solve it right away. Interestingly, despitem/2 of the tokens inUnique(y)
+are not watermarked, as long as the Alphabet being used is independent of the secret key, it does not
+change the Type I error and only slightly reduces the power (i.e., 1-Type II error) since the expected
+number of Green tokens in thatm/2 injected tokens ismγ/2.
+Stegnography attackOne may extend the attack even further by asking the language model to encode a
+message, which swaps each token in the vocabulary with another token through a secret codebook. For
+example, whenever you want to output Tokeni, output Tokenmod(i + 1, N) instead. If the “code book”
+is supplied in the prompt with an instruction for the LM to follow the code book when generating the
+text, then it really breaks all watermarks including ours, while allowing the user who knows the code
+book to easily revert it to the original text. The issue of such an attack is that it requires significantly
+heavy-lifting for the language model to predict outside the typical distribution it is trained on. There is
+no real risk of such an attack being employed as it is likely to significantly reduce the quality of the
+generated text.
+To be clear, these attacks are, in fact, not post-processing-based evasion attacks, but rather hacks into
+prompts. Nevertheless, our watermark that is robust to edits turns out to be quite resilient to them.
+F Technical lemmas
+Lemma F.1 (Bernstein-style inequality for random permutation [Albert, 2019, Proposition 2.2]). Let
+{ai,j}1≤i,j≤n be a collection of non-negative numbers and Πn be a random uniform permutation. Let
+Zn =Pn
+i=1 ai,Πn(i). Then, for anyt > 0
+P
+
+|Zn − E[Zn]| ≥ 2
+vuut t
+n
+nX
+i,j=1
+a2
+i,j + max
+1≤i,j≤n
+{ai,j}t
+
+ ≤ 8e1/16e− t
+16 .
+Lemma F.2 (Variance for sampling without replacement). Let x1, ..., xN ∈ R. For any sample size
+1 ≤ n ≤ N, and π be a random permutation of{1, 2, ..., N}. The variance ofX = 1
+n
+Pn
+i=1 xπ(i) satisfies
+Var(X) = 1
+nN
+NX
+i=1
+(xi − ¯x)2(1 − n − 1
+N − 1).
+Definition F.3(Martingale). A sequence of random variables(Xn)n∈N is called amartingale if it satisfies
+the following conditions:
+1. E[|Xn|] < ∞ for all n ∈ N.
+2. E[Xn+1|Fn] = Xn for all n ∈ N.
+where F1 ⊆ F2 ⊆ ... ⊆ F n ⊆ F n+1 ⊆ ... is a filtration. Specifically,Fn can be the sigma-algebra generated by
+another sequence of random variableY1, ..., Yn, i.e., Fn = σ(Y1:n) and Xn can be a function ofY1:n.
+Lemma F.4(Azuma-Hoeffding Inequality). Let (Xn)n∈N be a martingale such that|Xn+1 − Xn| ≤ cn for
+some constants cn and all n ∈ N. Then for allt > 0 and n ∈ N, we have
+P (|Xn − X0| ≥ t) ≤ 2 exp
+
+− t2
+2Pn
+i=1 c2
+i
+
+.
+36

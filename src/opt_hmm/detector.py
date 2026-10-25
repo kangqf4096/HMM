@@ -46,21 +46,36 @@ class Detector:
             raise ValueError("Mask must match sequence length.")
         g = np.ones(len(y))
         g[mask] = self.density(check_pivots(y[mask]))
+        return self._infer_ratios(g, mask, started)
+
+    def infer_ratios(self, g, mask=None):
+        """Inference using supplied, label-free positive per-position ratios."""
+        started = perf_counter()
+        g = np.asarray(g, dtype=float)
+        if g.ndim != 1 or not len(g):
+            raise ValueError('Need a nonempty 1D ratio vector.')
+        mask = np.ones(len(g), bool) if mask is None else np.asarray(mask, bool)
+        if (mask.shape != g.shape
+                or np.any(~np.isfinite(g)) or np.any(g <= 0)):
+            raise ValueError('Need a nonempty positive finite ratio vector and matching mask.')
+        return self._infer_ratios(g, mask, started)
+
+    def _infer_ratios(self, g, mask, started):
         if not np.any(mask):
-            return Detection(np.zeros(len(y)), 0, 0, False, perf_counter() - started)
+            return Detection(np.zeros(len(g)), 0, 0, False, perf_counter() - started)
         stages = {"density_lookup": perf_counter() - started}
         phase = perf_counter()
         fitted = estimate_proportion(g[mask])
         stages["proportion_fit"] = perf_counter() - phase
         e = self.fixed_e if self.method in ("fixed_e", "oracle") else fitted.value
         if not fitted.identifiable:
-            return Detection(np.zeros(len(y)), e, 0, False, perf_counter() - started,
+            return Detection(np.zeros(len(g)), e, 0, False, perf_counter() - started,
                              stage_seconds=stages)
         if self.method == "window":
             phase = perf_counter()
             # Fixed 0.5 prior, centered average log density ratio. Missing
             # positions break a window, just as they break reported segments.
-            score = np.zeros(len(y))
+            score = np.zeros(len(g))
             for start, stop in intervals(mask):
                 logs = np.log(g[start:stop])
                 prefix = np.r_[0., np.cumsum(logs)]

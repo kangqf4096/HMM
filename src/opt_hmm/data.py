@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 
 from .config import validate_text
-from .io import new_output, provenance, write_json, write_jsonl
+from .io import new_output, provenance, read_json, write_json, write_jsonl
 
 DATASET = "ccdv/arxiv-summarization"
 SUBSET = "document"
@@ -89,8 +89,10 @@ def prepare(config, model, output):
     raw = load_dataset(dataset, subset, revision=revision,
                        cache_dir=str(Path(".cache/hf/datasets")))
     records, stats = select_articles(raw, tokenizer, config)
+    model_source = Path(model) / "opt_hmm_source.json"
     write_jsonl(output / "prompts.jsonl", records)
     write_json(output / "manifest.json", {"model": str(Path(model).resolve()), "config": config,
+                                        "model_source": read_json(model_source) if model_source.is_file() else None,
                                         "provenance": provenance(), **stats,
                                         "grouping": "one complete paper body per role/prompt; "
                                                     "whitespace/case-normalized bodies deduplicated across official splits",

@@ -56,5 +56,25 @@ def adapter_selftest():
     assert np.allclose(result[0, 1:].numpy(), base[1:])
     processor.update_state(BatchUpdate(1, [1], [], []))
     assert len(processor.req_info) == 1
+    # Verify that enabling telemetry reads the actual pre-sampling probabilities
+    # and preserves the chosen token. Temp files stay within the repository.
+    import json
+    import tempfile
+    from pathlib import Path
+    from .vllm_processor import GumbelRequest
+    temp_root = Path.cwd() / 'tmp'
+    temp_root.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='ad', dir=temp_root) as folder:
+        trace_path = Path(folder) / 'a.jsonl'
+        settings = dict(marked.extra_args['opt_hmm'])
+        diagnostic_settings = dict(settings, pivot_diagnostics=True, trace_path=str(trace_path))
+        first = GumbelRequest(settings, 1.)([2, 3], [], torch.tensor(base.copy()))
+        second = GumbelRequest(diagnostic_settings, 1.)([2, 3], [], torch.tensor(base.copy()))
+        assert torch.equal(first, second), 'Diagnostics changed watermark logits.'
+        trace = json.loads(trace_path.read_text().strip())
+        p = np.exp(suppressed - np.max(suppressed))
+        p /= p.sum()
+        assert np.isclose(trace['probability']['s2'], np.sum(p*p))
+        assert trace['chosen'] == expected
     return {"adapter_selftest": "passed", "checks": ["argmax", "uniform support mask",
-            "live token history", "batch swap", "request removal"]}
+            "live token history", "batch swap", "request removal", "probability audit preserves sampling"]}

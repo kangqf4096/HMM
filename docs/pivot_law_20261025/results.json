@@ -1,0 +1,300 @@
+{
+  "model": "Fresh independent ideal uniforms at every sample; not real LLM validation",
+  "seed": 20261025,
+  "samples_per_scenario": 120000,
+  "scenarios": {
+    "uniform_2": {
+      "p": [
+        0.5,
+        0.5
+      ],
+      "s2": 0.5,
+      "s3": 0.25,
+      "entropy_nats": 0.6931471805599453,
+      "var_minus_log_y": 0.25,
+      "pivot_kl_to_uniform_quadrature": 0.19314718055266678,
+      "kl_upper_bound": 0.1931471805599453,
+      "pit_ks": 0.002150356008539911,
+      "conditional_on_w_pit_ks": 0.002150356008539911,
+      "moment_checks": [
+        {
+          "k": 1,
+          "predicted": 0.5,
+          "observed": 0.49953446049861633,
+          "monte_carlo_standard_error": 0.0014433756729740645,
+          "absolute_z": 0.32253522773072035
+        },
+        {
+          "k": 2,
+          "predicted": 0.5,
+          "observed": 0.4986226635683666,
+          "monte_carlo_standard_error": 0.003227486121839514,
+          "absolute_z": 0.42675208494727346
+        },
+        {
+          "k": 3,
+          "predicted": 0.75,
+          "observed": 0.7438172088858616,
+          "monte_carlo_standard_error": 0.009437293044088437,
+          "absolute_z": 0.6551445510120478
+        }
+      ]
+    },
+    "uniform_8": {
+      "p": [
+        0.125,
+        0.125,
+        0.125,
+        0.125,
+        0.125,
+        0.125,
+        0.125,
+        0.125
+      ],
+      "s2": 0.125,
+      "s3": 0.015625,
+      "entropy_nats": 2.0794415416798357,
+      "var_minus_log_y": 0.015625,
+      "pivot_kl_to_uniform_quadrature": 1.2044415416798657,
+      "kl_upper_bound": 1.2044415416798357,
+      "pit_ks": 0.0018146670450988056,
+      "conditional_on_w_pit_ks": 0.0018146670450988056,
+      "moment_checks": [
+        {
+          "k": 1,
+          "predicted": 0.125,
+          "observed": 0.12504357999802249,
+          "monte_carlo_standard_error": 0.0003608439182435161,
+          "absolute_z": 0.12077243322991518
+        },
+        {
+          "k": 2,
+          "predicted": 0.03125,
+          "observed": 0.03125336500218369,
+          "monte_carlo_standard_error": 0.00020171788261496963,
+          "absolute_z": 0.016681724694245028
+        },
+        {
+          "k": 3,
+          "predicted": 0.01171875,
+          "observed": 0.011731919900958688,
+          "monte_carlo_standard_error": 0.00014745770381388183,
+          "absolute_z": 0.0893130749907175
+        }
+      ]
+    },
+    "concentrated": {
+      "p": [
+        0.99,
+        0.01
+      ],
+      "s2": 0.9802,
+      "s3": 0.9703,
+      "entropy_nats": 0.056001534354847345,
+      "var_minus_log_y": 0.9798079600000001,
+      "pivot_kl_to_uniform_quadrature": 0.002196613593225861,
+      "kl_upper_bound": 0.0362015343548473,
+      "pit_ks": 0.0019516168041241455,
+      "conditional_on_w_pit_ks": 0.0019188890277347936,
+      "moment_checks": [
+        {
+          "k": 1,
+          "predicted": 0.9802,
+          "observed": 0.9809975778475454,
+          "monte_carlo_standard_error": 0.00285745801952248,
+          "absolute_z": 0.2791214576369183
+        },
+        {
+          "k": 2,
+          "predicted": 1.9406,
+          "observed": 1.9490762089076465,
+          "monte_carlo_standard_error": 0.012602193208591378,
+          "absolute_z": 0.6725979174694687
+        },
+        {
+          "k": 3,
+          "predicted": 5.76357612,
+          "observed": 5.8260029458416716,
+          "monte_carlo_standard_error": 0.07290794657203045,
+          "absolute_z": 0.8562417236644613
+        }
+      ]
+    },
+    "almost_deterministic": {
+      "p": [
+        0.999,
+        0.001
+      ],
+      "s2": 0.9980020000000001,
+      "s3": 0.997003,
+      "entropy_nats": 0.007907255112232087,
+      "var_minus_log_y": 0.9979980079959998,
+      "pivot_kl_to_uniform_quadrature": 0.00020986133264994068,
+      "kl_upper_bound": 0.00590925511223217,
+      "pit_ks": 0.0019373570719501965,
+      "conditional_on_w_pit_ks": 0.0019428999719220963,
+      "moment_checks": [
+        {
+          "k": 1,
+          "predicted": 0.9980020000000001,
+          "observed": 0.9941486571166706,
+          "monte_carlo_standard_error": 0.0028838602716902448,
+          "absolute_z": 1.3361753068122955
+        },
+        {
+          "k": 2,
+          "predicted": 1.994006,
+          "observed": 1.97364312279777,
+          "monte_carlo_standard_error": 0.012878981530671074,
+          "absolute_z": 1.5810937498230053
+        },
+        {
+          "k": 3,
+          "predicted": 5.976035976012,
+          "observed": 5.862965123418565,
+          "monte_carlo_standard_error": 0.07523641011497222,
+          "absolute_z": 1.5028741060431479
+        }
+      ]
+    },
+    "same_s2_A": {
+      "p": [
+        0.5,
+        0.25,
+        0.25
+      ],
+      "s2": 0.375,
+      "s3": 0.15625,
+      "entropy_nats": 1.0397207708399179,
+      "var_minus_log_y": 0.171875,
+      "pivot_kl_to_uniform_quadrature": 0.36093882474798805,
+      "kl_upper_bound": 0.4147207708399179,
+      "pit_ks": 0.0018607433885257652,
+      "conditional_on_w_pit_ks": 0.0016486669850044322,
+      "moment_checks": [
+        {
+          "k": 1,
+          "predicted": 0.375,
+          "observed": 0.37544823726054233,
+          "monte_carlo_standard_error": 0.0011967838846954227,
+          "absolute_z": 0.37453483981061686
+        },
+        {
+          "k": 2,
+          "predicted": 0.3125,
+          "observed": 0.31450047590408964,
+          "monte_carlo_standard_error": 0.002413881297136764,
+          "absolute_z": 0.8287383089062877
+        },
+        {
+          "k": 3,
+          "predicted": 0.421875,
+          "observed": 0.4312272075543018,
+          "monte_carlo_standard_error": 0.006791484931745413,
+          "absolute_z": 1.3770490030224145
+        }
+      ]
+    },
+    "same_s2_B": {
+      "p": [
+        0.4166666666666667,
+        0.4166666666666667,
+        0.16666666666666666
+      ],
+      "s2": 0.37500000000000006,
+      "s3": 0.14930555555555558,
+      "entropy_nats": 1.0281838593329258,
+      "var_minus_log_y": 0.15798611111111113,
+      "pivot_kl_to_uniform_quadrature": 0.3581990498537443,
+      "kl_upper_bound": 0.40318385933292583,
+      "pit_ks": 0.001714979046938847,
+      "conditional_on_w_pit_ks": 0.0020899421341726288,
+      "moment_checks": [
+        {
+          "k": 1,
+          "predicted": 0.37500000000000006,
+          "observed": 0.3748141904858642,
+          "monte_carlo_standard_error": 0.0011474105306846045,
+          "absolute_z": 0.16193812865306212
+        },
+        {
+          "k": 2,
+          "predicted": 0.29861111111111116,
+          "observed": 0.2982349568876924,
+          "monte_carlo_standard_error": 0.0020751188361528548,
+          "absolute_z": 0.1812687624753639
+        },
+        {
+          "k": 3,
+          "predicted": 0.3663194444444445,
+          "observed": 0.36534205144818593,
+          "monte_carlo_standard_error": 0.005006704348888449,
+          "absolute_z": 0.1952168388923414
+        }
+      ]
+    },
+    "deterministic_limit": {
+      "p": [
+        1.0
+      ],
+      "s2": 1.0,
+      "s3": 1.0,
+      "entropy_nats": -0.0,
+      "var_minus_log_y": 1.0,
+      "pivot_kl_to_uniform_quadrature": 0.0,
+      "kl_upper_bound": 0.0,
+      "pit_ks": 0.002721969171894434,
+      "conditional_on_w_pit_ks": 0.002721969171894434,
+      "moment_checks": [
+        {
+          "k": 1,
+          "predicted": 1.0,
+          "observed": 1.0042886211682478,
+          "monte_carlo_standard_error": 0.002886751345948129,
+          "absolute_z": 1.4856219515641156
+        },
+        {
+          "k": 2,
+          "predicted": 2.0,
+          "observed": 2.022352971842387,
+          "monte_carlo_standard_error": 0.012909944487358056,
+          "absolute_z": 1.7314537536761758
+        },
+        {
+          "k": 3,
+          "predicted": 6.0,
+          "observed": 6.132383089752443,
+          "monte_carlo_standard_error": 0.0754983443527075,
+          "absolute_z": 1.7534568590535622
+        }
+      ]
+    }
+  },
+  "max_absolute_moment_z": 1.7534568590535622,
+  "same_s2_cdf_difference": 0.0086262562872787,
+  "stability_checks": {
+    "random_pairs": 200,
+    "max_cdf_distance_over_token_tv": 0.661758809120865,
+    "min_cdf_gap_after_flattening": 3.7082470685257283e-19
+  },
+  "population_mismatch": [
+    {
+      "true_watermark_enabled_fraction": 1.0,
+      "strong_condition_fraction": 0.25,
+      "fitted_epsilon_binned_population_mle": 0.2531,
+      "moment_estimator_using_calibration_s2": 0.2529969999999999
+    },
+    {
+      "true_watermark_enabled_fraction": 1.0,
+      "strong_condition_fraction": 0.5,
+      "fitted_epsilon_binned_population_mle": 0.5019,
+      "moment_estimator_using_calibration_s2": 0.5019979999999999
+    },
+    {
+      "true_watermark_enabled_fraction": 1.0,
+      "strong_condition_fraction": 0.75,
+      "fitted_epsilon_binned_population_mle": 0.7509,
+      "moment_estimator_using_calibration_s2": 0.750999
+    }
+  ]
+}
