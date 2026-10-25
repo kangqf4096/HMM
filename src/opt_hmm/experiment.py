@@ -9,6 +9,7 @@ from .detector import Detector, METHODS, intervals
 from .emissions import Histogram
 from .io import provenance, write_json, write_jsonl
 from .metrics import evaluate, paired_bootstrap, reliability
+from .progress import progress
 
 
 def arrays(record):
@@ -50,6 +51,7 @@ def diagnostics(records):
 
 
 def run_evaluation(records, output, config, oracle_density=None, oracle_parameters=None, ratio_methods=None):
+    progress("检查评价记录")
     groups = {}
     ids = set()
     for record in records:
@@ -70,6 +72,7 @@ def run_evaluation(records, output, config, oracle_density=None, oracle_paramete
             if not truth[mask].all():
                 raise ValueError("Emission calibration must be pure surviving watermark.")
             cal.extend(y[mask])
+    progress("拟合发射密度")
     density_started = perf_counter()
     histogram = Histogram.fit(cal, config.get("bins", 50), config.get("pseudocount", .5))
     density_fit_seconds = perf_counter() - density_started
@@ -113,6 +116,9 @@ def run_evaluation(records, output, config, oracle_density=None, oracle_paramete
         raise ValueError(f"No independent null calibration for lengths/masks: {missing}")
     predictions, metric_rows, thresholds, summaries, reliability_data = [], [], {}, {}, {}
     calibration_seconds = {}
+    work_total = len(detectors) * (sum(len(rows) for rows in null_by_length.values()) + len(evaluated))
+    work_done = 0
+    progress("校准与评价", work_done, work_total)
     for method, detector in detectors.items():
         calibration_started = perf_counter()
         thresholds[method] = {}
@@ -121,6 +127,8 @@ def run_evaluation(records, output, config, oracle_density=None, oracle_paramete
             for record in selected:
                 y, mask, _ = arrays(record)
                 scores.append(float(infer_record(method, detector, record).scores.max()))
+                work_done += 1
+                progress("校准与评价", work_done, work_total, f"{method} · null 阈值校准")
             thresholds[method][key] = calibrate(scores, config.get("alpha", .05))
         calibration_seconds[method] = perf_counter() - calibration_started
         method_rows, prob_truths, prob_scores = [], [], []
@@ -144,6 +152,8 @@ def run_evaluation(records, output, config, oracle_density=None, oracle_paramete
                                 "scores": result.scores, "labels": labels,
                                 "intervals": intervals(labels), "threshold": threshold.value,
                                 "epsilon": result.epsilon, "rho": result.rho})
+            work_done += 1
+            progress("校准与评价", work_done, work_total, f"{method} · {record['role']}")
             if record["role"] == "test":
                 prob_truths.append(truth[mask])
                 prob_scores.append(result.scores[mask])
@@ -171,9 +181,13 @@ def run_evaluation(records, output, config, oracle_density=None, oracle_paramete
                 "documents": len(selected), "any_fp_count": count,
                 "any_fp_rate": count / len(selected), "wilson95": wilson(count, len(selected))}
         reliability_data[method] = reliability(prob_truths, prob_scores)
-    pairs = {method: paired_bootstrap([r for r in metric_rows if r["role"] == "test"], method,
-                                      draws=config.get("bootstrap", 1000))
-             for method in detectors if method != "independent"}
+    pair_methods = [method for method in detectors if method != "independent"]
+    pairs = {}
+    progress("配对 bootstrap", 0, len(pair_methods))
+    for index, method in enumerate(pair_methods, 1):
+        pairs[method] = paired_bootstrap([r for r in metric_rows if r["role"] == "test"], method,
+                                         draws=config.get("bootstrap", 1000))
+        progress("配对 bootstrap", index, len(pair_methods), method)
     report = {"config": config, "provenance": provenance(), "summary": summaries,
               "paired_iou_difference_vs_independent": pairs,
               "diagnostics": diagnostics(records), "density_fit_seconds": density_fit_seconds, "null_calibration_seconds": calibration_seconds,
@@ -181,6 +195,7 @@ def run_evaluation(records, output, config, oracle_density=None, oracle_paramete
                               "This is not mixed-document FDR control.",
                               "Estimated scores are plug-in model probabilities; check reliability.",
                               "Window scores are transformed evidence, not HMM posteriors."]}
+    progress("写入评价报告")
     from .plot import render_example
     example = next(r for r in evaluated if r['role'] == 'test')
     render_example(example, predictions, output / 'example.svg')
@@ -210,4 +225,5 @@ def run_evaluation(records, output, config, oracle_density=None, oracle_paramete
                   "Paired bootstrap resamples original document groups; all variants stay together.",
                   "See report.json, metrics.jsonl and reliability.json for detailed diagnostics.", ""])
     (output / "report.md").write_text("\n".join(lines), encoding="utf-8")
+    progress("评价完成", 1, 1)
     return report

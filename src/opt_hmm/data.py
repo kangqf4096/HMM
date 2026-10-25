@@ -5,6 +5,7 @@ import numpy as np
 
 from .config import validate_text
 from .io import new_output, provenance, read_json, write_json, write_jsonl
+from .progress import progress
 
 DATASET = "ccdv/arxiv-summarization"
 SUBSET = "document"
@@ -35,6 +36,7 @@ def select_articles(raw, tokenizer, config):
     limit = max(prompt_length + 2048, minimum)
     candidates, seen = [], set()
     examined = 0
+    progress("抽取独立论文", 0, required)
     for index in rng.permutation(total):
         split_index = int(np.searchsorted(ends, index, side="right"))
         split = SPLITS[split_index]
@@ -55,6 +57,7 @@ def select_articles(raw, tokenizer, config):
                            "source_split": split, "source_row": ordinal,
                            "prompt_ids": tokens[:prompt_length],
                            "pool_ids": tokens[prompt_length:prompt_length + 2048]})
+        progress("抽取独立论文", len(candidates), required, f"已检查 {examined} 篇")
         if len(candidates) == required:
             break
     if len(candidates) < required:
@@ -82,13 +85,17 @@ def prepare(config, model, output):
         raise ValueError(f"Use {DATASET}, subset={SUBSET}, for scientific arXiv paper bodies.")
     if not Path(model).is_dir():
         raise ValueError(f"Local model directory does not exist: {model}")
+    progress("加载数据准备依赖")
     from datasets import load_dataset
     from transformers import AutoTokenizer
     output = new_output(output)
+    progress("加载 tokenizer")
     tokenizer = AutoTokenizer.from_pretrained(model, local_files_only=True)
+    progress("下载并缓存 arXiv", detail="下载和 Arrow 处理进度由 datasets 报告")
     raw = load_dataset(dataset, subset, revision=revision,
                        cache_dir=str(Path(".cache/hf/datasets")))
     records, stats = select_articles(raw, tokenizer, config)
+    progress("写入实验输入")
     model_source = Path(model) / "opt_hmm_source.json"
     write_jsonl(output / "prompts.jsonl", records)
     write_json(output / "manifest.json", {"model": str(Path(model).resolve()), "config": config,
@@ -102,4 +109,5 @@ def prepare(config, model, output):
                                         "dataset_revision": revision, "text_field": "article",
                                         "dataset_url": f"https://huggingface.co/datasets/{dataset}",
                                         "original_dataset_url": "https://huggingface.co/datasets/armanc/scientific_papers"})
+    progress("arXiv 准备完成", stats["selected_articles"], stats["selected_articles"])
     return stats

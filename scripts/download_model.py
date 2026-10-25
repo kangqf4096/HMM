@@ -2,7 +2,11 @@
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from opt_hmm.progress import progress
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -22,11 +26,14 @@ def download_model(config_path, model=None):
     os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "hf"))
     os.environ.setdefault("TMPDIR", str(ROOT / "tmp"))
     (ROOT / "tmp").mkdir(exist_ok=True)
+    progress("加载模型下载工具")
     from huggingface_hub import snapshot_download
 
     # One PyTorch checkpoint is sufficient. Do not also fetch TF/Flax weights.
+    progress("下载 OPT-1.3B", detail="下载进度由 Hugging Face 报告")
     snapshot_download(repo_id=repo, revision=revision, local_dir=str(destination),
                       allow_patterns=["*.json", "merges.txt", "pytorch_model.bin", "LICENSE.md"])
+    progress("检查模型文件")
     required = ("config.json", "tokenizer_config.json", "vocab.json", "merges.txt", "pytorch_model.bin")
     missing = [name for name in required if not (destination / name).is_file()]
     if missing:
@@ -35,6 +42,7 @@ def download_model(config_path, model=None):
               "url": f"https://huggingface.co/{repo}/tree/{revision}"}
     (destination / "opt_hmm_source.json").write_text(
         json.dumps(source, indent=2) + "\n", encoding="utf-8")
+    progress("模型准备完成", 1, 1)
     return {"model": str(destination.resolve()), **source}
 
 

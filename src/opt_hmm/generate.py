@@ -12,6 +12,7 @@ from .io import new_output, provenance, read_json, read_jsonl, write_json, write
 from .protocol import (PROTOCOL, PUBLIC_KEY, context_seed, extract_pivots,
                        generation_contexts, operational_labels, pivot)
 from .runtime import check_runtime
+from .progress import progress
 
 
 def _record(doc, original, tokens, origin, variant, config, key, actions=None):
@@ -44,6 +45,7 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
             raise ValueError(f"Preparation and generation differ on {name}. Prepare again.")
     if Path(manifest["model"]).resolve() != Path(model).resolve():
         raise ValueError("Tokenized prompts belong to a different model. Prepare again with the new model.")
+    progress("检查 GPU 运行环境")
     runtime = check_runtime()
     output = new_output(output)
     trace_dir = output / "trace"
@@ -51,6 +53,7 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
     prompts = read_jsonl(Path(prompts_dir) / "prompts.jsonl")
     pool_docs = [d for d in prompts if d["role"] == "pool"]
     pool = [t for d in pool_docs for t in d["pool_ids"]]
+    progress("加载 vLLM")
     from vllm import LLM, SamplingParams
     key = os.environ.get("OPT_HMM_KEY", PUBLIC_KEY)
     n, m = config["tokens"], config["context_width"]
@@ -67,6 +70,7 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
     max_model_len = config.get("max_model_len", 1024)
     if config["prompt_tokens"] + max(lengths) > max_model_len:
         raise ValueError("Prompt plus generation exceeds max_model_len.")
+    progress("加载 GPU 模型")
     started = perf_counter()
     llm = LLM(model=model, tokenizer=model, dtype=dtype, tensor_parallel_size=tensor_parallel,
               gpu_memory_utilization=gpu_memory, max_model_len=max_model_len,
@@ -112,6 +116,7 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
                                          extra_args={"opt_hmm": settings}))
             requests.append({"prompt_token_ids": doc["prompt_ids"]})
             jobs.append((doc, mode, requested_length, ranges, trace_path))
+    progress("生成实验文本", 0, len(jobs), "生成请求进度由 vLLM 报告")
     started = perf_counter()
     outputs = llm.generate(requests, sampling_params=params, use_tqdm=True)
     generation_seconds = perf_counter() - started
@@ -119,7 +124,8 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
         raise RuntimeError("vLLM output count mismatch.")
     records, sources = [], []
     edit_rng = np.random.default_rng(config.get("seed", 20261015) + 700001)
-    for job, generated in zip(jobs, outputs):
+    progress("核验并整理生成结果", 0, len(jobs))
+    for job_index, (job, generated) in enumerate(zip(jobs, outputs), 1):
         doc, mode, requested_length, ranges, trace_path = job
         if list(generated.prompt_token_ids) != doc["prompt_ids"]:
             raise RuntimeError("vLLM request ordering/prompt mismatch.")
@@ -157,6 +163,8 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
                     final, origin, actions = edit(tokens, attack["kind"], attack["rate"], pool, edit_rng)
                     variant = f"{attack['kind']}_{attack['rate']:g}"
                     records.append(_record(doc, original, final, origin, variant, config, key, actions))
+        progress("核验并整理生成结果", job_index, len(jobs))
+    progress("写入生成文件")
     write_jsonl(output / "sources.jsonl", sources)
     write_jsonl(output / "observations.jsonl", records)
     write_json(output / "metadata.json", {"config": config, "model": model,
@@ -172,4 +180,5 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
                                         "audit": "Every active chosen token, pivot, context and seed verified.",
                                         "lengths": sorted(lengths),
                                         "prompt_manifest": manifest})
+    progress("生成完成", len(jobs), len(jobs))
     return {"requests": len(jobs), "records": len(records), "generation_seconds": generation_seconds}
