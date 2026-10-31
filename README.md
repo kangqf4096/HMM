@@ -18,7 +18,7 @@ Colab 配置采用 `dataset_loader=parquet_file`：固定版本的原始分片�
 
 下文以服务器镜像 `registry-cn-xibei2-internal.ebcloud.com/ebsys/vllm:0.8.4-cuda12.4-python3.10-ubuntu22.04-v01` 为准：RTX 3090 24GB、单卡、FP16、Python 3.10、vLLM **0.8.4**、CUDA 12.4。vLLM 0.8.4 的自定义 logits processor 只在 **V0 引擎**生效，因此项目固定 `VLLM_USE_V1=0`；模型仍由 `prepare`/`generate` 的 `--model` 指定。
 
-该代码模型先用于流程和协议验收。其结果只说明该模型及该数据配置下的情况；后续可换通用文本模型。检测算法不需要调用 LLM；LLM 只用于生成实验数据。
+**模型范围：本项目只使用 OPT 系列**（论文传统）。默认且唯一用于生成/诊断的权重是 `facebook/opt-1.3b`（固定 revision，见 `configs/colab_arxiv.json`），不混用 Qwen/Llama 等其他模型族；需要换规模时只在 OPT 内更换（opt-125m / 350m / 1.3b / 2.7b），并且必须重新 prepare、重新校准。检测算法不需要调用 LLM；LLM 只用于生成实验数据。
 
 ## 快速运行（Linux）
 
@@ -59,7 +59,7 @@ Colab 配置采用 `dataset_loader=parquet_file`：固定版本的原始分片�
     python scripts/run.py generate --config configs/text_smoke.json --prompts data/arxiv0 --output runs/arxiv0-gen
     python scripts/run.py evaluate --input runs/arxiv0-gen --output runs/arxiv0-eval
 
-配置中的默认模型路径来自旧实验；服务器上请为 prepare 和 generate 同时传入相同的 --model 路径。安装包还提供 opt-hmm 命令，与 python scripts/run.py 相同。
+配置中的默认模型是项目内 `models/opt-1.3b`；首次使用先运行 `python scripts/download_model.py --config configs/text_smoke.json`（只接受 `facebook/opt-1.3b`），或从已有机器拷贝权重，然后为 prepare 和 generate 传入同一个 `--model` 路径。安装包还提供 opt-hmm 命令，与 python scripts/run.py 相同。
 
 clean_wiki.py 先清理项目 .cache/hf 下可识别的 WikiText 缓存，包括处理后的数据、Hub 数据仓库、旧版下载记录对应的文件及解压数据，并删除 data 下清单明确标记为 WikiText 的旧提示词目录。脚本打印实际删除路径；清理失败时 smoke.sh 会停止，不会开始下载 arXiv。重复运行时已不存在的缓存直接跳过。清理范围限定在当前项目，生成实验结果仍保存在 runs 中。
 
@@ -133,7 +133,7 @@ rho 候选固定为 0、0.5、0.8、0.9、0.95、0.98、0.99。前向/后向数�
 
 区间全部为从 0 开始、右端不含的 token 偏移。主要效果指标是含信号文档的 token 集合 IoU，空输出计 0；纯 null 单列。辅助报告 F1、微平均 F1、FDP、片段召回/边界误差、Brier 和比例误差。片段配对先最大化匹配数，再最大化总 IoU，IoU 门槛 0.5。多个编辑版本按原文文章分组重采样。
 
-## 后续实验与模型替换
+## 后续实验与模型规模（仅 OPT）
 
 较大模拟：
 
@@ -145,7 +145,7 @@ rho 候选固定为 0、0.5、0.8、0.9、0.95、0.98、0.99。前向/后向数�
 
 pilot 使用相同的三步，只把配置替换为 configs/text_pilot.json，并选择新的 data/runs 名称。
 
-以后更换受 vLLM 支持的标准文本模型，通常只需把 prepare 和 generate 的 --model 都指向新位置；tokenizer 与词表会从模型读取。需要重新准备提示词、生成校准/测试样本和计算阈值；旧模型的 density/threshold 不得复用。可能还需调整 dtype、max_model_len、max_num_seqs 和 --gpu-memory。需要自定义代码、特殊聊天模板或多模态输入的模型不在这项直接替换保证内。
+模型固定在 OPT 系列内，不引入其他模型族。换规模时把 prepare 和 generate 的 --model 同时指向新的 OPT 目录（opt-125m / 350m / 1.3b / 2.7b），tokenizer 与词表仍从模型读取；必须重新 prepare、重新生成校准/测试样本并重新计算阈值，旧模型的 density/threshold 不得复用。不同规模的 --gpu-memory、max_model_len、max_num_seqs 可以单独调整，但同一轮内保持冻结。`scripts/download_model.py` 目前只为 `facebook/opt-1.3b` 固定落盘，其他 OPT 规模需手动放置并补 `opt_hmm_source.json` 或在 prepare/generate 里显式传同一路径。
 
 当前没有实现条件发射、非齐次 HMM、HSMM、自由 Baum-Welch 或外部 SPOT/变点基线。它们需要在基础结果明确后分别加入。
 

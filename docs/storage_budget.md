@@ -104,13 +104,6 @@ rm -rf runs/ax00-diag/localization              # 1.45 GB
 python -m pip cache purge
 ```
 
-## 7. 若以后加 Qwen 7B
+## 7. 模型固定为 OPT
 
-| 权重 | 增量 |
-|---|---:|
-| Qwen2.5-7B-Instruct（FP16） | +15.2 GB |
-| Qwen2.5-7B-Instruct-AWQ | +5.7 GB |
-| Qwen2.5-7B-Instruct-EAGLE3 | +1–3 GB |
-| Qwen2.5-Coder-3B-Instruct | +6.2 GB |
-
-加 FP16 7B 后按 150 GB 规划；同时保留 HF 双份缓存与 Arrow 缓存时按 250 GB。
+本项目只使用 OPT 系列（论文传统），默认 `facebook/opt-1.3b`（FP16 约 2.6 GB，已计入上表）。换规模时只在 OPT 内更换：opt-125m / 350m 更小，opt-2.7b（FP16 约 5.2 GB）在 24 GB 卡上仍然宽裕。不需要为其他模型族预留磁盘。

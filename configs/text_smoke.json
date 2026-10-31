@@ -1,6 +1,8 @@
 {
   "seed": 20261015,
-  "model": "/home/MCEC_ADAS/kdz/models/Qwen2.5-Coder-3B-Instruct",
+  "model": "models/opt-1.3b",
+  "model_repo": "facebook/opt-1.3b",
+  "model_revision": "3f5c25d0bc631cb57ac65913f76e22c2dfb61d62",
   "dataset": "ccdv/arxiv-summarization",
   "subset": "document",
   "dataset_revision": "240aaf1a969b3f8cd0ade6986bfad0cd730ee288",

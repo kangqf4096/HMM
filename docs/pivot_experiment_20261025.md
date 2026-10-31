@@ -77,4 +77,4 @@ PIT/KS 均为描述性距离，不给独立 token p 值。留出 test 文章和�
 
 Windows 本机已通过 45 项 CPU 测试，包含概率计算不修改输入、极端尾部 log 密度、原有五方法与外部密度比入口的等价性，以及整条诊断/额外定位/null 校准流程。翻转评价标签不会改变发射输入。测试中的模型重算使用可控的三 token 模型，不是 Qwen 实机结果。
 
-服务器的 `check-runtime` 另会使用真实 torch/vLLM 检查启用概率记录前后输出 logits 完全一致，并检查采样前 S2 记录。实际 Qwen/CUDA 生成和 Transformers 重算尚需运行上述服务器命令完成。
+服务器的 `check-runtime` 另会使用真实 torch/vLLM 检查启用概率记录前后输出 logits 完全一致，并检查采样前 S2 记录。实际 OPT-1.3B/CUDA 生成和 Transformers 重算尚需运行上述服务器命令完成。
