@@ -16,9 +16,7 @@ Colab 配置采用 `dataset_loader=parquet_file`：固定版本的原始分片�
 
 这是现有基础方案的可运行 v0：从连续枢轴量估计整篇水印信号比例，再用两状态 HMM 计算逐 token 后验，并输出连续片段。定位目标是“相对于指定密钥仍保留水印耦合的位置”。
 
-下文保留原 Linux 服务器环境及 Qwen 配置，供已有实验复现：RTX 3090 24GB、单卡、FP16、vLLM **0.19.1**，模型位置：
-
-    /home/MCEC_ADAS/kdz/models/Qwen2.5-Coder-3B-Instruct
+下文以服务器镜像 `registry-cn-xibei2-internal.ebcloud.com/ebsys/vllm:0.8.4-cuda12.4-python3.10-ubuntu22.04-v01` 为准：RTX 3090 24GB、单卡、FP16、Python 3.10、vLLM **0.8.4**、CUDA 12.4。vLLM 0.8.4 的自定义 logits processor 只在 **V0 引擎**生效，因此项目固定 `VLLM_USE_V1=0`；模型仍由 `prepare`/`generate` 的 `--model` 指定。
 
 该代码模型先用于流程和协议验收。其结果只说明该模型及该数据配置下的情况；后续可换通用文本模型。检测算法不需要调用 LLM；LLM 只用于生成实验数据。
 
@@ -26,21 +24,23 @@ Colab 配置采用 `dataset_loader=parquet_file`：固定版本的原始分片�
 
 将整个仓库复制到服务器，在仓库根目录运行。所有临时文件、缓存和输出都留在项目内。新输出目录必须为空，重跑请换一个短名称。
 
-如果已有安装好 vLLM 0.19.1 的环境，先激活它，再运行：
+在目标镜像内首次安装，直接运行：
+
+    bash scripts/install.sh
+
+脚本会使用镜像自带的 Python 3.10、vLLM 和 PyTorch，不重装它们；默认创建 `.venv --system-site-packages`，只安装项目本体与 `.[data]` 依赖，然后运行本地测试和 `check-runtime`。需要换 Python 路径或不用 venv 时：
+
+    bash scripts/install.sh --python /usr/bin/python3.10
+    bash scripts/install.sh --no-venv
+
+手动等价步骤：
 
     source scripts/env.sh
-    python -m pip install -e ".[inference]"
+    python -m pip install -e ".[data]"
     python scripts/test.py
     python scripts/run.py check-runtime
 
-如果需要新环境，可先使用 Python 3.12：
-
-    python3.12 -m venv .venv
-    source .venv/bin/activate
-    source scripts/env.sh
-    python -m pip install -e ".[inference]"
-
-不要单独安装另一个版本的 PyTorch 覆盖 vLLM 的依赖；由 vLLM 0.19.1 的安装包选择兼容依赖。驱动/运行时是否可用由实际服务器检查决定。
+`.[inference]` 只用于没有预装 vLLM 的全新环境；它会按 `pyproject.toml` 安装 vLLM 0.8.4。不要单独安装另一个版本的 PyTorch 覆盖 vLLM 的依赖；驱动/运行时是否可用由实际服务器检查决定。`check-runtime` 会校验 vLLM 0.8.4、CUDA、`VLLM_USE_V1=0` 以及 V0 callable 协议自检。
 
 先跑无需 GPU 的模拟：
 
@@ -48,7 +48,7 @@ Colab 配置采用 `dataset_loader=parquet_file`：固定版本的原始分片�
 
 再跑真实模型小试，可以一条脚本顺序完成清理旧 WikiText 数据、下载和准备 arXiv、生成和评价：
 
-    bash scripts/smoke.sh /home/MCEC_ADAS/kdz/models/Qwen2.5-Coder-3B-Instruct arxiv0
+    bash scripts/smoke.sh /path/to/local/model arxiv0
 
 等价的分步命令：
 
@@ -57,7 +57,7 @@ Colab 配置采用 `dataset_loader=parquet_file`：固定版本的原始分片�
     python scripts/run.py generate --config configs/text_smoke.json --prompts data/arxiv0 --output runs/arxiv0-gen
     python scripts/run.py evaluate --input runs/arxiv0-gen --output runs/arxiv0-eval
 
-模型默认路径已写入配置，也可以为 prepare 和 generate 同时传入相同的 --model 路径。安装包还提供 opt-hmm 命令，与 python scripts/run.py 相同。
+配置中的默认模型路径来自旧实验；服务器上请为 prepare 和 generate 同时传入相同的 --model 路径。安装包还提供 opt-hmm 命令，与 python scripts/run.py 相同。
 
 clean_wiki.py 先清理项目 .cache/hf 下可识别的 WikiText 缓存，包括处理后的数据、Hub 数据仓库、旧版下载记录对应的文件及解压数据，并删除 data 下清单明确标记为 WikiText 的旧提示词目录。脚本打印实际删除路径；清理失败时 smoke.sh 会停止，不会开始下载 arXiv。重复运行时已不存在的缓存直接跳过。清理范围限定在当前项目，生成实验结果仍保存在 runs 中。
 
@@ -149,8 +149,8 @@ pilot 使用相同的三步，只把配置替换为 configs/text_pilot.json，�
 
 ## 已验证范围与来源
 
-本地 CPU 验证记录见 [docs/validation.md](docs/validation.md)。Windows 本机没有 vLLM/PyTorch 和模型权重，真实 CUDA 生成与实际安装适配器验收由服务器运行 check-runtime 和 smoke.sh 完成。不能把本地模拟通过解释为真实水印协议已通过 GPU 实验。
+本地 CPU 验证记录见 [docs/validation.md](docs/validation.md)。Windows 本机没有 vLLM/PyTorch 和模型权重，真实 CUDA 生成与 V0 callable 验收由服务器运行 check-runtime 和 smoke.sh 完成。不能把本地模拟通过解释为真实水印协议已通过 GPU 实验。
 
-接口依据 [vLLM 0.19.1 custom logits processors](https://docs.vllm.ai/en/v0.19.1/features/custom_logitsprocs/) 与 [该版本源码](https://github.com/vllm-project/vllm/tree/v0.19.1/vllm/v1/sample/logits_processor)。采用 V1 AdapterLogitsProcessor，初始化时注册类，通过 SamplingParams.extra_args 传递每个请求的设置；没有使用旧版 SamplingParams.logits_processors API。
+接口依据 [vLLM 0.8.4 采样参数](https://docs.vllm.ai/en/v0.8.4/) 与 [该版本 V0 logits processor 源码](https://github.com/vllm-project/vllm/blob/v0.8.4/vllm/model_executor/layers/logits_processor.py)。项目使用 `SamplingParams.logits_processors` 传入逐请求 callable，并强制 `VLLM_USE_V1=0`；没有使用 0.19.1 才有的 `AdapterLogitsProcessor` 或 `extra_args` 机制。
 
 基础方案来自父目录的研究 note、《问题收敛与算法 v0》和 experiment_plan_v1.md；原始文档未改动。数据缓存、模型、生成日志和实验结果被 Git 忽略，仓库只保存代码、配置、文档与小型验证记录。

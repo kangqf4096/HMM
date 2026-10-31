@@ -1,28 +1,28 @@
 # 当前配置下的真实模型枢轴分布实验
 
-本轮沿用 `configs/text_smoke.json`，模型和生成参数均不改变：Qwen2.5-Coder-3B-Instruct、Scientific Papers arXiv 正文、50 token prompt、128 token continuation、m=4、T=1、单卡 FP16、vLLM 0.19.1。继续使用 8 篇发射校准、4 篇开发、8 篇测试、32 篇 null 校准、32 篇 null 测试、8 篇编辑池文章，合计 92 篇独立文章、96 个原始生成请求。
+本轮沿用 `configs/text_smoke.json`，模型和生成参数均不改变：Scientific Papers arXiv 正文、50 token prompt、128 token continuation、m=4、T=1、单卡 FP16、Python 3.10、vLLM 0.8.4（V0 引擎）。继续使用 8 篇发射校准、4 篇开发、8 篇测试、32 篇 null 校准、32 篇 null 测试、8 篇编辑池文章，合计 92 篇独立文章、96 个原始生成请求。
 
 本实验的目的是测量统一经验备择发射是否失配，以及已知更多生成条件能带来多大改善。较小 smoke 样本用于流程验证和初步诊断；本轮不更换模型、语料或人为扩大数据。
 
 ## 服务器运行
 
-在已经激活 vLLM 0.19.1 环境、更新了本仓库代码的 Linux 服务器上，从仓库根目录执行：
+在已经准备好 vLLM 0.8.4 镜像环境、更新了本仓库代码的 Linux 服务器上，从仓库根目录执行：
 
 ```bash
 source scripts/env.sh
-python -m pip install -e ".[inference]"
-bash scripts/pivot_smoke.sh /home/MCEC_ADAS/kdz/models/Qwen2.5-Coder-3B-Instruct piv0
+python -m pip install -e ".[data]"
+bash scripts/pivot_smoke.sh /path/to/local/model piv0
 ```
 
 已有匹配的 `data/arxiv0` 提示词可以复用，第三个参数指定目录：
 
 ```bash
-bash scripts/pivot_smoke.sh /home/MCEC_ADAS/kdz/models/Qwen2.5-Coder-3B-Instruct piv0 data/arxiv0
+bash scripts/pivot_smoke.sh /path/to/local/model piv0 data/arxiv0
 ```
 
 复用会检查数据集版本、模型路径、prompt 长度、上下文宽度和角色数量。新建提示词目录仍复用项目内 Hugging Face 缓存；不因新 run 名称主动重下已有缓存。若输出已存在且非空，换一个短 run 名称，如 piv1。脚本不清理旧结果。
 
-脚本依次运行本地可用测试、服务器真实 vLLM adapter 自检、准备或复用提示词、生成带概率诊断的文本，以及单独进程中的概率重算和定位评价。vLLM 生成进程退出后才用 Transformers 加载相同模型，避免同时驻留两份模型。所有缓存和临时文件位于项目内。
+脚本依次运行本地可用测试、服务器真实 V0 callable 自检、准备或复用提示词、生成带概率诊断的文本，以及单独进程中的概率重算和定位评价。vLLM 生成进程退出后才用 Transformers 加载相同模型，避免同时驻留两份模型。所有缓存和临时文件位于项目内。
 
 旧生成结果没有新增的采样前概率记录，无法补出实际采样器的这一审计；可以复用提示词，但本轮需重新 generate。新增选项 `--pivot-diagnostics` 不消耗新随机数，不更改已有 Gumbel 选择规则。
 

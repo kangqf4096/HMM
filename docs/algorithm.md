@@ -30,7 +30,7 @@ O 表示最终 token 直接保留自原水印输出且原位置启用水印；Z 
 
 对 P=softmax(logits/T)，argmax(log(U)/P) 与 argmax(logits/T - log(-log(U))) 等价。插件在普通采样与水印采样两边屏蔽同样的特殊 token；没有 top-k/top-p 截断。水印位置屏蔽除选定赢家外的所有 logits，保证一次 Gumbel 选择之后不会再随机抽取。
 
-vLLM 适配器使用动态请求的 prompt/output token 引用，禁止 speculative decoding；基础运行关闭 async scheduling、prefix cache 并使用 eager 模式。逐请求 adapter 是优先保证协议可检查的实现，CPU 构造随机向量、CPU/GPU 传输和逐 token 审计可能明显降低 vLLM 吞吐。测到真实吞吐后再决定是否向量化；暂不以此衡量 vLLM 的正常吞吐上限。
+vLLM 0.8.4 的 V0 callable 使用动态请求的 prompt/output token 引用；基础运行固定 `VLLM_USE_V1=0`，关闭 prefix cache 并使用 eager 模式。V1 不应用 `SamplingParams.logits_processors`，因此不能用 V1 运行该采样器。逐请求 callable 是优先保证协议可检查的实现，CPU 构造随机向量、CPU/GPU 传输和逐 token 审计可能明显降低 vLLM 吞吐。测到真实吞吐后再决定是否向量化；暂不以此衡量 vLLM 的正常吞吐上限。
 
 ## 必须检查的失配
 

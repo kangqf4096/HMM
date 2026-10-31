@@ -42,11 +42,22 @@
 
 2026-10-15 的 33 项测试及上方模拟数值为历史记录，validation.json 保留当时的结果。
 
+## 2026-10-31 vLLM 0.8.4 / V0 适配
+
+目标镜像为 `registry-cn-xibei2-internal.ebcloud.com/ebsys/vllm:0.8.4-cuda12.4-python3.10-ubuntu22.04-v01`。0.8.4 的 V0 通过 `SamplingParams.logits_processors` 接收 `(prompt_ids, output_ids, logits)` callable；V1 不应用自定义 logits processor。因此：
+
+- `vllm_processor.py` 改为无 vLLM 依赖的 `GumbelRequest` callable，并保留 settings 与 sampling 参数校验。
+- `generate.py` 不再向 `LLM` 传 `logits_processors`/`async_scheduling`，改为逐请求传入 callable；模块导入时设置 `VLLM_USE_V1=0`。
+- `runtime.py` 只接受 vLLM 0.8.4，要求 V0，并用 CPU/GPU 张量重写 callable 自检。
+- 安装脚本使用镜像自带 Python 3.10、vLLM 和 PyTorch，只安装项目与 `.[data]` 依赖。
+
+本地 Windows 无 torch/vLLM，已验证新增 settings 单元测试和 CPU 核心测试；真实 0.8.4 CUDA 生成仍需在服务器执行 `check-runtime` 与 smoke。
+
 ## 仍需在服务器完成的验收
 
 本机没有执行真实 arXiv 全量下载、实际模型分词或 CUDA 生成，以下步骤需在服务器运行：
 
-1. 在 Linux 的实际 vLLM 0.19.1 环境运行 check-runtime，验证 CUDA 和真实 AdapterLogitsProcessor 的 token 引用、批次交换及请求移除行为。
+1. 在 Linux 的实际 vLLM 0.8.4（V0）环境运行 check-runtime，验证 CUDA、`VLLM_USE_V1=0`、逐请求 callable 的 token 引用和 trace 审计行为。
 2. prepare 下载 ccdv/arxiv-summarization 的 document Parquet 配置、使用实际模型 tokenizer，核对论文容量和冻结角色；所有输出使用新的 arxiv 名称。
 3. generate 完成逐 token 审计：每个实际水印赢家必须与返回 token、上下文、seed 和枢轴量一致。
 4. evaluate 查看真实 null 均匀性/相关性、重复上下文比例、实际 any-FP、IoU 和可靠性，才能判断该基础方案在当前代码模型上是否适用。

@@ -69,7 +69,8 @@ def project_environment(root):
                 "HF_DATASETS_CACHE": str(root / ".cache/hf/datasets"),
                 "PYTHONPATH": str(root / "src") + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""),
                 "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8",
-                "VLLM_WORKER_MULTIPROC_METHOD": "spawn", "OPT_HMM_PROGRESS": "1",
+                "VLLM_WORKER_MULTIPROC_METHOD": "spawn", "VLLM_USE_V1": "0",
+                "OPT_HMM_PROGRESS": "1",
                 "HF_HUB_DISABLE_PROGRESS_BARS": "0", "HF_DATASETS_DISABLE_PROGRESS_BARS": "0"})
     return env
 

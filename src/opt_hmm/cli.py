@@ -25,7 +25,7 @@ def main(argv=None):
     prepare.add_argument("--dataset-loader", choices=["datasets", "parquet_file"],
                          help="Override the arXiv reader; parquet_file avoids datasets fragment scans")
     prepare.add_argument("--output", required=True)
-    generate = sub.add_parser("generate", help="Local offline vLLM 0.19.1; requires Linux/CUDA")
+    generate = sub.add_parser("generate", help="Local offline vLLM 0.8.4 V0; requires Linux/CUDA")
     generate.add_argument("--config", default=text_config)
     generate.add_argument("--model")
     generate.add_argument("--prompts", required=True)
@@ -43,7 +43,7 @@ def main(argv=None):
     evaluate.add_argument("--input", required=True, help="Generation run directory")
     evaluate.add_argument("--output", required=True)
     evaluate.add_argument("--config", help="Optional detector configuration; protocol settings must match")
-    sub.add_parser("check-runtime", help="Check actual vLLM version, CUDA, and batch adapter")
+    sub.add_parser("check-runtime", help="Check vLLM 0.8.4, CUDA, and the V0 logits processor")
     args = parser.parse_args(argv)
     # Resolve resource paths against the project even when a notebook is in /content.
     for name in ("config", "model", "input", "output", "prompts"):

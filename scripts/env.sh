@@ -26,4 +26,7 @@ export HF_DATASETS_CACHE="$HF_HOME/datasets"
 export PIP_CACHE_DIR="$PWD/.cache/pip"
 export VLLM_CACHE_ROOT="$OPT_HMM_RUNTIME/.cache/vllm"
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
+# vLLM 0.8.4 V1 does not apply SamplingParams.logits_processors; the watermark
+# sampler is a V0-only callable, so keep the project on the V0 engine.
+export VLLM_USE_V1="${VLLM_USE_V1:-0}"
 export PYTHONPATH="$PWD/src${PYTHONPATH:+:$PYTHONPATH}"

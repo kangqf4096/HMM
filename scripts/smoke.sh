@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source scripts/env.sh
-MODEL_PATH="${1:-/home/MCEC_ADAS/kdz/models/Qwen2.5-Coder-3B-Instruct}"
+MODEL_PATH="${1:?usage: bash scripts/smoke.sh /path/to/local/model [run-name]}"
 RUN_NAME="${2:-arxiv0}"
 python scripts/clean_wiki.py
 python scripts/test.py

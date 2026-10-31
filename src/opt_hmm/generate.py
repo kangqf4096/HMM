@@ -14,6 +14,9 @@ from .protocol import (PROTOCOL, PUBLIC_KEY, context_seed, extract_pivots,
 from .runtime import check_runtime
 from .progress import progress
 from .paths import project_path
+from .vllm_processor import GumbelRequest, validate_sampling_params
+
+os.environ.setdefault("VLLM_USE_V1", "0")
 
 
 def _record(doc, original, tokens, origin, variant, config, key, actions=None):
@@ -66,7 +69,8 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
     from vllm import LLM, SamplingParams
     key = os.environ.get("OPT_HMM_KEY", PUBLIC_KEY)
     n, m = config["tokens"], config["context_width"]
-    if n <= m or config.get("temperature", 1.) <= 0:
+    temperature = config.get("temperature", 1.)
+    if n <= m or temperature <= 0:
         raise ValueError("Need tokens > context width and positive temperature.")
     variants = config.get("edits", [{"kind": "replace", "rate": .1}])
     lengths = {n}
@@ -84,12 +88,10 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
     llm = LLM(model=model, tokenizer=model, dtype=dtype, tensor_parallel_size=tensor_parallel,
               gpu_memory_utilization=gpu_memory, max_model_len=max_model_len,
               max_num_seqs=config.get("max_num_seqs", 8), seed=config.get("seed", 20261015),
-              enforce_eager=True, enable_prefix_caching=False, generation_config="vllm",
-              async_scheduling=False,
-              logits_processors=["opt_hmm.vllm_processor:GumbelMaxProcessor"])
+              enforce_eager=True, enable_prefix_caching=False, generation_config="vllm")
     model_load_seconds = perf_counter() - started
     tokenizer = llm.get_tokenizer()
-    vocab_size = int(llm.model_config.get_vocab_size())
+    vocab_size = int(llm.llm_engine.model_config.get_vocab_size())
     valid_ids = set(tokenizer.get_vocab().values())
     if max(valid_ids) >= vocab_size:
         raise ValueError("Tokenizer has added IDs outside model output vocabulary; reconcile model/tokenizer.")
@@ -118,11 +120,12 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
             settings = {"context_width": m, "key": key, "vocab_size": vocab_size,
                         "blocked_ids": blocked, "ranges": ranges, "trace_path": trace_path,
                         "pivot_diagnostics": pivot_diagnostics}
-            params.append(SamplingParams(n=1, temperature=config.get("temperature", 1.),
+            params.append(SamplingParams(n=1, temperature=temperature,
                                          top_p=1., top_k=-1, min_p=0.,
                                          max_tokens=requested_length, ignore_eos=True,
                                          detokenize=False, seed=config.get("seed", 20261015) + len(jobs),
-                                         extra_args={"opt_hmm": settings}))
+                                         logits_processors=[GumbelRequest(settings, temperature)]))
+            validate_sampling_params(params[-1])
             requests.append({"prompt_token_ids": doc["prompt_ids"]})
             jobs.append((doc, mode, requested_length, ranges, trace_path))
     progress("生成实验文本", 0, len(jobs), "生成请求进度由 vLLM 报告")
