@@ -64,8 +64,44 @@ if not ((3, 10) <= sys.version_info[:2] < (3, 13)):
         f"Python 3.10-3.12 is required for vLLM 0.8.4; found {sys.version.split()[0]}. "
         "Use the server image or pass --python with a compatible interpreter."
     )
-print(f"Python: {sys.version.split()[0]}")
+print(f"Python: {sys.version.split()[0]} ({sys.executable})")
 PY
+
+# Resource paths, caches, and VLLM_USE_V1=0 must be active before importing vLLM.
+source "$ROOT/scripts/env.sh"
+
+# In the image mode the selected interpreter must already see the image's vLLM.
+# Conda base is a common trap: vLLM may live in a different env or in /usr/bin.
+if (( ! WITH_VLLM )); then
+    if ! "$PYTHON" - <<'PY'
+import importlib.metadata as metadata
+import sys
+try:
+    import vllm  # noqa: F401
+except Exception as error:
+    print(f"vLLM import failed: {error}", file=sys.stderr)
+    raise SystemExit(1)
+version = metadata.version("vllm")
+print(f"vLLM: {version}")
+if version.split("+", 1)[0] != "0.8.4":
+    print(f"Expected vLLM 0.8.4, found {version}", file=sys.stderr)
+    raise SystemExit(1)
+try:
+    import torch
+except Exception as error:
+    print(f"torch import failed: {error}", file=sys.stderr)
+    raise SystemExit(1)
+print(f"torch: {torch.__version__} (CUDA {torch.version.cuda})")
+if torch.__version__.split("+", 1)[0] != "2.6.0":
+    print("Warning: vLLM 0.8.4 wheels target torch 2.6.0; found a different torch.", file=sys.stderr)
+PY
+    then
+        echo "Selected Python ($PYTHON) cannot use the image's vLLM 0.8.4." >&2
+        echo "Activate the conda env that contains vLLM, or pass --python /path/to/that/python." >&2
+        echo "If this is a fresh host, use --with-vllm to install the inference extra." >&2
+        exit 1
+    fi
+fi
 
 export PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}"
 export PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -98,9 +134,6 @@ else
     PIP_USER=(--user)
 fi
 
-# Resource paths, caches, and VLLM_USE_V1=0 come from the shared environment.
-source "$ROOT/scripts/env.sh"
-
 if (( IN_VENV )); then
     "$PIP_PY" -m pip install "${PIP_USER[@]}" --upgrade "pip>=23" "setuptools>=68" "wheel"
 fi
@@ -110,8 +143,8 @@ if (( WITH_VLLM )); then
     "$PIP_PY" -m pip install "${PIP_USER[@]}" -e ".[inference]"
 else
     # The image already provides vLLM/torch; only project, data, and tokenizer
-    # dependencies are installed. transformers is pinned to the 4.51 line that
-    # vLLM 0.8.4 was built and tested against.
+    # dependencies are installed. The <4.56 cap keeps the image's 4.55.x
+    # transformers instead of downgrading it for vLLM 0.8.4.
     "$PIP_PY" -m pip install "${PIP_USER[@]}" -e ".[data]"
 fi
 
@@ -124,10 +157,14 @@ if (( ! SKIP_TESTS )); then
 fi
 
 if (( ! SKIP_RUNTIME )); then
-    if command -v nvidia-smi >/dev/null 2>&1; then
+    if ! command -v nvidia-smi >/dev/null 2>&1; then
+        echo "nvidia-smi not found; skipping GPU check-runtime." >&2
+    elif nvidia-smi -L 2>/dev/null | grep -q '^GPU '; then
         "$PIP_PY" "$ROOT/scripts/run.py" check-runtime
     else
-        echo "nvidia-smi not found; skipping GPU check-runtime." >&2
+        echo "No GPU visible to this container; skipping check-runtime." >&2
+        echo "After allocating a GPU, run:" >&2
+        echo "  $PIP_PY $ROOT/scripts/run.py check-runtime" >&2
     fi
 fi
 

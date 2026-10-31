@@ -16,6 +16,7 @@ from opt_hmm.cli import main
 from opt_hmm.paths import COLAB_PROJECT, COLAB_RUNTIME, project_path, project_root, runtime_root
 from colab_tools import project_environment
 from download_model import download_model
+from _compat import chdir
 
 
 class PathTests(unittest.TestCase):
@@ -45,10 +46,10 @@ class PathTests(unittest.TestCase):
     def test_outside_colab_paths_use_checkout_or_selected_root_never_cwd(self):
         with self.folder() as folder:
             root = Path(folder)
-            with contextlib.chdir(root), patch("opt_hmm.paths.on_colab", return_value=False), \
+            with chdir(root), patch("opt_hmm.paths.on_colab", return_value=False), \
                     patch.dict(os.environ, {"OPT_HMM_PROJECT": ""}):
                 self.assertEqual(project_root(), ROOT)
-            with contextlib.chdir(root), patch.dict(os.environ, {"OPT_HMM_PROJECT": str(ROOT)}):
+            with chdir(root), patch.dict(os.environ, {"OPT_HMM_PROJECT": str(ROOT)}):
                 self.assertEqual(project_path("configs/colab_arxiv.json"), ROOT / "configs/colab_arxiv.json")
                 absolute = root / "external.json"
                 self.assertEqual(project_path(absolute), absolute)
@@ -60,7 +61,7 @@ class PathTests(unittest.TestCase):
             (project / "configs").mkdir()
             config = json.loads((ROOT / "configs/colab_arxiv.json").read_text(encoding="utf-8"))
             (project / "configs/colab_arxiv.json").write_text(json.dumps(config))
-            with contextlib.chdir(ROOT.parent), \
+            with chdir(ROOT.parent), \
                     patch.dict(os.environ, {"OPT_HMM_PROJECT": str(project)}), \
                     patch("opt_hmm.cli.on_colab", return_value=True), \
                     patch("opt_hmm.data.prepare", return_value={}) as prepare, \
@@ -86,7 +87,7 @@ class PathTests(unittest.TestCase):
                     (destination / name).touch()
 
             hub.snapshot_download = Mock(side_effect=snapshot)
-            with contextlib.chdir(ROOT.parent), patch.dict(sys.modules, {"huggingface_hub": hub}), \
+            with chdir(ROOT.parent), patch.dict(sys.modules, {"huggingface_hub": hub}), \
                     patch.dict(os.environ, {"OPT_HMM_PROJECT": str(project), "OPT_HMM_RUNTIME": str(Path(folder) / "run"),
                                             "HF_HOME": "stale-cache"}):
                 result = download_model("configs/colab_arxiv.json")

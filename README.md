@@ -33,6 +33,8 @@ Colab 配置采用 `dataset_loader=parquet_file`：固定版本的原始分片�
     bash scripts/install.sh --python /usr/bin/python3.10
     bash scripts/install.sh --no-venv
 
+如果当前 `python3` 是 conda base，而 vLLM 装在另一个 conda env 或 `/usr/bin/python3.10`，先激活对应环境，或显式传 `--python /path/to/that/python`。脚本预检会打印 vLLM/torch 版本；不是 vLLM 0.8.4 或 torch 2.6.0 时会拒绝继续。
+
 手动等价步骤：
 
     source scripts/env.sh

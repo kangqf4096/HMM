@@ -4,13 +4,15 @@ import sys
 import tempfile
 import types
 import unittest
-from contextlib import chdir, redirect_stdout
+from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+
+from _compat import chdir
 
 try:
     import pyarrow as pa
