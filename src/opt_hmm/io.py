@@ -15,6 +15,8 @@ def _default(value):
         return value.tolist()
     if isinstance(value, np.generic):
         return value.item()
+    if isinstance(value, Path):
+        return str(value)
     raise TypeError(type(value).__name__)
 
 

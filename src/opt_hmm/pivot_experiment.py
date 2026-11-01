@@ -180,7 +180,7 @@ def run(input_dir, output, model_path=None, device='cuda', replay=None):
     metadata = read_json(input_dir / 'metadata.json')
     if not metadata.get('pivot_diagnostics'):
         raise ValueError('Regenerate with --pivot-diagnostics to capture actual pre-sampling probabilities.')
-    model_path = model_path or metadata['model']
+    model_path = str(model_path or metadata['model'])
     if replay is None and not Path(model_path).is_dir():
         raise ValueError(f'Model directory does not exist: {model_path}')
     output = new_output(output)
