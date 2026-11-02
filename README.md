@@ -94,7 +94,7 @@ smoke 和 pilot 是流程验收/预实验，32 或 128 篇 null 不足以精确�
 - 上下文 token IDs 与密钥经 BLAKE2b 生成 128-bit seed，显式 PCG64 生成整个词表的均匀随机数；选中的随机数就是枢轴量。生成和检测使用相同实现，标量验证通过 PRNG advance 直接找到对应 token 的随机数。
 - 为避免分母很小，Gumbel-max 用等价的 argmax(logits/T - log(-log(U))) 实现。选定后只保留赢家的有限 logit，避免 vLLM 再做一次随机选择。
 - 水印和普通采样使用相同的特殊 token / 无 tokenizer 对应 ID 屏蔽规则，不使用 top-k/top-p 截断、重复惩罚或额外 logit bias，固定长度并忽略 EOS 停止。
-- 默认公开研究密钥只为可复现。可以设置 OPT_HMM_KEY（1..64 UTF-8 字节）并更改配置的 key_id；实际 key 不写入结果 metadata。协议中的哈希是种子生成算法，不是文件完整性校验。
+- 默认公开研究密钥只为可复现。可以设置 OPT_HMM_KEY（1..64 UTF-8 字节）并更改配置的 key_id。**研究阶段**把实际 key 明文写进 `metadata.json`：任何一轮都能在不依赖外部记录的情况下复现、对齐；发布或部署前必须换成 key 承诺，方案见 [复现与密钥处理](docs/reproducibility_and_secrets_20261101.md)。协议中的哈希是种子生成算法，不是文件完整性校验。
 
 seed 的伪随机独立性、相同上下文重复时的依赖，以及编辑后是否回到均匀 null，仍然是需要用真实数据检查的近似。PCG64 不是密码学随机数生成器；这里固定它用于可复现的研究协议。
 

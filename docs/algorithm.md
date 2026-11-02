@@ -22,6 +22,8 @@ O 表示最终 token 直接保留自原水印输出且原位置启用水印；Z 
 
 该 Z 是基础编辑过程下的操作性耦合标签；不把偶然高分或碰巧满足 argmax 当成来源证明。替换要求新旧 token 不同，编辑位置与 token 池抽样都不读密钥或 Y。第一版 token 层操作没有 decode/re-tokenize；字符串编辑和不确定对齐尚未实现。
 
+**Z 与 P 是两个对象：Z=1 只说明水印随机量可恢复，不说明模型的下一词分布不变。** `P_t` 依赖整个前缀，而 seed 只依赖最近 `m` 个 token。实测（`runs/piv-ax01-diag/report.md`）在 seed 保留的编辑位置上，`Pgen` 与 `Peval` 的 TV 仍有 0.12–0.34（replace 0.3 最长尾处最大 0.97）。因此“对 origin 位置套用原始历史的 P”不是 Z=1 的可靠代理：它会把 Z=0 且 token 被保留的位置也当成有信号，实测 replace 0.3 下这类位置占 77%。
+
 ## 随机协议
 
 协议名称 gumbel-context-blake2b-pcg64-v1：上下文长度与 unsigned 32-bit little-endian token IDs 序列化；密钥化 BLAKE2b 产生 128-bit seed，PCG64 产生每个词表坐标的原始 64-bit 数。取其高 52 bits 加 0.5 后缩放，得到严格在 (0,1) 内的 float64 均匀格点数。
@@ -30,12 +32,13 @@ O 表示最终 token 直接保留自原水印输出且原位置启用水印；Z 
 
 对 P=softmax(logits/T)，argmax(log(U)/P) 与 argmax(logits/T - log(-log(U))) 等价。插件在普通采样与水印采样两边屏蔽同样的特殊 token；没有 top-k/top-p 截断。水印位置屏蔽除选定赢家外的所有 logits，保证一次 Gumbel 选择之后不会再随机抽取。
 
-vLLM 0.8.4 的 V0 callable 使用动态请求的 prompt/output token 引用；基础运行固定 `VLLM_USE_V1=0`，关闭 prefix cache 并使用 eager 模式。V1 不应用 `SamplingParams.logits_processors`，因此不能用 V1 运行该采样器。逐请求 callable 是优先保证协议可检查的实现，CPU 构造随机向量、CPU/GPU 传输和逐 token 审计可能明显降低 vLLM 吞吐。测到真实吞吐后再决定是否向量化；暂不以此衡量 vLLM 的正常吞吐上限。
+vLLM 0.8.4 的 V0 callable 使用动态请求的 prompt/output token 引用；基础运行固定 `VLLM_USE_V1=0`，关闭 prefix cache。默认 `enforce_eager=false`：CUDA graph 只捕获模型前向，逐请求 callable 仍在 sampler 内、不在捕获图里，所以 eager 是运行时选择而非协议约束，只有捕获失败时才在配置里回退 `true`。V1 不应用 `SamplingParams.logits_processors`，因此不能用 V1 运行该采样器。逐请求 callable 是优先保证协议可检查的实现，CPU 构造随机向量、CPU/GPU 传输和逐 token 审计可能明显降低 vLLM 吞吐；开 `--pivot-diagnostics` 时每步还要取回整个词表，通常比前向更贵。测到真实吞吐后再决定是否向量化；暂不以此衡量 vLLM 的正常吞吐上限。
 
 ## 必须检查的失配
 
 - null 是否近似均匀，特别是编辑后和重复上下文中。
 - 纯水印校准发射是否代表测试位置；模型、温度和领域改变后重新估计。
+- 条件发射（解析 `f1,P`）在无编辑文本上不吃亏，但编辑后全面输给经验直方图；第一版证据指向“无界密度比 + max-score 阈值校准”互相放大，而不是 vLLM/HF 重算误差（重算 s2 绝对差均值 4.4e-4、最大 9.2e-3）。
 - 给定 Z 后观测是否仍相关；报告逐篇 lag-1 相关和经验分布距离，不把 token 当独立样本计算 p 值。
 - 一阶齐次状态导致几何片段长度，可能漏掉短段或连接短洞。
 - 无信息时实际有限校准密度仍可能出现随机差异；只有理论 oracle f1=f0 能直接认定无信息，估计版本由独立 null 流程检验行为。

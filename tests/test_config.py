@@ -25,11 +25,18 @@ class ConfigTests(unittest.TestCase):
         base = read_json(ROOT / "configs" / "text_smoke.json")
         for change in ({"temperature": .001}, {"prompt_tokens": 1}, {"tokens": 4},
                        {"max_model_len": 100}, {"switch_ranges": [[.1, .7], [.5, .9]]},
-                       {"edits": [{"kind": "typo", "rate": .1}]}):
+                       {"edits": [{"kind": "typo", "rate": .1}]},
+                       {"enforce_eager": "false"}):
             config = copy.deepcopy(base)
             config.update(change)
             with self.assertRaises(ValueError):
                 validate_text(config)
+
+    def test_shipped_configs_disable_eager_mode_explicitly(self):
+        for filename in ("text_smoke.json", "text_pilot.json", "colab_arxiv.json"):
+            config = read_json(ROOT / "configs" / filename)
+            self.assertIs(config["enforce_eager"], False)
+            self.assertTrue(validate_text(config))
 
 
 if __name__ == "__main__":

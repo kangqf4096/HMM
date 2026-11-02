@@ -12,6 +12,7 @@
   "temperature": 1,
   "max_model_len": 1024,
   "max_num_seqs": 8,
+  "enforce_eager": false,
   "key_id": "public-research-v1",
   "roles": {
     "calibration": 32,

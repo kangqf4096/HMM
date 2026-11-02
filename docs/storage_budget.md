@@ -34,7 +34,7 @@
 |---|---|---|---:|---|
 | `data/ax*/manifest.json` | 数据版本、抽样规则、角色分配、模型 repo/revision、每篇来源 split/row | generate 校验 | KB | 可长期留 |
 | `data/ax*/prompts.jsonl` | 每篇 50 个 prompt token + group/role | generate | <10 MB | 可长期留（复用） |
-| `*-gen/metadata.json` | 冻结协议、模型路径与来源、vLLM/驱动版本、词表与屏蔽 id、耗时、lengths | **evaluate 必读** | KB | 随 gen 目录留 |
+| `*-gen/metadata.json` | 冻结协议、模型路径与来源、vLLM/驱动版本、**实际密钥（研究阶段明文，分享前先脱敏）**、`enforce_eager`/`max_num_seqs` 等运行时开关、词表与屏蔽 id、耗时、lengths | **evaluate 必读** | KB | 随 gen 目录留 |
 | `*-gen/trace/*.jsonl` | 采样器逐步审计：step、active、context、seed、chosen、selected_y、概率摘要（s2/s3/pmax/熵/有效词表）、cdf/log_pdf。证明“实际采样 = 密钥驱动的 Gumbel-max” | 仅 generate 末尾自检 | **1.11 GB**（诊断）/ 0.39 GB | **generate 返回后立即删** |
 | `*-gen/sources.jsonl` | 每个请求的原始事实：原始 token、prompt、哪些位置启用水印、每位置上下文、每位置 seed、生成时概率 | 仅 `diagnose-pivots` | 0.89 GB / 0.19 GB | 不做诊断就立即删 |
 | `*-gen/observations.jsonl` | 评价输入：最终 token、origin 映射、o（是否保留原文）、z（水印耦合真值）、mask、枢轴量 y、逐位置 seed、编辑动作 | **evaluate 唯一输入** | **0.57 GB** | 评价后建议留（可免 GPU 重算） |

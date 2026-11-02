@@ -38,4 +38,6 @@ def validate_text(config):
         if start < previous or start == stop:
             raise ValueError("Switch intervals must be nonempty, ordered and nonoverlapping in tokens.")
         previous = stop
+    if not isinstance(config.get("enforce_eager", False), bool):
+        raise ValueError("enforce_eager must be a boolean; eager mode is a runtime choice, not a string flag.")
     return sorted(lengths)

@@ -85,10 +85,15 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
         raise ValueError("Prompt plus generation exceeds max_model_len.")
     progress("加载 GPU 模型")
     started = perf_counter()
+    # CUDA graphs capture the model forward only. The per-request Gumbel callable
+    # still runs inside the sampler, outside the captured graph, so eager mode is
+    # an implementation choice rather than part of the protocol.
+    eager = config.get("enforce_eager", False)
+    max_num_seqs = config.get("max_num_seqs", 8)
     llm = LLM(model=model, tokenizer=model, dtype=dtype, tensor_parallel_size=tensor_parallel,
               gpu_memory_utilization=gpu_memory, max_model_len=max_model_len,
-              max_num_seqs=config.get("max_num_seqs", 8), seed=config.get("seed", 20261015),
-              enforce_eager=True, enable_prefix_caching=False, generation_config="vllm")
+              max_num_seqs=max_num_seqs, seed=config.get("seed", 20261015),
+              enforce_eager=eager, enable_prefix_caching=False, generation_config="vllm")
     model_load_seconds = perf_counter() - started
     tokenizer = llm.get_tokenizer()
     vocab_size = int(llm.llm_engine.model_config.get_vocab_size())
@@ -182,10 +187,15 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
     write_json(output / "metadata.json", {"config": config, "model": model,
                                         "runtime": runtime, "provenance": provenance(),
                                         "protocol": PROTOCOL, "key_id": config.get("key_id", "public-research-v1"),
+                                        # Research phase: the plaintext key is recorded so a run stays
+                                        # reproducible without out-of-band state. Deployment must replace it
+                                        # with a key commitment; docs/reproducibility_and_secrets_20261101.md.
+                                        "key": key,
                                         "public_research_key": key == PUBLIC_KEY,
                                         "vocab_size": vocab_size, "blocked_ids": blocked,
                                         "tensor_parallel": tensor_parallel, "dtype": dtype,
-                                        "gpu_memory_utilization": gpu_memory,
+                                        "gpu_memory_utilization": gpu_memory, "max_num_seqs": max_num_seqs,
+                                        "enforce_eager": eager,
                                         "model_load_seconds": model_load_seconds,
                                         "generation_seconds": generation_seconds,
                                         "pivot_diagnostics": pivot_diagnostics,
