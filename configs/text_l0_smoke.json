@@ -1,0 +1,70 @@
+{
+  "seed": 20261015,
+  "model": "models/opt-1.3b",
+  "model_repo": "facebook/opt-1.3b",
+  "model_revision": "3f5c25d0bc631cb57ac65913f76e22c2dfb61d62",
+  "dataset": "ccdv/arxiv-summarization",
+  "subset": "document",
+  "dataset_revision": "240aaf1a969b3f8cd0ade6986bfad0cd730ee288",
+  "prompt_tokens": 50,
+  "tokens": 128,
+  "context_width": 4,
+  "temperature": 1,
+  "max_model_len": 1024,
+  "max_num_seqs": 8,
+  "enforce_eager": false,
+  "key_id": "public-research-v1",
+  "roles": {
+    "calibration": 1,
+    "dev": 1,
+    "test": 4,
+    "null_cal": 1,
+    "null_test": 1
+  },
+  "switch_ranges": [
+    [
+      0.2,
+      0.7
+    ]
+  ],
+  "edits": [
+    {
+      "kind": "resample",
+      "rate": 0.1,
+      "min_entropy": 2.0
+    },
+    {
+      "kind": "resample",
+      "rate": 0.3,
+      "min_entropy": 2.0
+    }
+  ],
+  "emission": [
+    "histogram",
+    "beta"
+  ],
+  "decision": [
+    "max_score",
+    "fraction"
+  ],
+  "bins": 25,
+  "pseudocount": 0.5,
+  "cap": 25,
+  "alpha": 0.05,
+  "rho_grid": [
+    0,
+    0.5,
+    0.8,
+    0.9,
+    0.95,
+    0.98,
+    0.99
+  ],
+  "fixed_e": 0.5,
+  "fixed_rho": 0.95,
+  "window": 20,
+  "merge_gap": 0,
+  "fraction_tau": 0.5,
+  "min_group_size": 100,
+  "bootstrap": 2000
+}

@@ -43,6 +43,26 @@ def main(argv=None):
     evaluate.add_argument("--input", required=True, help="Generation run directory")
     evaluate.add_argument("--output", required=True)
     evaluate.add_argument("--config", help="Optional detector configuration; protocol settings must match")
+    l0_generate = sub.add_parser("l0-generate", help="L0 sources with vLLM (Linux/CUDA): calibration/dev/test/null articles, no edits")
+    l0_generate.add_argument("--config", default="configs/text_l0_smoke.json")
+    l0_generate.add_argument("--model")
+    l0_generate.add_argument("--prompts", required=True)
+    l0_generate.add_argument("--output", required=True)
+    l0_generate.add_argument("--tensor-parallel", type=int, default=1)
+    l0_generate.add_argument("--gpu-memory", type=float, default=.8)
+    l0_generate.add_argument("--dtype", default="float16", choices=["float16", "bfloat16", "float32"])
+    l0_build = sub.add_parser("l0-build", help="Resample edits (HF replay of the original model) and positions.jsonl with edit-aware truth")
+    l0_build.add_argument("--input", required=True, help="l0-generate run directory")
+    l0_build.add_argument("--output", required=True)
+    l0_build.add_argument("--model")
+    l0_build.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
+    l0_evaluate = sub.add_parser("l0-evaluate", help="Fit, calibrate, freeze, then evaluate L0 positions (CPU only)")
+    l0_evaluate.add_argument("--input", required=True, help="l0-build run directory")
+    l0_evaluate.add_argument("--output", required=True)
+    l0_evaluate.add_argument("--config", help="Optional JSON overriding evaluation-only settings (e.g. {\"cap\": null})")
+    l0_synth = sub.add_parser("l0-synth", help="CPU pipeline test with a toy language model (not a result about OPT)")
+    l0_synth.add_argument("--config", default="configs/text_l0_smoke.json")
+    l0_synth.add_argument("--output", required=True)
     sub.add_parser("check-runtime", help="Check vLLM 0.8.4, CUDA, and the V0 logits processor")
     args = parser.parse_args(argv)
     # Resolve resource paths against the project even when a notebook is in /content.
@@ -56,6 +76,25 @@ def main(argv=None):
     elif args.command == 'diagnose-pivots':
         from .pivot_experiment import run as run_pivot_experiment
         result = run_pivot_experiment(args.input, args.output, args.model, args.device)
+    elif args.command == "l0-generate":
+        from .l0.generate import generate as l0_generate_sources
+        config = read_json(args.config)
+        result = l0_generate_sources(config, args.model or project_path(config["model"]), args.prompts, args.output,
+                                     args.tensor_parallel, args.gpu_memory, args.dtype)
+    elif args.command == "l0-build":
+        from .l0.build import build as l0_build_positions
+        result = l0_build_positions(args.input, args.output, model=args.model, device=args.device)
+    elif args.command == "l0-evaluate":
+        from .l0.evaluate import evaluate_positions
+        result = evaluate_positions(args.input, args.output, read_json(args.config) if args.config else None)
+    elif args.command == "l0-synth":
+        from .l0.build import build as l0_build_positions
+        from .l0.evaluate import evaluate_positions
+        from .l0.synth import generate_sources
+        base = Path(args.output)
+        lm, _ = generate_sources(read_json(args.config), base / "sources")
+        l0_build_positions(base / "sources", base / "positions", replay=lm.replay)
+        result = evaluate_positions(base / "positions", base / "eval")
     elif args.command == "evaluate":
         from .experiment import run_evaluation
         metadata = read_json(Path(args.input) / "metadata.json")

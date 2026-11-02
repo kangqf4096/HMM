@@ -14,8 +14,8 @@ def validate_text(config):
     lengths, variants = {config["tokens"]}, set()
     for attack in config.get("edits", []):
         kind, rate = attack.get("kind"), attack.get("rate")
-        if kind not in ("insert", "delete", "replace") or not isinstance(rate, (float, int)) or not 0 <= rate < 1:
-            raise ValueError("Edits require replace/insert/delete and a rate in [0,1).")
+        if kind not in ("insert", "delete", "replace", "resample") or not isinstance(rate, (float, int)) or not 0 <= rate < 1:
+            raise ValueError("Edits require replace/insert/delete/resample and a rate in [0,1).")
         name = (kind, rate)
         if name in variants:
             raise ValueError("Duplicate edit condition.")

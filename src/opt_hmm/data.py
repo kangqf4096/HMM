@@ -23,9 +23,9 @@ def select_articles(raw, tokenizer, config):
     documents out of different roles. This is content deduplication, not a file
     integrity check or a guarantee against different versions of the same paper.
     """
-    counts = config["roles"]
-    if any(type(counts.get(role)) is not int or counts[role] < 1 for role in ROLES):
-        raise ValueError(f"Need positive integer counts for each role: {ROLES}")
+    counts = {"pool": 0, **config["roles"]}
+    if any(type(counts.get(role)) is not int or counts[role] < (0 if role == "pool" else 1) for role in ROLES):
+        raise ValueError(f"Need positive integer counts for each role (pool may be 0): {ROLES}")
     required = sum(counts[role] for role in ROLES)
     ends = np.cumsum([len(raw[split]) for split in SPLITS])
     total = int(ends[-1])
