@@ -38,8 +38,13 @@ def source_record(job, tokens, audit, key, context_width):
     contexts = generation_contexts(doc["prompt_ids"], tokens, context_width)
     seeds = [str(context_seed(c, key)) for c in contexts]
     enabled = [any(a <= t < b for a, b in ranges) for t in range(len(tokens))]
-    if set(audit) != set(range(len(tokens))):
-        raise RuntimeError("Missing generation audit steps; logits processor did not run as expected.")
+    expected = set(range(len(tokens)))
+    missing, extra = sorted(expected - set(audit)), sorted(set(audit) - expected)
+    # vLLM V0 calls the processor once more after the last emitted token; that draw is discarded.
+    if missing or set(extra) - {len(tokens)}:
+        raise RuntimeError(f"{doc['group']}: generation audit has {len(audit)} steps; missing {missing[:10]}, "
+                           f"unexpected {extra[:10]}; logits processor did not run as expected.")
+    audit = {t: row for t, row in audit.items() if t < len(tokens)}
     for t, row in audit.items():
         if row["seed"] != seeds[t] or row["context"] != contexts[t] or row["active"] != enabled[t]:
             raise RuntimeError("Generation/verification context or seed mismatch.")

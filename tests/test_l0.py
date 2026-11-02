@@ -269,6 +269,22 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             source_record(job, tokens, audit, PUBLIC_KEY, 4)
 
+    def test_source_record_tolerates_only_the_trailing_processor_call(self):
+        from opt_hmm.protocol import context_seed
+        job = {"doc": {"group": "g", "role": "test", "prompt_ids": [1, 2, 3, 4, 5]}, "scenario": "null", "ranges": []}
+        tokens = [7, 8, 9, 10, 11]
+        contexts = generation_contexts(job["doc"]["prompt_ids"], tokens, 4)
+        audit = {t: {"step": t, "active": False, "context": contexts[t], "seed": str(context_seed(contexts[t], PUBLIC_KEY))}
+                 for t in range(5)}
+        audit[5] = {"step": 5, "active": False, "context": [8, 9, 10, 11], "seed": "0"}
+        self.assertEqual(source_record(job, tokens, dict(audit), PUBLIC_KEY, 4)["token_ids"], tokens)
+        audit[6] = dict(audit[5], step=6)
+        with self.assertRaisesRegex(RuntimeError, "unexpected"):
+            source_record(job, tokens, dict(audit), PUBLIC_KEY, 4)
+        del audit[6], audit[3]
+        with self.assertRaisesRegex(RuntimeError, "missing"):
+            source_record(job, tokens, dict(audit), PUBLIC_KEY, 4)
+
 
 class ToyPipelineTests(unittest.TestCase):
     @classmethod
