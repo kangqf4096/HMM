@@ -1,0 +1,2651 @@
+{
+  "config": {
+    "emission": [
+      "histogram",
+      "beta"
+    ],
+    "decision": [
+      "max_score",
+      "fraction"
+    ],
+    "bins": 25,
+    "pseudocount": 0.5,
+    "cap": 25,
+    "alpha": 0.05,
+    "rho_grid": [
+      0,
+      0.5,
+      0.8,
+      0.9,
+      0.95,
+      0.98,
+      0.99
+    ],
+    "fixed_e": 0.5,
+    "fixed_rho": 0.95,
+    "window": 20,
+    "merge_gap": 0,
+    "fraction_tau": 0.5,
+    "min_group_size": 100,
+    "bootstrap": 2000,
+    "tokens": 128,
+    "context_width": 4,
+    "key_id": "public-research-v1",
+    "roles": {
+      "calibration": 50,
+      "dev": 40,
+      "test": 160,
+      "null_cal": 400,
+      "null_test": 400
+    },
+    "edits": [
+      {
+        "kind": "resample",
+        "rate": 0.1,
+        "min_entropy": 2.0
+      },
+      {
+        "kind": "resample",
+        "rate": 0.3,
+        "min_entropy": 2.0
+      }
+    ]
+  },
+  "emissions": {
+    "histogram": {
+      "family": "histogram",
+      "density": [
+        0.08249496981891348,
+        0.11066398390342053,
+        0.11871227364185111,
+        0.19919517102615694,
+        0.158953722334004,
+        0.18309859154929578,
+        0.20321931589537223,
+        0.14688128772635814,
+        0.2676056338028169,
+        0.2635814889336016,
+        0.2515090543259557,
+        0.24748490945674045,
+        0.323943661971831,
+        0.3038229376257545,
+        0.5130784708249497,
+        0.4969818913480885,
+        0.48893360160965793,
+        0.4768611670020121,
+        0.5372233400402414,
+        0.6539235412474849,
+        0.7746478873239436,
+        1.0482897384305836,
+        1.6921529175050303,
+        2.0422535211267605,
+        13.414486921529175
+      ],
+      "sample_count": 6200,
+      "pseudocount": 0.5,
+      "cap": 25
+    },
+    "beta": {
+      "family": "beta",
+      "params": {
+        "a": 1.2949934995909782,
+        "b": 0.2151549134044006
+      },
+      "cap": 25,
+      "sample_count": 6200
+    }
+  },
+  "rules": {
+    "histogram|independent": {
+      "tau_fraction": 0.5,
+      "group_sizes": {
+        "124": 400
+      },
+      "M": {
+        "pooled": {
+          "value": 0.4798826683191793,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.4798826683191793,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P_same": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      }
+    },
+    "histogram|fixed_e": {
+      "tau_fraction": 0.5,
+      "group_sizes": {
+        "124": 400
+      },
+      "M": {
+        "pooled": {
+          "value": 0.1713876588678259,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.1713876588678259,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P_same": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      }
+    },
+    "histogram|opt_hmm": {
+      "tau_fraction": 0.5,
+      "group_sizes": {
+        "124": 400
+      },
+      "M": {
+        "pooled": {
+          "value": 0.5968218278445212,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.5968218278445212,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P": {
+        "pooled": {
+          "value": 0.03225806451612903,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.03225806451612903,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P_same": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      }
+    },
+    "histogram|fixed_rho": {
+      "tau_fraction": 0.5,
+      "group_sizes": {
+        "124": 400
+      },
+      "M": {
+        "pooled": {
+          "value": 0.1392533995508194,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.1392533995508194,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P_same": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      }
+    },
+    "histogram|window": {
+      "tau_fraction": 0.5,
+      "group_sizes": {
+        "124": 400
+      },
+      "M": {
+        "pooled": {
+          "value": 0.47884373982058887,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.47884373982058887,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P_same": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      }
+    },
+    "beta|independent": {
+      "tau_fraction": 0.5,
+      "group_sizes": {
+        "124": 400
+      },
+      "M": {
+        "pooled": {
+          "value": 0.14713229462235647,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.14713229462235647,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P_same": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      }
+    },
+    "beta|fixed_e": {
+      "tau_fraction": 0.5,
+      "group_sizes": {
+        "124": 400
+      },
+      "M": {
+        "pooled": {
+          "value": 0.09527941761925524,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.09527941761925524,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P_same": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      }
+    },
+    "beta|opt_hmm": {
+      "tau_fraction": 0.5,
+      "group_sizes": {
+        "124": 400
+      },
+      "M": {
+        "pooled": {
+          "value": 0.14713229462235647,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.14713229462235647,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P_same": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      }
+    },
+    "beta|fixed_rho": {
+      "tau_fraction": 0.5,
+      "group_sizes": {
+        "124": 400
+      },
+      "M": {
+        "pooled": {
+          "value": 0.0022059350687284275,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0022059350687284275,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P_same": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      }
+    },
+    "beta|window": {
+      "tau_fraction": 0.5,
+      "group_sizes": {
+        "124": 400
+      },
+      "M": {
+        "pooled": {
+          "value": 0.4472838844221347,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.4472838844221347,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      },
+      "P_same": {
+        "pooled": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        },
+        "124": {
+          "value": 0.0,
+          "count": 400,
+          "rank": 381,
+          "alpha": 0.05,
+          "finite_rank": true
+        }
+      }
+    }
+  },
+  "dev_check": {
+    "full_wm": {
+      "histogram": {
+        "independent": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.9290322580645161,
+            "ci95": [
+              0.7951612903225806,
+              1.0
+            ]
+          },
+          "precision": 1.0,
+          "recall": 0.9290322580645161,
+          "f1": 0.9476393565282454,
+          "eps_error": 0.09236774109303951,
+          "eps_hat": 0.9076322589069605,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 5
+          },
+          "rho_counts": {
+            "0.0": 10
+          },
+          "segment_recall": 0.9,
+          "boundary": {
+            "matched": 9,
+            "mean": 4.944444444444445,
+            "median": 0.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.603225806451613,
+          "mean_seconds": 0.0009120069444179535
+        },
+        "fixed_e": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.967741935483871,
+            "ci95": [
+              0.9129032258064516,
+              1.0
+            ]
+          },
+          "precision": 1.0,
+          "recall": 0.967741935483871,
+          "f1": 0.981659797140334,
+          "eps_error": 0.5,
+          "eps_hat": 0.5,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.5": 1,
+            "0.8": 2,
+            "0.99": 7
+          },
+          "segment_recall": 1.0,
+          "boundary": {
+            "matched": 10,
+            "mean": 9.55,
+            "median": 0.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.7379032258064516,
+          "mean_seconds": 0.0076926110312342645
+        },
+        "opt_hmm": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.9064516129032258,
+            "ci95": [
+              0.7806048387096775,
+              0.9951612903225806
+            ]
+          },
+          "precision": 1.0,
+          "recall": 0.9064516129032258,
+          "f1": 0.9376361573800429,
+          "eps_error": 0.09236774109303951,
+          "eps_hat": 0.9076322589069605,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 5
+          },
+          "rho_counts": {
+            "0.0": 6,
+            "0.5": 4
+          },
+          "segment_recall": 0.9,
+          "boundary": {
+            "matched": 9,
+            "mean": 12.88888888888889,
+            "median": 0.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.671774193548387,
+          "mean_seconds": 0.007265480421483517
+        },
+        "fixed_rho": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.9653225806451612,
+            "ci95": [
+              0.895967741935484,
+              1.0
+            ]
+          },
+          "precision": 1.0,
+          "recall": 0.9653225806451612,
+          "f1": 0.9790243902439023,
+          "eps_error": 0.09236774109303951,
+          "eps_hat": 0.9076322589069605,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 5
+          },
+          "rho_counts": {
+            "0.95": 10
+          },
+          "segment_recall": 1.0,
+          "boundary": {
+            "matched": 10,
+            "mean": 4.15,
+            "median": 0.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.8282258064516128,
+          "mean_seconds": 0.0009005660191178322
+        },
+        "window": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.9580645161290322,
+            "ci95": [
+              0.8774193548387096,
+              1.0
+            ]
+          },
+          "precision": 1.0,
+          "recall": 0.9580645161290322,
+          "f1": 0.9739344666173935,
+          "eps_error": 0.09236774109303951,
+          "eps_hat": 0.9076322589069605,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 5
+          },
+          "rho_counts": {
+            "0.0": 10
+          },
+          "segment_recall": 1.0,
+          "boundary": {
+            "matched": 10,
+            "mean": 4.35,
+            "median": 0.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.0,
+          "mean_seconds": 0.0010054115206003188
+        }
+      },
+      "beta": {
+        "independent": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.9782258064516128,
+            "ci95": [
+              0.9346774193548388,
+              1.0
+            ]
+          },
+          "precision": 1.0,
+          "recall": 0.9782258064516128,
+          "f1": 0.9877828054298643,
+          "eps_error": 0.0953860592097044,
+          "eps_hat": 0.9046139407902956,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 5
+          },
+          "rho_counts": {
+            "0.0": 10
+          },
+          "segment_recall": 1.0,
+          "boundary": {
+            "matched": 10,
+            "mean": 5.5,
+            "median": 0.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.6516129032258065,
+          "mean_seconds": 0.0009717121720314026
+        },
+        "fixed_e": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.982258064516129,
+            "ci95": [
+              0.9467741935483872,
+              1.0
+            ]
+          },
+          "precision": 1.0,
+          "recall": 0.982258064516129,
+          "f1": 0.9902654867256636,
+          "eps_error": 0.5,
+          "eps_hat": 0.5,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.5": 1,
+            "0.8": 1,
+            "0.99": 8
+          },
+          "segment_recall": 1.0,
+          "boundary": {
+            "matched": 10,
+            "mean": 4.9,
+            "median": 0.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.7991935483870968,
+          "mean_seconds": 0.00783288460224867
+        },
+        "opt_hmm": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.9717741935483872,
+            "ci95": [
+              0.9153225806451613,
+              1.0
+            ]
+          },
+          "precision": 1.0,
+          "recall": 0.9717741935483872,
+          "f1": 0.9835680751173708,
+          "eps_error": 0.0953860592097044,
+          "eps_hat": 0.9046139407902956,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 5
+          },
+          "rho_counts": {
+            "0.0": 6,
+            "0.5": 4
+          },
+          "segment_recall": 1.0,
+          "boundary": {
+            "matched": 10,
+            "mean": 4.9,
+            "median": 0.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.6588709677419354,
+          "mean_seconds": 0.007084712572395802
+        },
+        "fixed_rho": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.9846774193548388,
+            "ci95": [
+              0.954032258064516,
+              1.0
+            ]
+          },
+          "precision": 1.0,
+          "recall": 0.9846774193548388,
+          "f1": 0.991703056768559,
+          "eps_error": 0.0953860592097044,
+          "eps_hat": 0.9046139407902956,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 5
+          },
+          "rho_counts": {
+            "0.95": 10
+          },
+          "segment_recall": 1.0,
+          "boundary": {
+            "matched": 10,
+            "mean": 3.85,
+            "median": 0.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.8233870967741936,
+          "mean_seconds": 0.0017130915075540543
+        },
+        "window": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.964516129032258,
+            "ci95": [
+              0.8935483870967742,
+              1.0
+            ]
+          },
+          "precision": 1.0,
+          "recall": 0.964516129032258,
+          "f1": 0.9784313725490197,
+          "eps_error": 0.0953860592097044,
+          "eps_hat": 0.9046139407902956,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 5
+          },
+          "rho_counts": {
+            "0.0": 10
+          },
+          "segment_recall": 1.0,
+          "boundary": {
+            "matched": 10,
+            "mean": 4.2,
+            "median": 0.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.0,
+          "mean_seconds": 0.0010241732001304627
+        }
+      }
+    },
+    "switch": {
+      "histogram": {
+        "independent": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.6040393806970703,
+            "ci95": [
+              0.5294460397409015,
+              0.6652184911802559
+            ]
+          },
+          "precision": 0.8107051983988199,
+          "recall": 0.7,
+          "f1": 0.7464685370985552,
+          "eps_error": 0.05321081737356801,
+          "eps_hat": 0.5052071407437324,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.0": 10
+          },
+          "segment_recall": 0.9,
+          "boundary": {
+            "matched": 9,
+            "mean": 26.22222222222222,
+            "median": 28.5
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.0,
+          "mean_seconds": 0.0017139339819550515
+        },
+        "fixed_e": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.9034563624548925,
+            "ci95": [
+              0.788124121326911,
+              0.9654886407125215
+            ]
+          },
+          "precision": 0.9224638530915966,
+          "recall": 0.9546875,
+          "f1": 0.9381188113181608,
+          "eps_error": 0.016129032258064502,
+          "eps_hat": 0.5,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.8": 1,
+            "0.95": 9
+          },
+          "segment_recall": 1.0,
+          "boundary": {
+            "matched": 10,
+            "mean": 3.7,
+            "median": 1.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.38629032258064516,
+          "mean_seconds": 0.007777813635766506
+        },
+        "opt_hmm": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.9198133484162897,
+            "ci95": [
+              0.7904496606334842,
+              0.9891346153846154
+            ]
+          },
+          "precision": 0.9526208432090785,
+          "recall": 0.9375,
+          "f1": 0.9443240221868121,
+          "eps_error": 0.05321081737356801,
+          "eps_hat": 0.5052071407437324,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.8": 1,
+            "0.95": 9
+          },
+          "segment_recall": 0.9,
+          "boundary": {
+            "matched": 9,
+            "mean": 0.5555555555555556,
+            "median": 0.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.3870967741935484,
+          "mean_seconds": 0.008077814802527427
+        },
+        "fixed_rho": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.8978355476727234,
+            "ci95": [
+              0.7825051110539328,
+              0.9611458135075344
+            ]
+          },
+          "precision": 0.9168430383094275,
+          "recall": 0.9546875,
+          "f1": 0.9351576476659564,
+          "eps_error": 0.05321081737356801,
+          "eps_hat": 0.5052071407437324,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.95": 10
+          },
+          "segment_recall": 1.0,
+          "boundary": {
+            "matched": 10,
+            "mean": 3.85,
+            "median": 1.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.3919354838709677,
+          "mean_seconds": 0.0016728082671761512
+        },
+        "window": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.8688128300595432,
+            "ci95": [
+              0.769019241318222,
+              0.930634520920966
+            ]
+          },
+          "precision": 0.8873770495438226,
+          "recall": 0.959375,
+          "f1": 0.9216315129602384,
+          "eps_error": 0.05321081737356801,
+          "eps_hat": 0.5052071407437324,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.0": 10
+          },
+          "segment_recall": 1.0,
+          "boundary": {
+            "matched": 10,
+            "mean": 5.1,
+            "median": 3.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.0,
+          "mean_seconds": 0.001093251071870327
+        }
+      },
+      "beta": {
+        "independent": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.5476802930978536,
+            "ci95": [
+              0.5268635659517538,
+              0.5640630685311718
+            ]
+          },
+          "precision": 0.5638954385287082,
+          "recall": 0.9546875,
+          "f1": 0.7072343883310215,
+          "eps_error": 0.05082725147085805,
+          "eps_hat": 0.49855549037456515,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.0": 10
+          },
+          "segment_recall": 1.0,
+          "boundary": {
+            "matched": 10,
+            "mean": 10.95,
+            "median": 4.5
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.0,
+          "mean_seconds": 0.0017198510468006134
+        },
+        "fixed_e": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.89662237928757,
+            "ci95": [
+              0.7941520659488366,
+              0.9556460674112314
+            ]
+          },
+          "precision": 0.9118615518796839,
+          "recall": 0.9640625,
+          "f1": 0.9371483758687923,
+          "eps_error": 0.016129032258064502,
+          "eps_hat": 0.5,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.8": 1,
+            "0.95": 9
+          },
+          "segment_recall": 1.0,
+          "boundary": {
+            "matched": 10,
+            "mean": 4.1,
+            "median": 2.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.3911290322580645,
+          "mean_seconds": 0.007968266867101193
+        },
+        "opt_hmm": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.9049907718558515,
+            "ci95": [
+              0.7882101576201467,
+              0.9685574595144393
+            ]
+          },
+          "precision": 0.9239982624925556,
+          "recall": 0.9546875,
+          "f1": 0.9388934671611638,
+          "eps_error": 0.05082725147085805,
+          "eps_hat": 0.49855549037456515,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.8": 1,
+            "0.95": 9
+          },
+          "segment_recall": 1.0,
+          "boundary": {
+            "matched": 10,
+            "mean": 3.75,
+            "median": 1.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.392741935483871,
+          "mean_seconds": 0.00782209262251854
+        },
+        "fixed_rho": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.6941136882311651,
+            "ci95": [
+              0.646980669880265,
+              0.7350524340830515
+            ]
+          },
+          "precision": 0.7010555060084485,
+          "recall": 0.98125,
+          "f1": 0.8170678774787288,
+          "eps_error": 0.05082725147085805,
+          "eps_hat": 0.49855549037456515,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.95": 10
+          },
+          "segment_recall": 1.0,
+          "boundary": {
+            "matched": 10,
+            "mean": 8.6,
+            "median": 6.5
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.3991935483870968,
+          "mean_seconds": 0.001767750456929207
+        },
+        "window": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.8587112628463197,
+            "ci95": [
+              0.7892082333980848,
+              0.8979672431727226
+            ]
+          },
+          "precision": 0.8635808280637111,
+          "recall": 0.9875,
+          "f1": 0.920309331087096,
+          "eps_error": 0.05082725147085805,
+          "eps_hat": 0.49855549037456515,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.0": 10
+          },
+          "segment_recall": 1.0,
+          "boundary": {
+            "matched": 10,
+            "mean": 5.75,
+            "median": 4.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.0,
+          "mean_seconds": 0.0011051397770643235
+        }
+      }
+    },
+    "resample_0.1": {
+      "histogram": {
+        "independent": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.6269424746881216,
+            "ci95": [
+              0.5610618534088696,
+              0.6875553020403739
+            ]
+          },
+          "precision": 0.847144108486811,
+          "recall": 0.7220354918704459,
+          "f1": 0.7656411140412308,
+          "eps_error": 0.07726810990322022,
+          "eps_hat": 0.5537174448370934,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.0": 10
+          },
+          "segment_recall": 0.8144841269841271,
+          "boundary": {
+            "matched": 65,
+            "mean": 2.4615384615384617,
+            "median": 1.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.0,
+          "mean_seconds": 0.0017216021195054054
+        },
+        "fixed_e": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.7409111610962279,
+            "ci95": [
+              0.702164816925998,
+              0.7734587649107251
+            ]
+          },
+          "precision": 0.7972430483888301,
+          "recall": 0.9158691353547257,
+          "f1": 0.8498756340320943,
+          "eps_error": 0.1032258064516129,
+          "eps_hat": 0.5,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.5": 4,
+            "0.8": 6
+          },
+          "segment_recall": 0.8666666666666666,
+          "boundary": {
+            "matched": 69,
+            "mean": 3.3115942028985508,
+            "median": 1.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.09919354838709678,
+          "mean_seconds": 0.007955246046185494
+        },
+        "opt_hmm": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.7407080090577595,
+            "ci95": [
+              0.6584643116222096,
+              0.8113588870776117
+            ]
+          },
+          "precision": 0.9518297925228495,
+          "recall": 0.7741134677344694,
+          "f1": 0.8448576022588009,
+          "eps_error": 0.07726810990322022,
+          "eps_hat": 0.5537174448370934,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.5": 5,
+            "0.8": 5
+          },
+          "segment_recall": 0.713095238095238,
+          "boundary": {
+            "matched": 57,
+            "mean": 2.3596491228070176,
+            "median": 0.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.1032258064516129,
+          "mean_seconds": 0.00794992335140705
+        },
+        "fixed_rho": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.7084355168092665,
+            "ci95": [
+              0.6776361304594346,
+              0.7356134968365297
+            ]
+          },
+          "precision": 0.7659288897476825,
+          "recall": 0.9113867762815738,
+          "f1": 0.8284162316238287,
+          "eps_error": 0.07726810990322022,
+          "eps_hat": 0.5537174448370934,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.95": 10
+          },
+          "segment_recall": 0.8194444444444444,
+          "boundary": {
+            "matched": 65,
+            "mean": 8.930769230769231,
+            "median": 2.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.27822580645161293,
+          "mean_seconds": 0.0016654172912240028
+        },
+        "window": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.5931227558345424,
+            "ci95": [
+              0.5133121123437376,
+              0.6453352451716776
+            ]
+          },
+          "precision": 0.6974407752355768,
+          "recall": 0.8082830292686225,
+          "f1": 0.7373091276959145,
+          "eps_error": 0.07726810990322022,
+          "eps_hat": 0.5537174448370934,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.0": 10
+          },
+          "segment_recall": 0.6325396825396826,
+          "boundary": {
+            "matched": 50,
+            "mean": 16.54,
+            "median": 6.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.0,
+          "mean_seconds": 0.0010938391089439393
+        }
+      },
+      "beta": {
+        "independent": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.6209906208597891,
+            "ci95": [
+              0.5921560709939035,
+              0.6449174880037633
+            ]
+          },
+          "precision": 0.6457938464865391,
+          "recall": 0.9474927189310108,
+          "f1": 0.7652454522175359,
+          "eps_error": 0.08173469273794083,
+          "eps_hat": 0.5406062424182891,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.0": 10
+          },
+          "segment_recall": 0.976388888888889,
+          "boundary": {
+            "matched": 78,
+            "mean": 16.884615384615383,
+            "median": 3.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.0,
+          "mean_seconds": 0.001710832305252552
+        },
+        "fixed_e": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.6977612206162538,
+            "ci95": [
+              0.6683625035447058,
+              0.7254173886554163
+            ]
+          },
+          "precision": 0.7343388121287665,
+          "recall": 0.9366623640215994,
+          "f1": 0.821118903648431,
+          "eps_error": 0.1032258064516129,
+          "eps_hat": 0.5,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.5": 4,
+            "0.8": 6
+          },
+          "segment_recall": 0.9041666666666668,
+          "boundary": {
+            "matched": 72,
+            "mean": 4.798611111111111,
+            "median": 2.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.09758064516129032,
+          "mean_seconds": 0.007860285229980946
+        },
+        "opt_hmm": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.7233523330008321,
+            "ci95": [
+              0.6892768428427005,
+              0.7514258743341558
+            ]
+          },
+          "precision": 0.7784085888392476,
+          "recall": 0.9160126229518827,
+          "f1": 0.8384201748438039,
+          "eps_error": 0.08173469273794083,
+          "eps_hat": 0.5406062424182891,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.5": 5,
+            "0.8": 5
+          },
+          "segment_recall": 0.8430555555555556,
+          "boundary": {
+            "matched": 67,
+            "mean": 4.231343283582089,
+            "median": 1.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.10887096774193547,
+          "mean_seconds": 0.007817882113158703
+        },
+        "fixed_rho": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.6124248358914095,
+            "ci95": [
+              0.581356799692942,
+              0.6395555010735371
+            ]
+          },
+          "precision": 0.6231152341845755,
+          "recall": 0.9715586434038957,
+          "f1": 0.7585364344638577,
+          "eps_error": 0.08173469273794083,
+          "eps_hat": 0.5406062424182891,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.95": 10
+          },
+          "segment_recall": 0.9277777777777778,
+          "boundary": {
+            "matched": 74,
+            "mean": 35.7972972972973,
+            "median": 22.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.26693548387096777,
+          "mean_seconds": 0.001735842414200306
+        },
+        "window": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.6082976862024749,
+            "ci95": [
+              0.5357457141631086,
+              0.658751173189744
+            ]
+          },
+          "precision": 0.6655020141237825,
+          "recall": 0.8738832809441425,
+          "f1": 0.7504507729007411,
+          "eps_error": 0.08173469273794083,
+          "eps_hat": 0.5406062424182891,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.0": 10
+          },
+          "segment_recall": 0.7579365079365079,
+          "boundary": {
+            "matched": 60,
+            "mean": 24.233333333333334,
+            "median": 8.5
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.0,
+          "mean_seconds": 0.0011108042672276497
+        }
+      }
+    },
+    "resample_0.3": {
+      "histogram": {
+        "independent": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.42198493736498505,
+            "ci95": [
+              0.35728393286357696,
+              0.49104537968967577
+            ]
+          },
+          "precision": 0.7249565863936676,
+          "recall": 0.5139118335368335,
+          "f1": 0.5853795349916203,
+          "eps_error": 0.04640322767438427,
+          "eps_hat": 0.20897879973053932,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.0": 10
+          },
+          "segment_recall": 0.5682539682539682,
+          "boundary": {
+            "matched": 35,
+            "mean": 1.5714285714285714,
+            "median": 0.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.0,
+          "mean_seconds": 0.0017254410311579704
+        },
+        "fixed_e": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.42080576104793366,
+            "ci95": [
+              0.2565542560696735,
+              0.5846514544437218
+            ]
+          },
+          "precision": 0.46685117373835416,
+          "recall": 0.6624387464387465,
+          "f1": 0.5390723835233155,
+          "eps_error": 0.28387096774193543,
+          "eps_hat": 0.5,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.8": 5,
+            "0.9": 2,
+            "0.98": 1,
+            "0.99": 2
+          },
+          "segment_recall": 0.5869047619047618,
+          "boundary": {
+            "matched": 35,
+            "mean": 1.7571428571428571,
+            "median": 1.0
+          },
+          "detect_M": {
+            "count": 8,
+            "n": 10,
+            "rate": 0.8,
+            "wilson95": [
+              0.49016247153664183,
+              0.9433178485456247
+            ]
+          },
+          "detect_P": {
+            "count": 8,
+            "n": 10,
+            "rate": 0.8,
+            "wilson95": [
+              0.49016247153664183,
+              0.9433178485456247
+            ]
+          },
+          "posterior_saturation": 0.06048387096774192,
+          "mean_seconds": 0.007846069149672985
+        },
+        "opt_hmm": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.4605513260685675,
+            "ci95": [
+              0.3113891065830722,
+              0.6186022789471066
+            ]
+          },
+          "precision": 0.7563736263736265,
+          "recall": 0.50206512006512,
+          "f1": 0.5915281140004263,
+          "eps_error": 0.04640322767438427,
+          "eps_hat": 0.20897879973053932,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.0": 2,
+            "0.5": 7,
+            "0.98": 1
+          },
+          "segment_recall": 0.4587301587301587,
+          "boundary": {
+            "matched": 27,
+            "mean": 0.6851851851851852,
+            "median": 0.0
+          },
+          "detect_M": {
+            "count": 9,
+            "n": 10,
+            "rate": 0.9,
+            "wilson95": [
+              0.5958499732047616,
+              0.982123786904927
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.05,
+          "mean_seconds": 0.0078058125451207164
+        },
+        "fixed_rho": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.45082780258703653,
+            "ci95": [
+              0.35705590545645266,
+              0.5774197461225503
+            ]
+          },
+          "precision": 0.7234183463595227,
+          "recall": 0.580996336996337,
+          "f1": 0.6025059304086742,
+          "eps_error": 0.04640322767438427,
+          "eps_hat": 0.20897879973053932,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.95": 10
+          },
+          "segment_recall": 0.4656746031746032,
+          "boundary": {
+            "matched": 27,
+            "mean": 1.7222222222222223,
+            "median": 1.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 8,
+            "n": 10,
+            "rate": 0.8,
+            "wilson95": [
+              0.49016247153664183,
+              0.9433178485456247
+            ]
+          },
+          "posterior_saturation": 0.04112903225806451,
+          "mean_seconds": 0.0016689864918589593
+        },
+        "window": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.2010481178348999,
+            "ci95": [
+              0.0830661940865324,
+              0.38096812889299114
+            ]
+          },
+          "precision": 0.5012521008403362,
+          "recall": 0.24205779405779407,
+          "f1": 0.2800671575562714,
+          "eps_error": 0.04640322767438427,
+          "eps_hat": 0.20897879973053932,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.0": 10
+          },
+          "segment_recall": 0.18571428571428567,
+          "boundary": {
+            "matched": 7,
+            "mean": 3.0714285714285716,
+            "median": 2.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 9,
+            "n": 10,
+            "rate": 0.9,
+            "wilson95": [
+              0.5958499732047616,
+              0.982123786904927
+            ]
+          },
+          "posterior_saturation": 0.0,
+          "mean_seconds": 0.0010850105434656143
+        }
+      },
+      "beta": {
+        "independent": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.39281551954447863,
+            "ci95": [
+              0.34403232835264397,
+              0.44272546687071795
+            ]
+          },
+          "precision": 0.5357509881422925,
+          "recall": 0.6509238909238909,
+          "f1": 0.5591433217830231,
+          "eps_error": 0.06117225801271777,
+          "eps_hat": 0.1859996497631073,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.0": 10
+          },
+          "segment_recall": 0.7057539682539682,
+          "boundary": {
+            "matched": 45,
+            "mean": 1.3555555555555556,
+            "median": 0.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.0,
+          "mean_seconds": 0.001694263517856598
+        },
+        "fixed_e": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.41784429400386847,
+            "ci95": [
+              0.2665061814958092,
+              0.5757115328820116
+            ]
+          },
+          "precision": 0.5493230252447496,
+          "recall": 0.6926821326821326,
+          "f1": 0.5408643284736921,
+          "eps_error": 0.28387096774193543,
+          "eps_hat": 0.5,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.8": 3,
+            "0.9": 4,
+            "0.98": 1,
+            "0.99": 2
+          },
+          "segment_recall": 0.6154761904761904,
+          "boundary": {
+            "matched": 37,
+            "mean": 1.8243243243243243,
+            "median": 1.0
+          },
+          "detect_M": {
+            "count": 9,
+            "n": 10,
+            "rate": 0.9,
+            "wilson95": [
+              0.5958499732047616,
+              0.982123786904927
+            ]
+          },
+          "detect_P": {
+            "count": 8,
+            "n": 10,
+            "rate": 0.8,
+            "wilson95": [
+              0.49016247153664183,
+              0.9433178485456247
+            ]
+          },
+          "posterior_saturation": 0.06209677419354838,
+          "mean_seconds": 0.007872743345797063
+        },
+        "opt_hmm": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.523023898196312,
+            "ci95": [
+              0.4185259509009509,
+              0.6477932543191165
+            ]
+          },
+          "precision": 0.6481951724071289,
+          "recall": 0.7452120472120473,
+          "f1": 0.6686369503932121,
+          "eps_error": 0.06117225801271777,
+          "eps_hat": 0.1859996497631073,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.0": 2,
+            "0.5": 7,
+            "0.98": 1
+          },
+          "segment_recall": 0.7259920634920636,
+          "boundary": {
+            "matched": 46,
+            "mean": 0.7282608695652174,
+            "median": 0.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "posterior_saturation": 0.05241935483870967,
+          "mean_seconds": 0.007821699418127537
+        },
+        "fixed_rho": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.344342706623386,
+            "ci95": [
+              0.2960457021706268,
+              0.40938162338091405
+            ]
+          },
+          "precision": 0.3593284859493299,
+          "recall": 0.9035148555148556,
+          "f1": 0.5056671776111793,
+          "eps_error": 0.06117225801271777,
+          "eps_hat": 0.1859996497631073,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.95": 10
+          },
+          "segment_recall": 0.8291666666666666,
+          "boundary": {
+            "matched": 54,
+            "mean": 4.935185185185185,
+            "median": 3.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 7,
+            "n": 10,
+            "rate": 0.7,
+            "wilson95": [
+              0.39677814746114537,
+              0.8922087325936989
+            ]
+          },
+          "posterior_saturation": 0.03870967741935484,
+          "mean_seconds": 0.0017066657543182372
+        },
+        "window": {
+          "articles": 10,
+          "positive_articles": 10,
+          "iou": {
+            "mean": 0.26340859882204726,
+            "ci95": [
+              0.15020409429280396,
+              0.4243424660868437
+            ]
+          },
+          "precision": 0.49718686922170985,
+          "recall": 0.354035816035816,
+          "f1": 0.3743899139551313,
+          "eps_error": 0.06117225801271777,
+          "eps_hat": 0.1859996497631073,
+          "eps_endpoint": {
+            "at_0": 0,
+            "at_1": 0
+          },
+          "rho_counts": {
+            "0.0": 10
+          },
+          "segment_recall": 0.26468253968253963,
+          "boundary": {
+            "matched": 13,
+            "mean": 3.076923076923077,
+            "median": 2.0
+          },
+          "detect_M": {
+            "count": 10,
+            "n": 10,
+            "rate": 1.0,
+            "wilson95": [
+              0.7224672001371109,
+              1.0
+            ]
+          },
+          "detect_P": {
+            "count": 7,
+            "n": 10,
+            "rate": 0.7,
+            "wilson95": [
+              0.39677814746114537,
+              0.8922087325936989
+            ]
+          },
+          "posterior_saturation": 0.0,
+          "mean_seconds": 0.0011233096942305566
+        }
+      }
+    }
+  },
+  "warnings": []
+}
