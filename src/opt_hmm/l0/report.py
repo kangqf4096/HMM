@@ -33,13 +33,14 @@ def ordered_rows(by_emission):
 
 def scenario_table(scenario, by_emission):
     lines = [f"### {scenario}", "",
-             "| 方法 / 发射 | IoU [95% CI] | P | R | F1 | ε误差 | any-FP(M) | 检出(M) | any-FP(P) | 检出(P) |",
-             "|---|---|---:|---:|---:|---:|---|---|---|---|"]
+             "| 方法 / 发射 | IoU(M) [95% CI] | IoU(P) | P(M) | R(M) | F1(M) | ε误差 | any-FP(M) | 检出(M) | any-FP(P) | 检出(P) |",
+             "|---|---|---|---:|---:|---:|---:|---|---|---|---|"]
     for e, m, c in ordered_rows(by_emission):
         lo, hi = c["iou"]["ci95"]
-        lines.append(f"| {m} / {EMISSION_LABEL[e]} | {num(c['iou']['mean'])} [{num(lo)}, {num(hi)}] | {num(c['precision'])} | "
-                     f"{num(c['recall'])} | {num(c['f1'])} | {num(c['eps_error'])} | {rate_cell(c.get('any_fp_M'))} | "
-                     f"{rate_cell(c['detect_M'])} | {rate_cell(c.get('any_fp_P'))} | {rate_cell(c['detect_P'])} |")
+        lines.append(f"| {m} / {EMISSION_LABEL[e]} | {num(c['iou']['mean'])} [{num(lo)}, {num(hi)}] | {num(c['iou_P']['mean'])} | "
+                     f"{num(c['precision'])} | {num(c['recall'])} | {num(c['f1'])} | {num(c['eps_error'])} | "
+                     f"{rate_cell(c.get('any_fp_M'))} | {rate_cell(c['detect_M'])} | "
+                     f"{rate_cell(c.get('any_fp_P'))} | {rate_cell(c['detect_P'])} |")
     return lines + [""]
 
 
@@ -70,7 +71,8 @@ def render(report):
     add(["## 规则 P 与 M 的关系（偏离计划处）", "",
          "计划写“同一 γ 场、同一 τ”。若 P 的逐位置阈值取 M 用的 τ（null 上 max γ 的 1−α 分位），则 `p̂ > 0` 与 `max γ > τ` 完全等价，"
          "且 q 是一个大部分为 0 的统计量的分位数（= 0），P 退化为 M。因此 P 的逐位置阈值单独取 "
-         f"`fraction_tau` = {cfg.get('fraction_tau')}（posterior 0.5，G2 冻结），q 仍在 null_cal 上校准；定位 B 的标红仍用 τ。", "",
+         f"`fraction_tau` = {cfg.get('fraction_tau')}（posterior 0.5，G2 冻结），q 仍在 null_cal 上校准。"
+         "P 的标红位置由 `fraction_tau` 单独生成，与 M 的 tau 标红分开评分（见表中 IoU(P) 列）。", "",
          f"- 对照检查（test + null_test，共 {eq['rows']} 行 = 文章 × 方法 × 发射）：同 τ 版本 P_same 与 M 一致的比例 = {num(eq['P_same_equals_M'], 4)}；"
          f"正式 P 与 M 不一致的比例 = {num(eq['P_differs_from_M'], 4)}。", ""])
     add(["## 真值（truth = S \\ B）", "", "| 场景 | 文章 | ε_true 均值 | 最小 | 最大 | 无存活信号文章 |", "|---|---:|---:|---:|---:|---:|"])
@@ -80,7 +82,9 @@ def render(report):
     add(["", "resample 实际编辑量（请求 = int(rate·n)；可编辑 = 熵 ≥ min_entropy 的位置数之和）：", "",
          f"`{report['manifest']['edit_summary']}`", ""])
     add(["## 主表（test，按场景）", "", "IoU = 位置集合的 Jaccard，仅对有存活信号的文章平均并按文章 bootstrap；"
-         "any-FP 来自 null_test（括号为 Wilson 95%）；P 为 0 表示未标出任何位置。", ""])
+         "any-FP 来自 null_test（括号为 Wilson 95%）。P(M)/R(M)/F1(M) 是规则 M 的标红位置（gamma > tau）的精确率/召回率，"
+         "为 0 表示没有标中任何真值位置；IoU(P) 是规则 P 自己标红（gamma > fraction_tau）的 IoU。"
+         "null_test 在四个场景间共用同一批文章，any-FP 不是四次独立测量。", ""])
     for s in TEST_SCENARIOS:
         if s in report["summary"]:
             add(scenario_table(s, report["summary"][s]))
@@ -89,16 +93,19 @@ def render(report):
         if s in report["summary"]:
             add(segment_table(s, report["summary"][s]))
     add(["## 连续性增益判定", "", "口径：opt_hmm 的 IoU 对四个对照（independent / fixed_e / fixed_rho / window，同发射轴）"
-         "的配对 bootstrap 差值 95% CI 下界均 ≥ 0，且 any-FP ≤ α。达不到即“本次数据未显示增益”，不调参。", "",
+         "的配对 bootstrap 差值 95% CI 下界均 ≥ 0，且 any-FP ≤ α。M 与 P 各自使用自己的标红位置"
+         "（M 为 gamma > tau，P 为 gamma > fraction_tau），因此两列的 IoU 与 any-FP 都是对应规则自己的。"
+         "达不到即“本次数据未显示增益”，不调参。", "",
          "| 场景 | 发射 | " + " | ".join(f"Δ vs {c}" for c in ("independent", "fixed_e", "fixed_rho", "window"))
-         + " | IoU 不低于所有对照 | any-FP(M)≤α | any-FP(P)≤α | 增益(M) | 增益(P) |", "|---|---|---|---|---|---|---|---|---|---|---|"])
+         + " | IoU 不低于所有对照 | any-FP(M)≤α | any-FP(P)≤α | IoU(P) 不低于所有对照 | 增益(M) | 增益(P) |",
+         "|---|---|---|---|---|---|---|---|---|---|---|---|"])
     for s, by_emission in report["gain"].items():
         for e, g in by_emission.items():
             diffs = " | ".join(f"{num(d['mean'])} [{num(d['ci95'][0])}, {num(d['ci95'][1])}]"
                                for d in (g["paired_iou_diff_vs"].get(c) or {"mean": None, "ci95": [None, None]}
                                          for c in ("independent", "fixed_e", "fixed_rho", "window")))
             add([f"| {s} | {EMISSION_LABEL[e]} | {diffs} | {g['iou_not_below_any_control']} | {g.get('any_fp_M_within_alpha')} | "
-                 f"{g.get('any_fp_P_within_alpha')} | {g.get('gain_M')} | {g.get('gain_P')} |"])
+                 f"{g.get('any_fp_P_within_alpha')} | {g.get('iou_not_below_any_control_P')} | {g.get('gain_M')} | {g.get('gain_P')} |"])
     add(["", "## 参数诊断（opt_hmm）", "", "| 场景 | 发射 | ε̂ 均值 | ε̂=0 | ε̂=1 | ρ̂ 计数 |", "|---|---|---:|---:|---:|---|"])
     for s, by_emission in report["summary"].items():
         for e, by_method in by_emission.items():

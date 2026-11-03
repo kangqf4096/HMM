@@ -13,7 +13,7 @@ from ..io import new_output, provenance, read_json, read_jsonl, write_json, writ
 from ..paths import project_path
 from ..progress import progress
 from .config import validate_l0
-from .decide import build_rules, decide, rules_from_dict, rules_to_dict
+from .decide import build_rules, decide, p_labels, rules_from_dict, rules_to_dict
 from .diagnose import boundedness, split_half
 from .emission import describe, fit_emission
 from .metrics import (auc, bootstrap_ci, bootstrap_indices, boundary_summary, mean_or_none,
@@ -59,12 +59,15 @@ def score(articles, results, rules, context_width):
         for a, det in zip(articles, detections):
             labels, d = decide(det.scores, a["n_eff"], rules[key])
             segments = segment_report(a["truth"], labels)
+            under_p = position_metrics(a["truth"], p_labels(det.scores, a["n_eff"], rules[key]))
             rows.append({
                 "article_id": a["id"], "split": a["split"], "scenario": a["scenario"],
                 "emission": emission, "method": method, "n_eff": a["n_eff"],
                 "eps_true": a["eps_true"], "eps_hat": det.epsilon, "eps_error": abs(det.epsilon - a["eps_true"]),
                 "eps_endpoint": det.epsilon in (0., 1.), "rho": det.rho, "identifiable": det.identifiable,
                 "saturated": float((det.scores > SATURATION).mean()), "seconds": det.seconds,
+                "P_iou": under_p["iou"], "P_precision": under_p["precision"],
+                "P_recall": under_p["recall"], "P_f1": under_p["f1"],
                 **d, **position_metrics(a["truth"], labels),
                 **{k: segments[k] for k in ("true_segments", "predicted_segments", "recalled_segments",
                                             "segment_recall", "boundary_errors")},
@@ -80,9 +83,13 @@ def cell(rows, null_rows, indices):
     positive = [r for r in rows if r["signal_count"] > 0]
     out = {"articles": len(rows), "positive_articles": len(positive),
            "iou": bootstrap_ci([r["iou"] for r in positive], indices) if positive else {"mean": None, "ci95": [None, None]},
+           "iou_P": bootstrap_ci([r["P_iou"] for r in positive], indices) if positive else {"mean": None, "ci95": [None, None]},
            "precision": mean_or_none([r["precision"] for r in positive]),
            "recall": mean_or_none([r["recall"] for r in positive]),
            "f1": mean_or_none([r["f1"] for r in positive]),
+           "precision_P": mean_or_none([r["P_precision"] for r in positive]),
+           "recall_P": mean_or_none([r["P_recall"] for r in positive]),
+           "f1_P": mean_or_none([r["P_f1"] for r in positive]),
            "eps_error": mean_or_none([r["eps_error"] for r in rows]),
            "eps_hat": mean_or_none([r["eps_hat"] for r in rows]),
            "eps_endpoint": {"at_0": sum(r["eps_hat"] == 0. for r in rows), "at_1": sum(r["eps_hat"] == 1. for r in rows)},
@@ -134,14 +141,20 @@ def aggregate(rows, null_rows, config, scenarios=TEST_SCENARIOS, seed=42):
                    for m in summary[scenario][emission]}
             diffs = {c: paired_difference(iou["opt_hmm"], iou[c], indices)
                      for c in CONTROLS if c in iou}
+            iou_p = {m: [r["P_iou"] for r in index[(scenario, emission, m)] if r["signal_count"] > 0]
+                     for m in summary[scenario][emission]}
+            diffs_p = {c: paired_difference(iou_p["opt_hmm"], iou_p[c], indices)
+                       for c in CONTROLS if c in iou_p}
             no_worse = all(d["ci95"][0] >= 0 for d in diffs.values())
+            no_worse_p = all(d["ci95"][0] >= 0 for d in diffs_p.values())
             fp = summary[scenario][emission]["opt_hmm"]
-            entry = {"paired_iou_diff_vs": diffs, "iou_not_below_any_control": no_worse}
+            entry = {"paired_iou_diff_vs": diffs, "iou_not_below_any_control": no_worse,
+                     "paired_iou_diff_vs_P": diffs_p, "iou_not_below_any_control_P": no_worse_p}
             if "any_fp_M" in fp:
                 entry["any_fp_M_within_alpha"] = fp["any_fp_M"]["rate"] <= config["alpha"]
                 entry["any_fp_P_within_alpha"] = fp["any_fp_P"]["rate"] <= config["alpha"]
                 entry["gain_M"] = no_worse and entry["any_fp_M_within_alpha"]
-                entry["gain_P"] = no_worse and entry["any_fp_P_within_alpha"]
+                entry["gain_P"] = no_worse_p and entry["any_fp_P_within_alpha"]
             gain[scenario][emission] = entry
     return {"summary": summary, "gain": gain, "document_auc": auc_table}
 
@@ -273,7 +286,8 @@ def check_nonempty(report):
     for scenario, by_emission in report["summary"].items():
         for emission, by_method in by_emission.items():
             for method, c in by_method.items():
-                values = {"iou": c["iou"]["mean"], "precision": c["precision"], "recall": c["recall"], "f1": c["f1"],
+                values = {"iou": c["iou"]["mean"], "iou_P": c["iou_P"]["mean"],
+                          "precision": c["precision"], "recall": c["recall"], "f1": c["f1"],
                           "eps_error": c["eps_error"], "any_fp_M": c["any_fp_M"]["rate"], "detect_M": c["detect_M"]["rate"],
                           "any_fp_P": c["any_fp_P"]["rate"], "detect_P": c["detect_P"]["rate"]}
                 missing += [f"{scenario}/{emission}/{method}/{name}" for name, v in values.items() if v is None]

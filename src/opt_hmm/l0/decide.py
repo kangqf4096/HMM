@@ -5,6 +5,11 @@ the same tau calibrated on the null maximum, then fraction > 0 holds exactly whe
 max > tau, and q (the 95th null percentile of a mostly-zero statistic) is 0, so P
 would be M again. fraction_tau therefore defaults to a separate posterior cut-off;
 the "same" variant is always computed as P_same and reported as an equivalence check.
+
+Because the two rules use different per-position cut-offs, they mark different
+positions: `decide` returns rule M's labels for localization and `p_labels` returns
+rule P's. Both sets are scored so that "gain under P" is a claim about P's own
+localization rather than a relabelled copy of M's.
 """
 from dataclasses import asdict
 
@@ -47,14 +52,25 @@ def build_rules(null_items, config):
     return rules
 
 
+def p_cutoff(rules, n_eff):
+    """Per-position cutoff used by rule P: the frozen fraction_tau, or tau itself when 'same'."""
+    cut = rules["tau_fraction"]
+    return lookup(rules["M"], n_eff).value if cut == "same" else float(cut)
+
+
+def p_labels(scores, n_eff, rules):
+    """Positions flagged under rule P. Rule M flags `scores > tau`; P flags `scores > fraction_tau`."""
+    return np.asarray(scores, float) > p_cutoff(rules, n_eff)
+
+
 def decide(scores, n_eff, rules):
-    """Return flagged positions (shared by M and P and by localization) and both document decisions."""
+    """Return rule-M flagged positions and both document decisions; rule P flags its own positions."""
     scores = np.asarray(scores, float)
     tau = lookup(rules["M"], n_eff).value
     labels = scores > tau
+    labels_p = labels if rules["tau_fraction"] == "same" else scores > rules["tau_fraction"]
     fraction_same = float(labels.mean())
-    cut = rules["tau_fraction"]
-    fraction = fraction_same if cut == "same" else float((scores > cut).mean())
+    fraction = float(labels_p.mean())
     return labels, {"max_score": float(scores.max()), "fraction": fraction, "tau": tau,
                     "M": bool(scores.max() > tau),
                     "P": bool(fraction > lookup(rules["P"], n_eff).value),

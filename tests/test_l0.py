@@ -12,7 +12,7 @@ sys.path.insert(0, str(root / "src"))
 from opt_hmm.io import read_json, read_jsonl
 from opt_hmm.l0.build import build
 from opt_hmm.l0.config import validate_l0
-from opt_hmm.l0.decide import build_rules, decide, lookup
+from opt_hmm.l0.decide import build_rules, decide, lookup, p_labels
 from opt_hmm.l0.emission import fit_emission, integral_mass
 from opt_hmm.l0.evaluate import evaluate_positions
 from opt_hmm.l0.generate import plan_jobs, source_record
@@ -180,6 +180,14 @@ class RuleTests(unittest.TestCase):
         self.assertIs(lookup(rules["M"], 60), rules["M"]["pooled"])
         self.assertIs(rules["P"], rules["P_same"])
 
+    def test_rule_p_marks_its_own_positions_at_fraction_tau(self):
+        scores = np.array([.1, .4, .6, .9])
+        config = {"alpha": .05, "fraction_tau": .5, "min_group_size": 100}
+        rules = build_rules(self.null_items(), config)
+        np.testing.assert_array_equal(p_labels(scores, 124, rules), [False, False, True, True])
+        same = build_rules(self.null_items(), {"alpha": .05, "fraction_tau": "same", "min_group_size": 100})
+        np.testing.assert_array_equal(p_labels(scores, 124, same), scores > lookup(same["M"], 124).value)
+
 
 class MetricTests(unittest.TestCase):
     def test_position_metrics(self):
@@ -319,6 +327,19 @@ class ToyPipelineTests(unittest.TestCase):
         self.assertTrue((self.base / "eval/frozen.json").is_file())
         text = (self.base / "eval/report.md").read_text(encoding="utf-8")
         self.assertIn("玩具语言模型", text)
+        self.assertIn("IoU(P)", text)
+
+    def test_rules_m_and_p_score_their_own_positions(self):
+        report = read_json(self.base / "eval/report.json")
+        for scenario, by_emission in report["summary"].items():
+            for emission, by_method in by_emission.items():
+                for method, c in by_method.items():
+                    label = f"{scenario}/{emission}/{method}"
+                    self.assertIsNotNone(c["iou_P"]["mean"], label)
+                    self.assertIsNotNone(c["f1_P"], label)
+        gain = report["gain"]["switch"][next(iter(report["summary"]["switch"]))]
+        self.assertIn("iou_not_below_any_control_P", gain)
+        self.assertEqual(gain["gain_P"], gain["iou_not_below_any_control_P"] and gain["any_fp_P_within_alpha"])
 
     def test_frozen_thresholds_are_the_ones_used(self):
         frozen = read_json(self.base / "eval/frozen.json")
