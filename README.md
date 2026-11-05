@@ -149,6 +149,16 @@ pilot 使用相同的三步，只把配置替换为 configs/text_pilot.json，�
 
 当前没有实现条件发射、非齐次 HMM、HSMM、自由 Baum-Welch 或外部 SPOT/变点基线。它们需要在基础结果明确后分别加入。
 
+## 结果索引
+
+本轮 L0（1,050 篇、4 场景 × 2 发射 × 5 方法）的可提交产物都在 [`results/`](results/README.md)：
+主表与判读、P 口径重评、离线诊断（重校准误报分布、τ 原子、等误报工作点、ρ 变体）、cap 失效附录、
+生成元数据。一句话结论：**连续性有效（switch +0.295），「逐篇估 ε / 逐篇选 ρ」无可检出增益，
+预注册判据下 8 格全灭，其中 2 格只卡误报点估计**。
+
+原始逐位置数据（`runs/l0full0-pos/positions.jsonl`）体积大、不进版本库，取用方式与校验值见
+[`results/README.md`](results/README.md) §3。
+
 ## 已验证范围与来源
 
 本地 CPU 验证记录见 [docs/validation.md](docs/validation.md)。Windows 本机没有 vLLM/PyTorch 和模型权重，真实 CUDA 生成与 V0 callable 验收由服务器运行 check-runtime 和 smoke.sh 完成。不能把本地模拟通过解释为真实水印协议已通过 GPU 实验。

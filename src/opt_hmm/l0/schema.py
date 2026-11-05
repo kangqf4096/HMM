@@ -3,9 +3,14 @@ import numpy as np
 
 from ..protocol import extract_pivots
 
-SPLITS = ("calibration", "dev", "test", "null_cal", "null_test", "pool")
+SPLITS = ("calibration", "dev", "test", "null_cal", "null_test", "pool",
+          "calibration2", "mixed_cal", "dev2", "test_seg")
 TEST_SCENARIOS = ("full_wm", "switch", "resample_0.1", "resample_0.3")
-SCENARIOS = TEST_SCENARIOS + ("null",)
+SEG_SCENARIOS = ("seg2", "seg3", "seg4")
+MIXED_SCENARIOS = ("switch", "resample_0.1", "resample_0.3")
+ALL_SCENARIOS = TEST_SCENARIOS + SEG_SCENARIOS
+LOCALIZATION_SCENARIOS = ("switch", "resample_0.1", "resample_0.3") + SEG_SCENARIOS
+SCENARIOS = ALL_SCENARIOS + ("null",)
 FIELDS = ("article_id", "split", "scenario", "t", "token_id", "token", "Y",
           "truth", "edited", "dist_to_edit", "src_has_wm")
 
@@ -18,11 +23,39 @@ def scenario_for(split, index):
         return "null"
     if split in ("dev", "test"):
         return TEST_SCENARIOS[index % len(TEST_SCENARIOS)]
+    if split == "calibration2":
+        return "full_wm"
+    if split == "mixed_cal":
+        return MIXED_SCENARIOS[index % len(MIXED_SCENARIOS)]
+    if split in ("dev2", "test_seg"):
+        return SEG_SCENARIOS[index % len(SEG_SCENARIOS)]
     raise ValueError(f"No scenario for split {split!r}.")
 
 
 def resample_rate(scenario):
     return float(scenario.split("_", 1)[1]) if scenario.startswith("resample_") else None
+
+
+def scenario_ranges(scenario, config):
+    """Token ranges [start, stop) with the watermark rule on, for one scenario.
+
+    `switch` keeps int() truncation so L0 articles stay identical to l0full0; the segment
+    scenarios round to the nearest token (51.2 -> 51, 76.8 -> 77).
+    """
+    n = config["tokens"]
+    if scenario == "null":
+        return []
+    if scenario == "switch":
+        return [[int(a * n), int(b * n)] for a, b in config["switch_ranges"]]
+    if scenario in SEG_SCENARIOS:
+        return [[round(a * n), round(b * n)] for a, b in config["segment_ranges"][scenario]]
+    return [[0, n]]
+
+
+def switch_points(ranges, n):
+    """Interior boundaries between watermark and non-watermark runs (0 and n excluded)."""
+    mask = enabled_mask(n, ranges)
+    return [int(i) for i in np.flatnonzero(mask[1:] != mask[:-1]) + 1]
 
 
 def enabled_mask(n, ranges):

@@ -60,6 +60,12 @@ def main(argv=None):
     l0_evaluate.add_argument("--input", required=True, help="l0-build run directory")
     l0_evaluate.add_argument("--output", required=True)
     l0_evaluate.add_argument("--config", help="Optional JSON overriding evaluation-only settings (e.g. {\"cap\": null})")
+    l0_evaluate.add_argument("--stage", choices=["s1", "s2", "s3", "s3b", "s4"],
+                             help="L1 stage (plan_general_transition); without it the old L0 evaluation runs")
+    l0_evaluate.add_argument("--reuse-seedbs", help="Earlier L1 run directory whose seedbs_params.json is reused")
+    l0_evaluate.add_argument("--methods", nargs="+", help="Restrict an L1 stage to these methods")
+    l0_evaluate.add_argument("--param-star", help="Parametric family chosen at s3, for the s3b nocap run")
+    l0_evaluate.add_argument("--workers", type=int, default=1, help="Processes for the seedbs bootstrap")
     l0_synth = sub.add_parser("l0-synth", help="CPU pipeline test with a toy language model (not a result about OPT)")
     l0_synth.add_argument("--config", default="configs/text_l0_smoke.json")
     l0_synth.add_argument("--output", required=True)
@@ -85,8 +91,14 @@ def main(argv=None):
         from .l0.build import build as l0_build_positions
         result = l0_build_positions(args.input, args.output, model=args.model, device=args.device)
     elif args.command == "l0-evaluate":
-        from .l0.evaluate import evaluate_positions
-        result = evaluate_positions(args.input, args.output, read_json(args.config) if args.config else None)
+        override = read_json(args.config) if args.config else None
+        if args.stage:
+            from .l0.evaluate_v2 import run_stage
+            result = run_stage(args.input, args.output, args.stage, override, args.reuse_seedbs, args.workers,
+                               args.methods, args.param_star)
+        else:
+            from .l0.evaluate import evaluate_positions
+            result = evaluate_positions(args.input, args.output, override)
     elif args.command == "l0-synth":
         from .l0.build import build as l0_build_positions
         from .l0.evaluate import evaluate_positions

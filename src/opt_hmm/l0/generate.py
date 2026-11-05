@@ -9,14 +9,14 @@ from ..paths import project_path
 from ..progress import progress
 from ..protocol import PROTOCOL, PUBLIC_KEY, context_seed, generation_contexts, pivot
 from .config import validate_l0
-from .schema import scenario_for
+from .schema import scenario_for, scenario_ranges
 
 os.environ.setdefault("VLLM_USE_V1", "0")
 
 
 def plan_jobs(prompts, config):
     """One generation job per non-pool article; scenarios are fixed by role order."""
-    n, seen, jobs = config["tokens"], {}, []
+    seen, jobs = {}, []
     for doc in prompts:
         role = doc["role"]
         if role == "pool":
@@ -24,10 +24,7 @@ def plan_jobs(prompts, config):
         index = seen.get(role, 0)
         seen[role] = index + 1
         scenario = scenario_for(role, index)
-        if scenario == "switch":
-            ranges = [[int(a * n), int(b * n)] for a, b in config["switch_ranges"]]
-        else:
-            ranges = [] if scenario == "null" else [[0, n]]
+        ranges = scenario_ranges(scenario, config)
         jobs.append({"doc": doc, "scenario": scenario, "ranges": ranges})
     return jobs
 

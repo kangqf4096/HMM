@@ -5,11 +5,15 @@ from time import perf_counter
 import numpy as np
 
 from .emissions import check_pivots
-from .hmm import forward_backward, forward_log_likelihood
-from .proportion import estimate_proportion
+from .hmm import forward_backward, forward_backward_two_state, forward_log_likelihood
+from .proportion import Proportion, estimate_proportion
 
 DEFAULT_RHOS = (0., .5, .8, .9, .95, .98, .99)
 METHODS = ("independent", "fixed_e", "opt_hmm", "fixed_rho", "window")
+# Global-transition HMMs (A estimated by EM and frozen) and the old method with the eps_opt estimator.
+# Kept out of METHODS: the old L0 evaluation iterates METHODS.
+GENERAL_METHODS = ("pd", "pe", "p1", "p2")
+LI_METHODS = ("opt_hmm_li",)
 
 
 @dataclass
@@ -21,13 +25,22 @@ class Detection:
     seconds: float
     log_likelihood: float | None = None
     stage_seconds: dict = field(default_factory=dict)
+    info: dict = field(default_factory=dict)
 
 
 class Detector:
+    """`params` = {"a00", "a11", "pi1"} for the global-transition methods (pi1 used by pe only);
+    `proportion` = OptProportion bound to the same capped density (pd, p1, opt_hmm_li, and eps reporting)."""
+
     def __init__(self, density, method="opt_hmm", rhos=DEFAULT_RHOS,
-                 fixed_e=.5, fixed_rho=.95, window=20):
-        if method not in METHODS and method != "oracle":
+                 fixed_e=.5, fixed_rho=.95, window=20, params=None, proportion=None):
+        if method not in METHODS + GENERAL_METHODS + LI_METHODS and method != "oracle":
             raise ValueError(f"Unknown method {method}")
+        if method in GENERAL_METHODS and (not params or proportion is None):
+            raise ValueError(f"{method} needs frozen transition params and an eps_opt estimator.")
+        if method in LI_METHODS and proportion is None:
+            raise ValueError(f"{method} needs an eps_opt estimator.")
+        self.params, self.proportion = params, proportion
         if not 0 <= fixed_e <= 1 or not 0 <= fixed_rho < 1 or window < 1:
             raise ValueError("Invalid detector configuration.")
         self.density, self.method = density, method
@@ -48,6 +61,39 @@ class Detector:
         g[mask] = self.density(check_pivots(y[mask]))
         return self._infer_ratios(g, mask, started)
 
+    def infer_many(self, ys):
+        """Same results as infer() per document; global-transition methods batch equal-length documents."""
+        if self.method not in GENERAL_METHODS:
+            return [self.infer(y) for y in ys]
+        started = perf_counter()
+        rows = [self.density(check_pivots(np.asarray(y, float))) for y in ys]
+        results, by_length = [None] * len(ys), {}
+        for index, g in enumerate(rows):
+            by_length.setdefault(len(g), []).append(index)
+        for indices in by_length.values():
+            for i, r in zip(indices, self.infer_many_ratios(np.stack([rows[i] for i in indices]))):
+                results[i] = r
+        for r in results:
+            r.seconds = (perf_counter() - started) / len(ys)
+        return results
+
+    def _first_prior(self, eps, n):
+        """pi_1 per document and the diagnostics that belong to that rule."""
+        from .hmm import stationary
+        from .l0.em import ALPHA_MIN, alpha_bar, first_prior
+        a00, a11 = self.params["a00"], self.params["a11"]
+        pi1 = first_prior(self.method, np.array([a00]), np.array([a11]),
+                          np.array([self.params.get("pi1", .5)]), eps, n)[0]
+        pi1 = np.broadcast_to(pi1, eps.shape).astype(float)
+        info = {}
+        if self.method == "p1":
+            ab = float(alpha_bar(a00, a11, n))
+            lam, star = a00 + a11 - 1, stationary(a00, a11)
+            marginal = star + (pi1 - star) * np.mean(lam ** np.arange(n))
+            info = {"alpha_bar": ab, "pi_unidentifiable": ab < ALPHA_MIN,
+                    "pi_clipped": np.abs(marginal - eps) > .02, "marginal_gap": np.abs(marginal - eps)}
+        return pi1, info
+
     def infer_ratios(self, g, mask=None):
         """Inference using supplied, label-free positive per-position ratios."""
         started = perf_counter()
@@ -63,9 +109,17 @@ class Detector:
     def _infer_ratios(self, g, mask, started):
         if not np.any(mask):
             return Detection(np.zeros(len(g)), 0, 0, False, perf_counter() - started)
+        if self.method in GENERAL_METHODS:
+            if not mask.all():
+                raise ValueError("Global-transition methods run on full sequences (L0 has no masked positions).")
+            return self._general(g, started)
         stages = {"density_lookup": perf_counter() - started}
         phase = perf_counter()
-        fitted = estimate_proportion(g[mask])
+        if self.method in LI_METHODS:
+            opt = self.proportion.estimate(g[mask])
+            fitted = Proportion(opt.value, opt.identifiable, 0)
+        else:
+            fitted = estimate_proportion(g[mask])
         stages["proportion_fit"] = perf_counter() - phase
         e = self.fixed_e if self.method in ("fixed_e", "oracle") else fitted.value
         if not fitted.identifiable:
@@ -102,6 +156,31 @@ class Detector:
             stages["forward_backward"] = perf_counter() - phase
         score[~mask] = 0
         return Detection(score, e, rho, fitted.identifiable, perf_counter() - started, ll, stages)
+
+
+    def _general(self, g, started):
+        result, = self.infer_many_ratios(g[None])
+        result.seconds = perf_counter() - started
+        return result
+
+    def infer_many_ratios(self, g):
+        """Batch of equal-length ratio rows (one document per row) for the global-transition methods."""
+        eps_fit = [self.proportion.estimate(row) for row in g]
+        results = [None] * len(g)
+        ok = [i for i, e in enumerate(eps_fit) if e.identifiable]
+        for i in set(range(len(g))) - set(ok):
+            results[i] = Detection(np.zeros(g.shape[1]), eps_fit[i].value, 0, False, 0.)
+        if ok:
+            eps = np.array([eps_fit[i].value for i in ok])
+            pi1, info = self._first_prior(eps, g.shape[1])
+            a00, a11 = self.params["a00"], self.params["a11"]
+            fb = forward_backward_two_state(g[ok], pi1, a00, a11, want_gamma=True)
+            for row, i in enumerate(ok):
+                results[i] = Detection(fb.gamma[row], float(eps[row]), a00 + a11 - 1, True, 0.,
+                                       float(fb.log_likelihood[row]),
+                                       info={"pi1": float(pi1[row]), **{k: v[row] if np.ndim(v) else v
+                                                                      for k, v in info.items()}})
+        return results
 
 
 def intervals(labels):

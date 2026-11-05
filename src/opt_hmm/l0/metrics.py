@@ -75,3 +75,31 @@ def auc(positive, negative):
     greater = (positive[:, None] > negative[None, :]).sum()
     ties = (positive[:, None] == negative[None, :]).sum()
     return float((greater + .5 * ties) / (len(positive) * len(negative)))
+
+
+def changepoints_from_labels(labels):
+    """Boundaries between runs of equal labels, as 'segment starts' (0 < c < n)."""
+    labels = np.asarray(labels, bool)
+    return [int(i) for i in np.flatnonzero(labels[1:] != labels[:-1]) + 1]
+
+
+def rand_index(true_points, predicted_points, n):
+    """Rand index of the segmentations of n positions cut at the given boundaries (each segment is a cluster).
+
+    Same definition as the segmentation paper (1.pdf): the share of position pairs on which the two
+    clusterings agree about 'same cluster / different clusters'.
+    """
+    ids = [np.searchsorted(np.sort(np.asarray(points, int)), np.arange(n), side="right")
+           for points in (true_points, predicted_points)]
+    same = [i[:, None] == i[None, :] for i in ids]
+    upper = np.triu(np.ones((n, n), bool), 1)
+    return float(((same[0] == same[1]) & upper).sum() / upper.sum())
+
+
+def changepoint_recovery(true_points, predicted_points):
+    """Counts and the mean distance from each true boundary to the nearest predicted one (None if undefined)."""
+    distance = None
+    if len(true_points) and len(predicted_points):
+        distance = float(np.mean([np.min(np.abs(np.asarray(predicted_points) - c)) for c in true_points]))
+    return {"true_changepoints": len(true_points), "predicted_changepoints": len(predicted_points),
+            "nearest_distance": distance}

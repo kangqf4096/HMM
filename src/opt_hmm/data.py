@@ -13,6 +13,8 @@ SUBSET = "document"
 REVISION = "240aaf1a969b3f8cd0ade6986bfad0cd730ee288"
 SPLITS = ("train", "validation", "test")
 ROLES = ("calibration", "dev", "test", "null_cal", "null_test", "pool")
+# Roles added after L0. Optional (default 0) and taken after the L0 roles, so the L0 assignment never moves.
+EXTRA_ROLES = ("calibration2", "mixed_cal", "dev2", "test_seg")
 
 
 def select_articles(raw, tokenizer, config):
@@ -23,10 +25,12 @@ def select_articles(raw, tokenizer, config):
     documents out of different roles. This is content deduplication, not a file
     integrity check or a guarantee against different versions of the same paper.
     """
-    counts = {"pool": 0, **config["roles"]}
-    if any(type(counts.get(role)) is not int or counts[role] < (0 if role == "pool" else 1) for role in ROLES):
-        raise ValueError(f"Need positive integer counts for each role (pool may be 0): {ROLES}")
-    required = sum(counts[role] for role in ROLES)
+    counts = {"pool": 0, **{role: 0 for role in EXTRA_ROLES}, **config["roles"]}
+    if any(type(counts.get(role)) is not int or counts[role] < (0 if role == "pool" or role in EXTRA_ROLES else 1)
+           for role in ROLES + EXTRA_ROLES):
+        raise ValueError(f"Need positive integer counts for each role (pool and {EXTRA_ROLES} may be 0): {ROLES}")
+    old_required = sum(counts[role] for role in ROLES)
+    required = old_required + sum(counts[role] for role in EXTRA_ROLES)
     ends = np.cumsum([len(raw[split]) for split in SPLITS])
     total = int(ends[-1])
     if required > total:
@@ -64,9 +68,13 @@ def select_articles(raw, tokenizer, config):
     if len(candidates) < required:
         raise ValueError(f"Need {required} distinct articles, only {len(candidates)} qualify. "
                          "Reduce role counts; do not split one paper across roles.")
-    rng.shuffle(candidates)
+    # numpy's shuffle result depends on the list length, so only the first old_required candidates
+    # (the L0 roles) are shuffled; extra roles take the remaining candidates in collection order.
+    head = candidates[:old_required]
+    rng.shuffle(head)
+    candidates = head + candidates[old_required:]
     records, cursor = [], 0
-    for role in ROLES:
+    for role in ROLES + EXTRA_ROLES:
         for article in candidates[cursor:cursor + counts[role]]:
             article["role"] = role
             if role != "pool":

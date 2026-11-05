@@ -1,0 +1,171 @@
+{
+ "seed": 20261015,
+ "model": "models/opt-1.3b",
+ "model_repo": "facebook/opt-1.3b",
+ "model_revision": "3f5c25d0bc631cb57ac65913f76e22c2dfb61d62",
+ "dataset": "ccdv/arxiv-summarization",
+ "subset": "document",
+ "dataset_revision": "240aaf1a969b3f8cd0ade6986bfad0cd730ee288",
+ "prompt_tokens": 50,
+ "tokens": 128,
+ "context_width": 4,
+ "temperature": 1,
+ "max_model_len": 1024,
+ "max_num_seqs": 16,
+ "enforce_eager": false,
+ "key_id": "public-research-v1",
+ "roles": {
+  "calibration": 50,
+  "dev": 40,
+  "test": 160,
+  "null_cal": 400,
+  "null_test": 400,
+  "calibration2": 50,
+  "mixed_cal": 50,
+  "dev2": 60,
+  "test_seg": 120
+ },
+ "switch_ranges": [
+  [
+   0.2,
+   0.7
+  ]
+ ],
+ "edits": [
+  {
+   "kind": "resample",
+   "rate": 0.1,
+   "min_entropy": 2.0
+  },
+  {
+   "kind": "resample",
+   "rate": 0.3,
+   "min_entropy": 2.0
+  }
+ ],
+ "emission": [
+  "histogram",
+  "beta"
+ ],
+ "decision": [
+  "max_score",
+  "fraction"
+ ],
+ "bins": 25,
+ "pseudocount": 0.5,
+ "cap": 25,
+ "alpha": 0.05,
+ "rho_grid": [
+  0,
+  0.5,
+  0.8,
+  0.9,
+  0.95,
+  0.98,
+  0.99
+ ],
+ "fixed_e": 0.5,
+ "fixed_rho": 0.95,
+ "window": 20,
+ "merge_gap": 0,
+ "fraction_tau": 0.5,
+ "min_group_size": 100,
+ "bootstrap": 2000,
+ "segment_ranges": {
+  "seg2": [
+   [
+    0,
+    0.5
+   ]
+  ],
+  "seg3": [
+   [
+    0,
+    0.4
+   ],
+   [
+    0.6,
+    1
+   ]
+  ],
+  "seg4": [
+   [
+    0,
+    0.2
+   ],
+   [
+    0.4,
+    0.6
+   ],
+   [
+    0.8,
+    1
+   ]
+  ]
+ },
+ "l1": {
+  "global_seed": 20261104,
+  "cap_k0": 25,
+  "cap_grid": {
+   "hist25": [
+    5,
+    10,
+    null
+   ],
+   "hist200": [
+    5,
+    10,
+    25,
+    50,
+    100,
+    null
+   ],
+   "ecdf400": [
+    5,
+    10,
+    25,
+    50,
+    100,
+    250,
+    1000
+   ],
+   "param": [
+    5,
+    10,
+    25,
+    50,
+    100,
+    250,
+    1000
+   ]
+  },
+  "tail_y0": [
+   0.9,
+   0.95,
+   0.99
+  ],
+  "em": {
+   "max_iter": 500,
+   "tol": 1e-06,
+   "bootstrap_draws": 500
+  },
+  "seedbs": {
+   "B": [
+    6,
+    10,
+    14,
+    20
+   ],
+   "zeta": [
+    0.05,
+    0.01,
+    0.005,
+    0.001
+   ],
+   "T": 999,
+   "Tp": 1999,
+   "a": 0.7071067811865476,
+   "min_factor": 2.5
+  }
+ }
+}

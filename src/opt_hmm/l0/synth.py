@@ -14,9 +14,10 @@ from ..paths import project_path
 from ..protocol import PROTOCOL, PUBLIC_KEY, context_seed, gumbel_winner, uniforms
 from .config import validate_l0
 from .generate import source_record
-from .schema import scenario_for
+from .schema import scenario_for, scenario_ranges
 
-ROLE_ORDER = ("calibration", "dev", "test", "null_cal", "null_test")
+ROLE_ORDER = ("calibration", "dev", "test", "null_cal", "null_test",
+              "calibration2", "mixed_cal", "dev2", "test_seg")
 
 
 class ToyLM:
@@ -58,12 +59,9 @@ def generate_sources(config, output, vocab=2000, seed=0):
     output = new_output(project_path(output))
     sources, started = [], perf_counter()
     for role in ROLE_ORDER:
-        for index in range(config["roles"][role]):
+        for index in range(config["roles"].get(role, 0)):
             scenario = scenario_for(role, index)
-            if scenario == "switch":
-                ranges = [[int(a * n), int(b * n)] for a, b in config["switch_ranges"]]
-            else:
-                ranges = [] if scenario == "null" else [[0, n]]
+            ranges = scenario_ranges(scenario, config)
             doc = {"group": f"toy-{role}-{index}", "role": role,
                    "prompt_ids": rng.integers(0, vocab, config["prompt_tokens"]).tolist()}
             context, tokens, audit = list(doc["prompt_ids"]), [], {}
