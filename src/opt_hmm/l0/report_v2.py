@@ -4,6 +4,7 @@ Everything in the markdown comes from the dict. A diagnostic whose inputs a stag
 Only stage s4 has formal criteria (one-shot test); every other stage is exploratory, on dev2 / dev with null_cal.
 """
 import math
+import re
 from collections import defaultdict
 
 import numpy as np
@@ -19,6 +20,7 @@ from .schema import ALL_SCENARIOS, LOCALIZATION_SCENARIOS, SEG_SCENARIOS
 
 LABEL = {"hist25": "hist25", "hist200": "hist200", "ecdf400": "ecdf400"}
 NONINFERIOR = -0.01
+REPORT_NAMES = {"opt_hmm": "pd_rho_hist25", "opt_hmm_li": "pd_rho_hist25_epsopt"}
 
 
 # ---------------------------------------------------------------------- helpers
@@ -82,6 +84,180 @@ def mean_ci(ep, method):
 
 def half_life(lam):
     return float(math.log(2) / -math.log(lam)) if 0 < lam < 1 else None
+
+
+def display_names(text):
+    """Use descriptive report labels while keeping saved method identities stable."""
+    return re.sub(r"(?<![A-Za-z0-9_])(?:opt_hmm_li|opt_hmm)(?![A-Za-z0-9_])",
+                  lambda match: REPORT_NAMES[match.group()], text)
+
+
+def method_name_guide():
+    return [
+        "**方法名称说明。** `pd_rho_hist25`（原记录标识 `opt_hmm`）表示“首位先验直接取逐篇占比、转移参数 ρ 逐篇选择、25 箱发射”；"
+        "`pd_rho_hist25_epsopt`（原记录标识 `opt_hmm_li`）只将占比估计器换成 ε̂_opt。前者使用原边际复合似然占比估计。"
+        "两者的转移矩阵均为 `A_d=ρ_d I+(1−ρ_d)1π_dᵀ`，π_d 也是该矩阵的平稳分布。"
+        "主表的 `pd_hist200`、`pd_beta` 则各有一个跨文章共享、用 mixed_cal 池化 EM 估计的双参数 A；"
+        "“rho”标记用于区分逐篇转移方案与全局转移方案。原始 JSON/逐篇指标中的方法标识用于对应已有实验记录。",
+        "",
+    ]
+
+
+def diagnostic_explanation(report, topic):
+    """Explain the recorded statistics without changing scores or evaluation criteria."""
+    diag = report["diagnostics"]
+    paragraphs = []
+    if topic == "emission":
+        e = diag["emission"]
+        paragraphs = [
+            "**这些列衡量什么。** 本表检查 calibration 与 calibration2 合并后的纯水印枢轴分布。"
+            "∫f 是有限网格上的数值积分，用于检查归一化；尾部质量是密度在 [0.99,1] 的积分，"
+            "应与同一批校准枢轴中 y≥0.99 的经验占比对照。两列比值分别是该尾部质量除以 hist200、hist25 的尾部质量；"
+            "例如 2.833 表示质量约为参照的 2.833 倍。这里的 f₁ 是枢轴 Y 的密度，密度值可以大于 1。",
+            "**原始密度与实际使用的分数。** 本表使用未加 cap、未做尾部外推的基础密度；"
+            "max f₁ 是诊断网格上的最大值，不是数学上的全局上界，也不是后验概率。"
+            "端点附近的尖峰能在很窄区间内给出很大的密度而仍有有限积分。"
+            "参数族的极大网格值不等于推理时直接用了同样大的密度：实际入选 cap 见配置对应表与 cap 选择表。"
+            "∫f 略偏离 1 还受到有限积分范围、端点截取和求积精度影响，应记录为数值积分偏差，"
+            "仅凭这一项不能断定解析分布没有归一化。",
+            "**两折如何计算。** calibration、calibration2 分别作为两折，一折拟合基础密度，另一折计算各枢轴的自然对数密度，"
+            "然后交换两折并取平均。“2 折平均 log 密度”越大，表示对另一折纯水印枢轴的平均密度预测更好；"
+            "它不是检验 p 值，也不直接衡量混合文本的定位效果。折间 L1 是两折分别拟出的密度差绝对值的积分，"
+            "越小表示对这次分折更稳定；稳定本身不保证拟合准确。两项均只作诊断，选族仍使用 dev 定位 IoU。",
+        ]
+        f = e["families"]
+        if "hist25" in f and "hist200" in f:
+            folds = (e.get("folds") or {}).get("families", {})
+            heldout = {name: row["heldout_mean_log_density"] for name, row in folds.items()
+                       if row.get("heldout_mean_log_density") is not None}
+            top = max(heldout, key=heldout.get) if heldout else None
+            winner = (report.get("param_star") or {}).get("family")
+            paragraphs.append(
+                f"**本次结果。** 经验尾部占比为 {e['calibration_tail99']:.4f}，hist25 只给出 {f['hist25']['mass_tail99']:.4f}，"
+                f"hist200 给出 {f['hist200']['mass_tail99']:.4f}。25 箱把末端较宽区间内的密度摊平，"
+                "因此难以保留最后 1% 区间的尖峰；200 箱在这个尾部区间更接近经验质量。"
+                "其他族可按尾部质量与经验占比的差距检查高估或低估。")
+            if top and winner:
+                paragraphs.append(
+                    f"两折平均 log 密度最高的是 {top}，dev 定位选出的是 {winner}；"
+                    "两者目标不同，纯水印密度预测与混合文本定位需要分别评价。"
+                    "折间 L1 较大的族则提示拟合形状更受校准样本变化影响。")
+    elif topic == "f0":
+        n = diag["f0"]["pivots"]
+        fine = diag["f0"]["hist200"]
+        paragraphs = [
+            f"**计算口径。** 将同一批 null_cal 的 {n:,} 个枢轴分别等宽分成 25 箱、200 箱，"
+            "每箱密度为“该箱个数/总个数×箱数”，sup|f̂₀−1| 取所有箱中与理论均匀密度 1 的最大偏差。"
+            "这里的 hist25/hist200 只是零分布诊断的分箱数，不表示两种方法采用了不同的 f₀；HMM 仍统一使用 f₀≡1。",
+            "**参考值如何读。** “iid U(0,1) 参考”是 20 组同样大小的独立均匀模拟各自最大偏差的平均值，"
+            "不是 95% 上限或显著性阈值。箱数增加后每箱样本减少，同时要从更多箱里取最大值，"
+            f"即使真实分布完全均匀，最大偏差也会增大。因此观测值 {fine['sup_abs_dev']:.3f} "
+            f"与平均参考 {fine['iid_uniform_reference']:.3f} 的差距不能单独作为拒绝均匀分布的依据。"
+            "该诊断检查边缘分布，不能验证跨位置独立性；实际文本中的重复上下文也可能影响独立抽样参考的适用性。",
+        ]
+    elif topic == "eps_estimators":
+        e = diag["eps_estimators"]
+        paragraphs = [
+            "**比较对象。** 两个逐篇 ρ 方案使用同一份 hist25 和同一 cap，区别是占比估计器："
+            "原方案最大化边际复合似然；epsopt 版本使用纯水印校准样本参与的 ε̂_opt 估计。"
+            "差值定义为 ε̂_opt−原估计；负值表示 ε̂_opt 略小。绝对差衡量两个估计器彼此的差距，"
+            "“对真值误差”则是各自与真实存活占比的平均绝对误差，两者含义不同。",
+            f"**本次结果。** 在 {e['articles']} 篇评价文章上，差均值为 {e['mean_diff']:.6f}，"
+            f"绝对差均值为 {e['mean_abs_diff']:.6f}；真值误差分别为 {e['error_old']:.5f}、{e['error_opt']:.5f}。"
+            "这说明两个估计器在本次数据上非常接近，没有观察到明显的占比估计精度收益。"
+            "本节纳入评价角色的全部文章，包括 full_wm；主表 ε 误差使用六个定位场景，所以汇总值可以不同。",
+            "**边界计数。** 原估计允许精确取 0 或 1；ε̂_opt 投影到 [0.001,0.999]，因此报告的是是否贴近这两个内缩端点。"
+            f"本次原估计有 {e['old_at_endpoint']} 篇取到端点，ε̂_opt 有 {e['opt_at_boundary']} 篇贴近内缩端点；"
+            "仅凭计数不能确认逐篇身份是否相同，纯水印 full_wm 文章贴近 1 也不一定是异常。",
+        ]
+    elif topic == "prior_reach":
+        reach = diag["prior_reach"]
+        distribution = "；".join(
+            f"{family} 总位置差异占比 {row['differing_fraction']:.2%}，其中 {row['by_position_fifth'][0]:.1%} 位于最前五分之一"
+            for family, row in reach.items())
+        paragraphs = [
+            "**表中比例的分母。** “不同位置占比”是在全部评价文章、全部有效位置上，PD 与同族 P2 的二值标签不一致的比例。"
+            "“五等分分布”只在这些不一致位置内，将位置按文章从前到后的五段分组，五个数之和约为 1。"
+            "不能把“全部不一致位置中有多少在开头”理解成“开头有多少 token 被改判”。",
+            f"**可以解释到什么程度。** {distribution}。"
+            "应同时看后续各段的差异，不能仅凭第一段占比概括为“只影响开头”。"
+            "而且这里 PD 与 P2 各自拟合了 A、选择 cap 并校准 τ，比较同时受到这些变化影响，"
+            "并非只替换首位先验的单因素实验。首位先验在固定 A 下的衰减可参照结构表中的 λ 与半衰期；"
+            "P2 已知的优化局限也使本表只适合作附录描述。",
+        ]
+    elif topic == "p1_alignment":
+        entries = diag["p1_alignment"]
+        amplification = "、".join(f"{name} 约 {1 / row['alpha_bar']:.1f} 倍" for name, row in entries.items())
+        gaps = "；".join(f"{name} 的超限比例 {row['pi_clipped']:.1%}、平均绝对差 {row['marginal_gap_mean']:.3f}"
+                         for name, row in entries.items())
+        paragraphs = [
+            "**对齐目标与 ᾱ。** P1 试图通过反解首位概率，使全篇的先验平均水印概率等于逐篇 ε̂_opt。"
+            "ᾱ 是首位状态对全篇平均占比的影响系数；反解中的误差会被放大 1/ᾱ。"
+            f"按本表参数计算，{amplification}。链很快忘记起点时，仅调整首位概率无法适配跨度很大的文章占比。",
+            "**原 clip 字段的准确含义。** 程序统计的实际是“先验平均占比与 ε̂_opt 的绝对差超过 0.02”的文章比例，"
+            "并非直接统计首位概率恰好截到 0/1 的比例。“不可识别比例”只表示 ᾱ<0.05、触发退回平稳先验的比例；"
+            "为 0 仅表示没有触发这条保护，并不保证对齐可行。末列是对齐绝对偏差的均值与第 95 百分位，数值越小越好。",
+            f"**本次结果。** {gaps}。超限比例越高，说明越多文章未实现 P1 设想的先验平均占比对齐。"
+            "这也不等于预测后验与真实水印占比一定存在同样偏差，因为对齐对象是先验。"
+            "P1 的拟合还须结合结构表中的网格差与非单调诊断检查，本节作为附录描述，不参与主表结论。",
+        ]
+    elif topic == "seedbs_recovery":
+        sb = diag["seedbs"]
+        recovery = "；".join(f"{name} 真值 {row['true']:.2f} 个、检出 {row['predicted']:.2f} 个"
+                             for name, row in sb["recovery"].items())
+        performance = ""
+        if sb.get("false_changepoints_per_null") is not None:
+            performance = f"本次 null_cal 平均每篇约 {sb['false_changepoints_per_null']:.3f} 个假切换点。"
+        paragraphs = [
+            "**参数与两层判定。** B 控制局部窗口尺度，同时作为移动块自助的块长；ζ 是筛选候选切换点区间的阈值，"
+            "越大通常越容易保留切换点。c 则用于分段后的水印标签：段分数为 1−段检验值，分数>τ 等价于段检验值<c，且 c=1−τ。"
+            "ζ 控制是否切段，c 控制切出来的段是否标成水印，二者与文档级 α=0.05 不应混同。"
+            "分段本身由同一份数据选择，因此段检验值不能直接作为未经选择的有效 p 值；文档误报依靠 null_cal 的整体阈值校准。",
+            "**切换点表如何读。** 各列是每篇文章的切换点数量及距离的场景平均。"
+            "距离实际按“每个真值切换点到最近检出切换点”计算，单位是有效序列位置；只在两类切换点都存在时有定义。"
+            "它不是“每个检出点到最近真值”的距离，也不是带有漏检惩罚的双向匹配误差。"
+            f"本次场景平均为：{recovery}。检出数量明显多于真值时提示额外切分较多。"
+            "检出点越多也可能降低最近距离，因此应结合 Rand index、最终标签 IoU 与数量一起看。",
+            f"**假切换点与误报不同。** {performance}假切换点统计的是纯 null 文本被切出的额外边界，"
+            "不等同于水印假阳性标签数。切段后还要经过 c 的标签判定，一篇文章可以有多个切点但没有任何水印标签。"
+            "报告中的每篇秒数来自选中候选在调参阶段的“预计算墙钟时间/文章数”，复用时沿用原记录，受当时并行配置影响，"
+            "不是本次 S4 单篇端到端耗时。",
+        ]
+    elif topic == "seedbs_selection":
+        s = diag["seedbs"]
+        paragraphs = [
+            "**16 组选择表。** 每组 B、ζ 各自在 null_cal 上校准 τ/c，然后在 dev 的三个定位场景上计算平均 IoU；"
+            "“可检出位置”是该组阈值下 dev 三个场景全部文章被标成水印的位置总数，包含正确和错误标签。"
+            "“合格=True”只表示 τ<1 且可检出位置数>0，并不表示切换点误报少或通过了正式 S4 判据。",
+            f"**入选理由。** B={s['B']}、ζ={s['zeta']} 是合格候选中 dev IoU 最高的一组。"
+            "更小的 ζ 通常减少额外切点，但也可能漏掉真实变化；而每组都重新校准 c，所以切点数与水印标签数不会简单同向变化。"
+            "复用参数时本表沿用原阶段的选择，dev IoU 只用于选择，不能与不同评价文章、不同场景汇总直接比较。"
+            "SeedBS 不用纯水印 f₁ 或 mixed_cal 的 A 训练；主表四格另用了 100 篇纯水印及 50 篇混合训练文章，训练信息量并不相同。",
+        ]
+    elif topic == "truth":
+        cfg = report["config"]
+        tokens, context = cfg["tokens"], cfg["context_width"]
+        n = tokens - context
+        shares = "；".join(f"{name} 为 {round(row['eps_true_mean'] * n)}/{n}≈{row['eps_true_mean']:.3f}"
+                           for name, row in report["truth"].items()
+                           if name in ("switch", "seg2", "seg3", "seg4") and row["eps_true_min"] == row["eps_true_max"])
+        resamples = "、".join(f"{name} 为 {row['eps_true_mean']:.3f}"
+                              for name, row in report["truth"].items() if name.startswith("resample_"))
+        paragraphs = [
+            "**ε_true 是什么。** 它是每篇有效枢轴位置中 truth=1 的比例，即仍保留当前密钥水印耦合的位置占比，"
+            f"不是原文来自水印生成器的比例，也不是 HMM 估计值。长度 {tokens}、上下文宽度 {context} 时，"
+            f"前 {context} 个位置不参与评价，分母为 {n}。"
+            "表中均值、最小和最大描述同一场景不同文章的真实存活占比。",
+            f"**为什么替换 10%/30% 后不剩 90%/70%。** 本项目将被编辑 token 以及其后最多 {context} 个依赖该上下文的 token 都视为耦合被破坏，"
+            f"重叠破坏窗口只计一次。本次平均存活比例：{resamples}，"
+            "会明显低于简单按替换比例相减得到的值；编辑位置和窗口重叠不同，也会造成文章间范围变化。",
+            "**分段场景的常数。** switch、seg2、seg3、seg4 使用固定的水印区间，full_wm 全部有效位置都为水印，"
+            f"所以同一场景的占比最小值与最大值相同。区间的 token 取整及前 {context} 个位置的排除后，{shares}。"
+            "文章数相同不表示真实水印位置数相同。",
+        ]
+        if not resamples:
+            paragraphs.pop(1)
+    return [line for paragraph in paragraphs for line in (paragraph, "")]
 
 
 # ---------------------------------------------------------------------- per-method posterior diagnostics
@@ -532,7 +708,7 @@ def render(report):
     if d["emission"]:
         e = d["emission"]
         add(["### 发射族：尾部质量与 2 折拟合优度", "",
-             f"calibration 上 y ≥ 0.99 的经验占比 = {num(e['calibration_tail99'], 4)}", "",
+             f"calibration ∪ calibration2 上 y ≥ 0.99 的经验占比 = {num(e['calibration_tail99'], 4)}", "",
              "| 族 | ∫f（应≈1） | y∈[0.99,1] 质量 | ÷hist200 | ÷hist25 | max f₁ | 2 折平均 log 密度 | 折间 L1 |", "|---|---:|---:|---:|---:|---:|---:|---:|"])
         folds = (e["folds"] or {}).get("families", {})
         for f, s in e["families"].items():
@@ -540,41 +716,48 @@ def render(report):
             add([f"| {f} | {num(s['mass_total'], 4)} | {num(s['mass_tail99'], 4)} | {num(s['tail99_vs_hist200'])} | {num(s['tail99_vs_hist25'])} | "
                  f"{num(s['max_f1'], 1)} | {num(fd.get('heldout_mean_log_density'), 4)} | {num(fd.get('l1_between_folds'), 3)} |"])
         add(["", "拟合优度只报，不用于选族。", ""])
+        add(diagnostic_explanation(report, "emission"))
     if d["f0"]:
         add(["### f̂₀（null_cal 上同分箱密度）", "", "| 分箱 | sup\\|f̂₀−1\\| | iid U(0,1) 参考 |", "|---|---:|---:|"])
         for k in ("hist25", "hist200"):
             add([f"| {k} | {num(d['f0'][k]['sup_abs_dev'])} | {num(d['f0'][k]['iid_uniform_reference'])} |"])
         add([""])
+        add(diagnostic_explanation(report, "f0"))
     if d["eps_estimators"]:
         e = d["eps_estimators"]
         add(["### ε̂ 估计器：旧（opt_hmm）vs ε̂_opt（opt_hmm_li）", "",
              f"文章 {e['articles']}；差均值 {num(e['mean_diff'])}，绝对差 {num(e['mean_abs_diff'])}；对真值误差 旧 {num(e['error_old'])} / opt {num(e['error_opt'])}；"
              f"旧估计取 0 或 1 的篇数 {e['old_at_endpoint']}，ε̂_opt 贴 1e-3 边界的篇数 {e['opt_at_boundary']}。", ""])
+        add(diagnostic_explanation(report, "eps_estimators"))
     if d["prior_reach"]:
         add(["### PD 的首位先验管多远（PD vs 同族 P2 标签不同的位置，按位置五等分）", "", "| 族 | 不同位置占比 | 五等分分布 |", "|---|---:|---|"])
         for f, s in d["prior_reach"].items():
             add([f"| {f} | {num(s['differing_fraction'], 4)} | {[round(v, 3) for v in s['by_position_fifth']]} |"])
         add([""])
+        add(diagnostic_explanation(report, "prior_reach"))
     if d["p1_alignment"]:
-        add(["### P1 对齐质量（附录）", "", "| 方法 | ᾱ | clip 比例 | 不可识别比例 | \\|先验边际−ε̂\\| 均值 / p95 |", "|---|---:|---:|---:|---|"])
+        add(["### P1 对齐质量（附录）", "", "| 方法 | ᾱ | 对齐偏差>0.02比例（原 clip 字段） | 触发 ᾱ<0.05 回退比例 | \\|先验边际−ε̂\\| 均值 / p95 |", "|---|---:|---:|---:|---|"])
         for m, s in d["p1_alignment"].items():
             add([f"| {m} | {num(s['alpha_bar'], 4)} | {num(s['pi_clipped'])} | {num(s['pi_unidentifiable'])} | "
                  f"{num(s['marginal_gap_mean'])} / {num(s['marginal_gap_p95'])} |"])
         add([""])
+        add(diagnostic_explanation(report, "p1_alignment"))
     if d["seedbs"]:
         s = d["seedbs"]
         add(["### seedbs", "", f"选出 B = {s['B']}，ζ = {s['zeta']}，c = {num(s['c'], 4)}"
              + (f"；null_cal 每篇假切换点 {num(s['false_changepoints_per_null'])}；每篇 {num(s['seconds_per_article'], 2)} 秒" if s["chosen"] else ""), ""])
         if s["recovery"]:
-            add(["| 场景 | 真值切换点 | 检出切换点 | 到最近真值的距离 |", "|---|---:|---:|---:|"])
+            add(["| 场景 | 真值切换点 | 检出切换点 | 真值切换点到最近检出点的距离 |", "|---|---:|---:|---:|"])
             for sc, r in s["recovery"].items():
                 add([f"| {sc} | {num(r['true'], 2)} | {num(r['predicted'], 2)} | {num(r['nearest_distance'], 2)} |"])
             add([""])
+        add(diagnostic_explanation(report, "seedbs_recovery"))
         add(["| B | ζ | τ | c | dev IoU | 可检出位置 | 假切换点/篇 | 合格 |", "|---:|---:|---:|---:|---:|---:|---:|---|"])
         for r in s["table"]:
             add([f"| {r['B']} | {r['zeta']} | {num(r['tau'], 4)} | {num(r['c'], 4)} | {num(r['iou'])} | {r['flagged_positions']} | "
                  f"{num(r['false_changepoints_per_null'], 2)} | {r['ok']} |"])
         add([""])
+        add(diagnostic_explanation(report, "seedbs_selection"))
     if d["nocap"]:
         add(["### nocap 旁支（不进主表、不参与选择）", "",
              "| 方法 | τ | 参照 τ | null γ>0.999 占比 | max γ=1 | max g（EM 训练） | â₀₀ / â₁₁ | 各场景 IoU（nocap / 参照） |", "|---|---:|---:|---:|---|---:|---|---|"])
@@ -588,6 +771,12 @@ def render(report):
     add(["## 真值", "", "| 场景 | 文章 | ε_true 均值 | 最小 | 最大 |", "|---|---:|---:|---:|---:|"])
     for s, t in report["truth"].items():
         add([f"| {s} | {t['articles']} | {num(t['eps_true_mean'])} | {num(t['eps_true_min'])} | {num(t['eps_true_max'])} |"])
+    add([""])
+    add(diagnostic_explanation(report, "truth"))
     t = report["timings"]
     add(["", "## 耗时", "", f"- 总计 {num(t['total_seconds'], 1)} 秒；各方法拟合秒数：`{ {k: round(v, 1) for k, v in t['fit_seconds'].items() if v is not None} }`", ""])
-    return "\n".join(out)
+    text = display_names("\n".join(out))
+    if any(name in report["methods"] for name in REPORT_NAMES):
+        title, body = text.split("\n", 1)
+        text = title + "\n\n" + "\n".join(method_name_guide()) + body
+    return text

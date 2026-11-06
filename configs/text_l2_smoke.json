@@ -1,0 +1,427 @@
+{
+ "seed": 20261106,
+ "model": "models/opt-1.3b",
+ "model_repo": "facebook/opt-1.3b",
+ "model_revision": "3f5c25d0bc631cb57ac65913f76e22c2dfb61d62",
+ "dataset": "ccdv/arxiv-summarization",
+ "subset": "document",
+ "dataset_revision": "240aaf1a969b3f8cd0ade6986bfad0cd730ee288",
+ "prompt_tokens": 50,
+ "tokens": 160,
+ "context_width": 4,
+ "temperature": 1,
+ "max_model_len": 1024,
+ "max_num_seqs": 16,
+ "enforce_eager": false,
+ "key_id": "l2",
+ "bins": 200,
+ "pseudocount": 0.5,
+ "alpha": 0.05,
+ "fraction_tau": 0.5,
+ "min_group_size": 100,
+ "bootstrap": 200,
+ "l2": {
+  "global_seed": 20261106,
+  "sides": {
+   "train": {
+    "key": "opt-hmm-l2-train-K1-20261106",
+    "key_id": "l2-K1",
+    "roles": [
+     "cal_pure",
+     "mix_r2",
+     "mix_splice",
+     "mix_alt",
+     "mix_r0",
+     "dev",
+     "null_cal"
+    ]
+   },
+   "test": {
+    "key": "opt-hmm-l2-test-K2-20261106",
+    "key_id": "l2-K2",
+    "roles": [
+     "test_a",
+     "test_b",
+     "null_test"
+    ]
+   }
+  },
+  "exclude_prompts": [],
+  "roles": {
+   "cal_pure": {
+    "prompts": 24,
+    "entropy": true,
+    "recipes": [
+     {
+      "name": "pure",
+      "kind": "pure"
+     }
+    ]
+   },
+   "mix_r2": {
+    "prompts": 12,
+    "recipes": [
+     {
+      "name": "r2_0.02",
+      "kind": "resample",
+      "rate": 0.02,
+      "min_entropy": 2.0,
+      "count": 2
+     },
+     {
+      "name": "r2_0.05",
+      "kind": "resample",
+      "rate": 0.05,
+      "min_entropy": 2.0,
+      "count": 2
+     },
+     {
+      "name": "r2_0.1",
+      "kind": "resample",
+      "rate": 0.1,
+      "min_entropy": 2.0,
+      "count": 2
+     },
+     {
+      "name": "r2_0.2",
+      "kind": "resample",
+      "rate": 0.2,
+      "min_entropy": 2.0,
+      "count": 2
+     },
+     {
+      "name": "r2_0.3",
+      "kind": "resample",
+      "rate": 0.3,
+      "min_entropy": 2.0,
+      "count": 2
+     },
+     {
+      "name": "r2_0.5",
+      "kind": "resample",
+      "rate": 0.5,
+      "min_entropy": 2.0,
+      "count": 2
+     }
+    ]
+   },
+   "mix_splice": {
+    "prompts": 6,
+    "recipes": [
+     {
+      "name": "set2",
+      "kind": "paper",
+      "setting": 2,
+      "count": 2
+     },
+     {
+      "name": "set3",
+      "kind": "paper",
+      "setting": 3,
+      "count": 2
+     },
+     {
+      "name": "set4",
+      "kind": "paper",
+      "setting": 4,
+      "count": 2
+     }
+    ]
+   },
+   "mix_alt": {
+    "prompts": 8,
+    "recipes": [
+     {
+      "name": "alt50",
+      "kind": "alt",
+      "L": 50,
+      "count": 2
+     },
+     {
+      "name": "alt25",
+      "kind": "alt",
+      "L": 25,
+      "count": 2
+     },
+     {
+      "name": "alt12",
+      "kind": "alt",
+      "L": 12,
+      "count": 2
+     },
+     {
+      "name": "alt_top",
+      "kind": "alt",
+      "L": "top",
+      "count": 2
+     }
+    ]
+   },
+   "mix_r0": {
+    "prompts": 4,
+    "recipes": [
+     {
+      "name": "r0_0.1",
+      "kind": "resample",
+      "rate": 0.1,
+      "min_entropy": 0.0,
+      "count": 2
+     },
+     {
+      "name": "r0_0.3",
+      "kind": "resample",
+      "rate": 0.3,
+      "min_entropy": 0.0,
+      "count": 2
+     }
+    ]
+   },
+   "dev": {
+    "prompts": 16,
+    "recipes": [
+     {
+      "name": "set2",
+      "kind": "paper",
+      "setting": 2,
+      "count": 2
+     },
+     {
+      "name": "set3",
+      "kind": "paper",
+      "setting": 3,
+      "count": 2
+     },
+     {
+      "name": "set4",
+      "kind": "paper",
+      "setting": 4,
+      "count": 2
+     },
+     {
+      "name": "alt50",
+      "kind": "alt",
+      "L": 50,
+      "count": 1
+     },
+     {
+      "name": "alt25",
+      "kind": "alt",
+      "L": 25,
+      "count": 1
+     },
+     {
+      "name": "alt12",
+      "kind": "alt",
+      "L": 12,
+      "count": 1
+     },
+     {
+      "name": "alt_top",
+      "kind": "alt",
+      "L": "top",
+      "count": 1
+     },
+     {
+      "name": "r2_0.1",
+      "kind": "resample",
+      "rate": 0.1,
+      "min_entropy": 2.0,
+      "count": 3
+     },
+     {
+      "name": "r2_0.3",
+      "kind": "resample",
+      "rate": 0.3,
+      "min_entropy": 2.0,
+      "count": 3
+     }
+    ]
+   },
+   "null_cal": {
+    "prompts": 40,
+    "recipes": [
+     {
+      "name": "null",
+      "kind": "null"
+     }
+    ]
+   },
+   "test_a": {
+    "prompts": 8,
+    "recipes": [
+     {
+      "name": "set1",
+      "kind": "paper",
+      "setting": 1,
+      "split": "test_paper"
+     },
+     {
+      "name": "set2",
+      "kind": "paper",
+      "setting": 2,
+      "split": "test_paper"
+     },
+     {
+      "name": "set3",
+      "kind": "paper",
+      "setting": 3,
+      "split": "test_paper"
+     },
+     {
+      "name": "set4",
+      "kind": "paper",
+      "setting": 4,
+      "split": "test_paper"
+     },
+     {
+      "name": "alt50",
+      "kind": "alt",
+      "L": 50,
+      "split": "test_alt"
+     },
+     {
+      "name": "alt25",
+      "kind": "alt",
+      "L": 25,
+      "split": "test_alt"
+     },
+     {
+      "name": "alt12",
+      "kind": "alt",
+      "L": 12,
+      "split": "test_alt"
+     },
+     {
+      "name": "alt_top",
+      "kind": "alt",
+      "L": "top",
+      "split": "test_alt"
+     }
+    ]
+   },
+   "test_b": {
+    "prompts": 8,
+    "recipes": [
+     {
+      "name": "r2_0.1",
+      "kind": "resample",
+      "rate": 0.1,
+      "min_entropy": 2.0,
+      "split": "test_r2"
+     },
+     {
+      "name": "r2_0.3",
+      "kind": "resample",
+      "rate": 0.3,
+      "min_entropy": 2.0,
+      "split": "test_r2"
+     },
+     {
+      "name": "r0_0.1",
+      "kind": "resample",
+      "rate": 0.1,
+      "min_entropy": 0.0,
+      "split": "test_r0"
+     },
+     {
+      "name": "r0_0.3",
+      "kind": "resample",
+      "rate": 0.3,
+      "min_entropy": 0.0,
+      "split": "test_r0"
+     }
+    ]
+   },
+   "null_test": {
+    "prompts": 40,
+    "recipes": [
+     {
+      "name": "null",
+      "kind": "null"
+     }
+    ]
+   }
+  },
+  "l_top_from": {
+   "role": "mix_r2",
+   "recipe": "r2_0.1"
+  },
+  "arms": {
+   "m100": {
+    "pure_articles": 8
+   },
+   "m400": {
+    "pure_articles": 24
+   },
+   "fe": {
+    "pure_articles": 24
+   }
+  },
+  "cap_k0": 25,
+  "cap_grid": [
+   10,
+   25,
+   null
+  ],
+  "cap_sweep": [
+   5,
+   25,
+   null
+  ],
+  "h_grid": [
+   0.2,
+   null
+  ],
+  "kernel_grid": [
+   0.1,
+   0.3,
+   0.5,
+   0.7,
+   0.9,
+   1.0
+  ],
+  "min_neff": 30,
+  "coverage": {
+   "lo": 0.05,
+   "step": 0.1,
+   "min_positions": 0
+  },
+  "em": {
+   "max_iter": 500,
+   "tol": 1e-06,
+   "bootstrap_draws": 20
+  },
+  "seedbs": {
+   "B": [
+    6,
+    20
+   ],
+   "zeta": [
+    0.05,
+    0.01
+   ],
+   "paper_B": 20,
+   "T": 99,
+   "Tp": 199,
+   "a": 0.7071067811865476,
+   "min_factor": 2.5
+  },
+  "mechanism": {
+   "tail": [
+    0.99,
+    0.9
+   ],
+   "draws": 200,
+   "m1_rates": [
+    0.2,
+    0.3,
+    0.5
+   ],
+   "min_diff": 0.03
+  },
+  "progress": {
+   "weights": null
+  },
+  "plan_units": {}
+ }
+}

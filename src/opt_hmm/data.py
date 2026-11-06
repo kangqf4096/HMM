@@ -17,20 +17,13 @@ ROLES = ("calibration", "dev", "test", "null_cal", "null_test", "pool")
 EXTRA_ROLES = ("calibration2", "mixed_cal", "dev2", "test_seg")
 
 
-def select_articles(raw, tokenizer, config):
-    """Visit a seeded permutation of source rows; tokenize only until roles fill.
+def collect_candidates(raw, tokenizer, config, required, exclude=frozenset()):
+    """Visit a seeded permutation of source rows; return `required` distinct eligible papers in visit order.
 
-    The Parquet release has article/abstract columns, without paper IDs or titles.
-    Compare complete bodies with normalized whitespace/case to keep duplicate
-    documents out of different roles. This is content deduplication, not a file
-    integrity check or a guarantee against different versions of the same paper.
+    Also returns the generator, whose state after the permutation the caller may keep using.
+
+    `exclude` holds group names (arxiv-<split>-<row>) that must not be selected, e.g. rows used by earlier runs.
     """
-    counts = {"pool": 0, **{role: 0 for role in EXTRA_ROLES}, **config["roles"]}
-    if any(type(counts.get(role)) is not int or counts[role] < (0 if role == "pool" or role in EXTRA_ROLES else 1)
-           for role in ROLES + EXTRA_ROLES):
-        raise ValueError(f"Need positive integer counts for each role (pool and {EXTRA_ROLES} may be 0): {ROLES}")
-    old_required = sum(counts[role] for role in ROLES)
-    required = old_required + sum(counts[role] for role in EXTRA_ROLES)
     ends = np.cumsum([len(raw[split]) for split in SPLITS])
     total = int(ends[-1])
     if required > total:
@@ -46,6 +39,9 @@ def select_articles(raw, tokenizer, config):
         split_index = int(np.searchsorted(ends, index, side="right"))
         split = SPLITS[split_index]
         ordinal = int(index - (ends[split_index - 1] if split_index else 0))
+        group = f"arxiv-{split}-{ordinal}"
+        if group in exclude:
+            continue
         text = raw[split][ordinal]["article"]
         examined += 1
         if not isinstance(text, str):
@@ -58,7 +54,7 @@ def select_articles(raw, tokenizer, config):
         if len(tokens) < minimum:
             continue
         seen.add(normalized)
-        candidates.append({"group": f"arxiv-{split}-{ordinal}",
+        candidates.append({"group": group,
                            "source_split": split, "source_row": ordinal,
                            "prompt_ids": tokens[:prompt_length],
                            "pool_ids": tokens[prompt_length:prompt_length + 2048]})
@@ -68,6 +64,24 @@ def select_articles(raw, tokenizer, config):
     if len(candidates) < required:
         raise ValueError(f"Need {required} distinct articles, only {len(candidates)} qualify. "
                          "Reduce role counts; do not split one paper across roles.")
+    return candidates, total, examined, rng
+
+
+def select_articles(raw, tokenizer, config):
+    """Visit a seeded permutation of source rows; tokenize only until roles fill.
+
+    The Parquet release has article/abstract columns, without paper IDs or titles.
+    Compare complete bodies with normalized whitespace/case to keep duplicate
+    documents out of different roles. This is content deduplication, not a file
+    integrity check or a guarantee against different versions of the same paper.
+    """
+    counts = {"pool": 0, **{role: 0 for role in EXTRA_ROLES}, **config["roles"]}
+    if any(type(counts.get(role)) is not int or counts[role] < (0 if role == "pool" or role in EXTRA_ROLES else 1)
+           for role in ROLES + EXTRA_ROLES):
+        raise ValueError(f"Need positive integer counts for each role (pool and {EXTRA_ROLES} may be 0): {ROLES}")
+    old_required = sum(counts[role] for role in ROLES)
+    required = old_required + sum(counts[role] for role in EXTRA_ROLES)
+    candidates, total, examined, rng = collect_candidates(raw, tokenizer, config, required)
     # numpy's shuffle result depends on the list length, so only the first old_required candidates
     # (the L0 roles) are shuffled; extra roles take the remaining candidates in collection order.
     head = candidates[:old_required]
@@ -107,11 +121,13 @@ def prepare(config, model, output):
         from .arxiv_parquet import load_arxiv_parquet
         raw = load_arxiv_parquet(dataset, subset, revision)
     else:
-        from datasets import load_dataset
-        progress("下载并缓存 arXiv", detail="下载和 Arrow 处理进度由 datasets 报告")
-        raw = load_dataset(dataset, subset, revision=revision,
-                           cache_dir=str(project_path(".cache/hf/datasets")))
-    records, stats = select_articles(raw, tokenizer, config)
+        from .arxiv_datasets import load_arxiv_datasets
+        raw = load_arxiv_datasets(dataset, subset, revision)
+    if config.get("l2"):
+        from .l2.plan import select_l2
+        records, stats = select_l2(raw, tokenizer, config)
+    else:
+        records, stats = select_articles(raw, tokenizer, config)
     progress("写入实验输入")
     model_source = Path(model) / "opt_hmm_source.json"
     write_jsonl(output / "prompts.jsonl", records)

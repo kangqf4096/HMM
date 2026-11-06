@@ -97,6 +97,7 @@ class DataTests(unittest.TestCase):
 
     def test_prepare_loads_pinned_document_release_and_saves_source(self):
         datasets = types.ModuleType("datasets")
+        datasets.config = types.SimpleNamespace(HF_HUB_OFFLINE=False)
         datasets.load_dataset = Mock(return_value=self.raw())
         transformers = types.ModuleType("transformers")
         transformers.AutoTokenizer = Mock()
@@ -106,7 +107,8 @@ class DataTests(unittest.TestCase):
             model = Path(folder) / "model"
             model.mkdir()
             output = Path(folder) / "out"
-            with patch.dict(sys.modules, {"datasets": datasets, "transformers": transformers}):
+            with patch.dict(sys.modules, {"datasets": datasets, "transformers": transformers}), \
+                    patch("opt_hmm.arxiv_datasets.load_cached_arxiv", return_value=None):
                 stats = prepare(self.config(), model, output)
             datasets.load_dataset.assert_called_once_with(
                 DATASET, SUBSET, revision=REVISION, cache_dir=str(project_path(".cache/hf/datasets")))

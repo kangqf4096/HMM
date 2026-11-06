@@ -6,7 +6,7 @@ from time import perf_counter
 from ..data import DATASET, REVISION, SUBSET
 from ..io import new_output, provenance, read_json, read_jsonl, write_json, write_jsonl
 from ..paths import project_path
-from ..progress import progress
+from ..progress import progress, tick
 from ..protocol import PROTOCOL, PUBLIC_KEY, context_seed, generation_contexts, pivot
 from .config import validate_l0
 from .schema import scenario_for, scenario_ranges
@@ -47,15 +47,17 @@ def source_record(job, tokens, audit, key, context_width):
             raise RuntimeError("Generation/verification context or seed mismatch.")
         if enabled[t] and (row["chosen"] != tokens[t] or row["selected_y"] != pivot(int(seeds[t]), tokens[t])):
             raise RuntimeError("Watermark sampler audit does not match emitted tokens.")
-    return {"article_id": doc["group"], "split": doc["role"], "scenario": job["scenario"],
+    return {"article_id": job.get("article_id", doc["group"]), "split": doc["role"], "scenario": job["scenario"],
             "ranges": ranges, "prompt_ids": doc["prompt_ids"], "token_ids": [int(t) for t in tokens],
-            "source_split": doc.get("source_split"), "source_row": doc.get("source_row")}
+            "source_split": doc.get("source_split"), "source_row": doc.get("source_row"),
+            **job.get("extra", {})}
 
 
-def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.8, dtype="float16"):
+def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.8, dtype="float16", *,
+             validate=validate_l0, planner=plan_jobs, key=None, key_id=None, chunk=None, tick_stage=None):
     model, prompts_dir, output = (project_path(p) for p in (model, prompts_dir, output))
     model = str(model)
-    validate_l0(config)
+    validate(config)
     if tensor_parallel < 1 or not 0 < gpu_memory <= 1:
         raise ValueError("Invalid tensor parallelism or GPU memory fraction.")
     if not Path(model).is_dir():
@@ -80,10 +82,10 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
     output = new_output(output)
     trace_dir = output / "trace"
     trace_dir.mkdir()
-    jobs = plan_jobs(read_jsonl(Path(prompts_dir) / "prompts.jsonl"), config)
+    jobs = planner(read_jsonl(Path(prompts_dir) / "prompts.jsonl"), config)
     progress("加载 vLLM")
     from vllm import LLM, SamplingParams
-    key = os.environ.get("OPT_HMM_KEY", PUBLIC_KEY)
+    key = key or os.environ.get("OPT_HMM_KEY", PUBLIC_KEY)
     n, m, temperature = config["tokens"], config["context_width"], config.get("temperature", 1.)
     seed = config.get("seed", 20261015)
     started = perf_counter()
@@ -111,7 +113,13 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
         requests.append({"prompt_token_ids": job["doc"]["prompt_ids"]})
     progress("生成实验文本", 0, len(jobs), "生成请求进度由 vLLM 报告")
     started = perf_counter()
-    outputs = llm.generate(requests, sampling_params=params, use_tqdm=True)
+    size = chunk or len(requests)
+    outputs = []
+    for start in range(0, len(requests), size):
+        part = llm.generate(requests[start:start + size], sampling_params=params[start:start + size], use_tqdm=True)
+        outputs += part
+        if tick_stage:
+            tick(tick_stage, len(part))
     generation_seconds = perf_counter() - started
     if len(outputs) != len(jobs):
         raise RuntimeError("vLLM output count mismatch.")
@@ -128,7 +136,7 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
     write_jsonl(output / "sources.jsonl", sources)
     write_json(output / "metadata.json", {
         "config": config, "model": model, "runtime": runtime, "provenance": provenance(),
-        "protocol": PROTOCOL, "key_id": config.get("key_id", "public-research-v1"),
+        "protocol": PROTOCOL, "key_id": key_id or config.get("key_id", "public-research-v1"),
         # Research phase: the plaintext key keeps a run reproducible; see docs/reproducibility_and_secrets_20261101.md.
         "key": key, "public_research_key": key == PUBLIC_KEY, "vocab_size": vocab_size,
         "blocked_ids": blocked, "tensor_parallel": tensor_parallel, "dtype": dtype,

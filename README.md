@@ -69,6 +69,8 @@ clean_wiki.py 先清理项目 .cache/hf 下可识别的 WikiText 缓存，包括
 
 实际加载 [ccdv/arxiv-summarization](https://huggingface.co/datasets/ccdv/arxiv-summarization) 的 **document** 配置：这是同一批论文的 Parquet 整理版，兼容项目的 datasets 3/4，无需执行原始仓库的旧版数据加载脚本。两份文本配置固定了该 Parquet 版本。官方 train/validation/test 分别为 203037 / 6436 / 6440 篇，共 215913 篇。document 配置首次下载约 **3.61 GB**，生成数据约 **7.55 GB**；项目内缓存建议预留至少约 **12 GB**，另留生成日志空间。smoke 也会缓存该配置的完整语料，之后的运行复用缓存。
 
+服务器配置使用的 `datasets` 加载器默认先读取项目 `.cache/hf/datasets/` 中与配置版本一致的完整 Arrow 缓存，命中时不查询远端；缺失时才调用 Hugging Face 加载、下载。`OPT_HMM_PROGRESS=1` 会区分本地缓存命中与联网加载阶段。显式设置 `HF_HUB_OFFLINE=1` 或 `HF_DATASETS_OFFLINE=1` 时，缺少该版本的完整缓存会直接报错。
+
 只使用 **article 正文**：取前 50 个模型 token 作为原文续写提示词，摘要不参与提示词或评价目标，编辑 token 池也来自独立论文的正文。实验仍然是续写水印定位。
 
 程序以固定 seed 随机遍历三个官方 split 的行，跳过过短、空正文和重复正文，凑齐所需独立文档后停止分词，再分配实验角色；不会把所有长论文都分词并驻留内存。官方 split 仅记录来源，实验角色重新划分。每篇论文只生成一个提示词，章节不拆成独立样本。Parquet 版本没有论文 ID/标题，故按空白与大小写归一化后的完整正文去重，并保存 source_split/source_row；此规则识别重复正文，不能识别正文不同的同一论文版本。manifest 记录数据版本、正文列、抽样规则和来源/检查/选取篇数。

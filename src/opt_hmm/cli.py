@@ -69,10 +69,60 @@ def main(argv=None):
     l0_synth = sub.add_parser("l0-synth", help="CPU pipeline test with a toy language model (not a result about OPT)")
     l0_synth.add_argument("--config", default="configs/text_l0_smoke.json")
     l0_synth.add_argument("--output", required=True)
+    l2_generate = sub.add_parser("l2-generate", help="L2 sources with vLLM (Linux/CUDA) for one side: W and U generations")
+    l2_generate.add_argument("--config", default="configs/text_l2.json")
+    l2_generate.add_argument("--model")
+    l2_generate.add_argument("--prompts", required=True)
+    l2_generate.add_argument("--output", required=True)
+    l2_generate.add_argument("--side", required=True, choices=["train", "test"])
+    l2_generate.add_argument("--tensor-parallel", type=int, default=1)
+    l2_generate.add_argument("--gpu-memory", type=float, default=.8)
+    l2_generate.add_argument("--dtype", default="float16", choices=["float16", "bfloat16", "float32"])
+    l2_generate.add_argument("--progress")
+    l2_build = sub.add_parser("l2-build", help="L2 positions: compose W/U, resample replay, pivots and truth")
+    l2_build.add_argument("--input", required=True, help="l2-generate run directory")
+    l2_build.add_argument("--output", required=True)
+    l2_build.add_argument("--model")
+    l2_build.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
+    l2_build.add_argument("--train", help="Training-side build directory (test side: reads L_top from it)")
+    l2_build.add_argument("--progress")
+    l2_mechanism = sub.add_parser("l2-mechanism", help="Mechanism check M1/M2 on the training side (CPU)")
+    l2_mechanism.add_argument("--input", required=True, help="Training-side l2-build directory")
+    l2_mechanism.add_argument("--output", required=True)
+    l2_mechanism.add_argument("--progress")
+    l2_fit = sub.add_parser("l2-fit", help="L2 estimation, dev selection and freeze on the training side (CPU)")
+    l2_fit.add_argument("--input", required=True, help="Training-side l2-build directory")
+    l2_fit.add_argument("--output", required=True)
+    l2_fit.add_argument("--workers", type=int, default=1)
+    l2_fit.add_argument("--cache", help="seedbs precompute cache directory")
+    l2_fit.add_argument("--progress")
+    l2_test = sub.add_parser("l2-test", help="One L2 test run from frozen.json on the test side (CPU)")
+    l2_test.add_argument("--frozen", required=True, help="l2-fit output directory (or frozen.json)")
+    l2_test.add_argument("--input", required=True, help="Test-side l2-build directory")
+    l2_test.add_argument("--output", required=True)
+    l2_test.add_argument("--workers", type=int, default=1)
+    l2_test.add_argument("--cache")
+    l2_test.add_argument("--mechanism", help="mechanism.json of the training side")
+    l2_test.add_argument("--progress")
+    l2_cap = sub.add_parser("l2-cap", help="m100 cap sensitivity after the test run")
+    l2_cap.add_argument("--frozen", required=True)
+    l2_cap.add_argument("--train", required=True)
+    l2_cap.add_argument("--input", required=True, help="Test-side l2-build directory")
+    l2_cap.add_argument("--output", required=True)
+    l2_cap.add_argument("--progress")
+    l2_synth = sub.add_parser("l2-synth", help="L2 pipeline test with a toy language model (not a result about OPT)")
+    l2_synth.add_argument("--config", default="configs/text_l2_smoke.json")
+    l2_synth.add_argument("--output", required=True)
+    l2_synth.add_argument("--workers", type=int, default=1)
+    l2_weights = sub.add_parser("l2-weights", help="Seconds per unit of each stage from a finished progress file")
+    l2_weights.add_argument("--progress", required=True)
+    l2_weights.add_argument("--output", required=True)
+    l2_stages = sub.add_parser("l2-stages", help="Print the overall progress stage table of an L2 config")
+    l2_stages.add_argument("--config", default="configs/text_l2.json")
     sub.add_parser("check-runtime", help="Check vLLM 0.8.4, CUDA, and the V0 logits processor")
     args = parser.parse_args(argv)
     # Resolve resource paths against the project even when a notebook is in /content.
-    for name in ("config", "model", "input", "output", "prompts"):
+    for name in ("config", "model", "input", "output", "prompts", "frozen", "train", "cache", "mechanism", "progress"):
         value = getattr(args, name, None)
         if value is not None:
             setattr(args, name, project_path(value))
@@ -107,6 +157,39 @@ def main(argv=None):
         lm, _ = generate_sources(read_json(args.config), base / "sources")
         l0_build_positions(base / "sources", base / "positions", replay=lm.replay)
         result = evaluate_positions(base / "positions", base / "eval")
+    elif args.command == "l2-generate":
+        from .l2.generate import generate as l2_generate_sources
+        config = read_json(args.config)
+        result = l2_generate_sources(config, args.model or project_path(config["model"]), args.prompts, args.output,
+                                     args.side, args.tensor_parallel, args.gpu_memory, args.dtype, args.progress)
+    elif args.command == "l2-build":
+        from .l2.build import build as l2_build_positions
+        result = l2_build_positions(args.input, args.output, model=args.model, device=args.device, train_dir=args.train,
+                                     progress_path=args.progress)
+    elif args.command == "l2-mechanism":
+        from .l2.mechanism import run_mechanism
+        result = run_mechanism(args.input, args.output, args.progress)
+    elif args.command == "l2-fit":
+        from .l2.fit import run_fit
+        result = run_fit(args.input, args.output, args.workers, args.cache, args.progress)
+    elif args.command == "l2-test":
+        from .l2.evaluate import run_test
+        result = run_test(args.frozen, args.input, args.output, args.workers, args.cache, args.progress,
+                          mechanism=args.mechanism)
+    elif args.command == "l2-cap":
+        from .l2.capsweep import run_cap_sweep
+        result = run_cap_sweep(args.frozen, args.train, args.input, args.output, args.progress)
+    elif args.command == "l2-synth":
+        from .l2.synth import run_synth
+        result = run_synth(read_json(args.config), args.output, workers=args.workers)
+    elif args.command == "l2-weights":
+        from .l2.stages import weights_from_progress
+        result = weights_from_progress(args.progress, args.output)
+    elif args.command == "l2-stages":
+        from .l2.stages import compare_to_plan, stage_table
+        config = read_json(args.config)
+        compare_to_plan(config)
+        result = {k: v["total"] for k, v in stage_table(config).items()}
     elif args.command == "evaluate":
         from .experiment import run_evaluation
         metadata = read_json(Path(args.input) / "metadata.json")
