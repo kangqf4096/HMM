@@ -1,4 +1,5 @@
 """Reuse the pinned datasets Arrow cache before resolving anything on the Hub."""
+import inspect
 from pathlib import Path
 
 from .paths import project_path
@@ -24,8 +25,11 @@ def load_cached_arxiv(dataset, subset, revision, cache_dir):
                         config_name=subset, version=version_dir.name, hash=revision)
         if not builder.info.splits or any(split not in builder.info.splits for split in SPLITS):
             continue
+        # Newer datasets releases dropped run_post_process from as_dataset().
+        kwargs = ({"run_post_process": False}
+                  if "run_post_process" in inspect.signature(builder.as_dataset).parameters else {})
         try:
-            return builder.as_dataset(run_post_process=False)
+            return builder.as_dataset(**kwargs)
         except FileNotFoundError:
             # A missing Arrow shard is a cache miss, not a completed release.
             continue
