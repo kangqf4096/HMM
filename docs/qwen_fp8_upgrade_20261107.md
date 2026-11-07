@@ -65,6 +65,32 @@ source scripts/env.sh
 export VLLM_USE_V1=0
 ```
 
+## `load_qkv_weight` 越界：先确认实际环境
+
+若加载 Qwen3 FP8 时在 `parameter.py` 的 `load_qkv_weight` / `narrow` 报
+`IndexError: start out of range`（例如维度为 56，偏移却为 5120），这是
+[vLLM 官方记录的 0.8.4 FP8 加载缺陷](https://github.com/vllm-project/vllm/issues/17327)。
+[0.8.5 的修复](https://github.com/vllm-project/vllm/pull/17318)会把 QKV 的权重偏移转换为 FP8 scale 的块偏移。
+原 OPT 非量化加载不经过这条路径，所以旧实验能跑不代表新模型能使用同一版本。
+
+在发生错误的同一个终端确认 Python、版本和导入位置：
+
+```bash
+python -c 'import sys,vllm; print(sys.executable); print(vllm.__version__); print(vllm.__file__)'
+```
+
+如果显示 `/root/miniconda3/lib/...` 和 `0.8.4`，检查是否尚未激活已经安装好的 `.venv-q3`。
+若新环境尚未安装，按上文「在新环境安装」完成安装。切换后确认实际版本是 `0.8.5`，再运行：
+
+```bash
+python scripts/run.py check-runtime --model models/opt-1.3b
+python scripts/check_fp8.py models/opt-1.3b
+```
+
+L2 GPU 入口现会读取本地模型的 `config.json`，在加载权重前拒绝 Qwen3 FP8 + vLLM 0.8.4；
+这也适用于 `models/opt-1.3b` 软链接入口。普通 OPT 仍可使用 0.8.4。
+之前的失败若已留下非空的 `*-gen` 输出目录，重跑时需先将失败目录改名保留，或使用新的 run-name。
+
 回退时退出新环境并激活原先使用的 conda 环境或旧 `.venv`；本方案没有对它们安装或卸载包。
 
 ## 通过 hf-mirror 匿名下载

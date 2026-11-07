@@ -121,7 +121,8 @@ def main(argv=None):
     l2_weights.add_argument("--output", required=True)
     l2_stages = sub.add_parser("l2-stages", help="Print the overall progress stage table of an L2 config")
     l2_stages.add_argument("--config", default="configs/text_l2.json")
-    sub.add_parser("check-runtime", help="Check vLLM 0.8.4/0.8.5, CUDA, and the V0 logits processor")
+    runtime_check = sub.add_parser("check-runtime", help="Check vLLM 0.8.4/0.8.5, CUDA, and the V0 logits processor")
+    runtime_check.add_argument("--model", help="Also check the local model's vLLM version requirements")
     args = parser.parse_args(argv)
     # Resolve resource paths against the project even when a notebook is in /content.
     for name in ("config", "model", "input", "output", "prompts", "frozen", "train", "cache", "mechanism", "progress"):
@@ -130,7 +131,7 @@ def main(argv=None):
             setattr(args, name, project_path(value))
     if args.command == "check-runtime":
         from .runtime import adapter_selftest, check_runtime
-        result = {**check_runtime(), **adapter_selftest()}
+        result = {**check_runtime(args.model), **adapter_selftest()}
     elif args.command == 'diagnose-pivots':
         from .pivot_experiment import run as run_pivot_experiment
         result = run_pivot_experiment(args.input, args.output, args.model, args.device)

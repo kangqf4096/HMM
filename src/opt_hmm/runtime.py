@@ -2,6 +2,7 @@
 import json
 import os
 import platform
+import sys
 import tempfile
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -20,12 +21,23 @@ def _installed_vllm():
         raise RuntimeError("vLLM 0.8.4/0.8.5 is not installed; use the server image or scripts/install.sh.") from error
 
 
-def check_runtime():
+def check_runtime(model=None):
     if platform.system() != "Linux":
         raise RuntimeError("vLLM generation is intended for the remote Linux host.")
     installed = _installed_vllm()
     if installed.split("+", 1)[0] not in SUPPORTED_VLLM:
         raise RuntimeError(f"This adapter supports vLLM {', '.join(SUPPORTED_VLLM)}; found {installed}.")
+    if model is not None:
+        model_config = json.loads((Path(model) / "config.json").read_text(encoding="utf-8"))
+        qwen3 = (model_config.get("model_type") == "qwen3" or
+                 "Qwen3ForCausalLM" in (model_config.get("architectures") or []))
+        fp8 = (model_config.get("quantization_config") or {}).get("quant_method") == "fp8"
+        if qwen3 and fp8 and installed.split("+", 1)[0] == "0.8.4":
+            raise RuntimeError(
+                f"Qwen3 FP8 requires vLLM 0.8.5 for this adapter; found {installed} "
+                f"in Python {sys.executable}. vLLM 0.8.4 has a QKV FP8 scale-loading bug "
+                "(load_qkv_weight: IndexError). Activate the upgraded environment or install "
+                "vllm==0.8.5 there. See https://github.com/vllm-project/vllm/issues/17327")
     if os.environ.get("VLLM_USE_V1", "0").strip().lower() not in ("0", "false"):
         raise RuntimeError("VLLM_USE_V1 must be 0: this adapter requires V0 callable logits processors.")
     import torch
@@ -34,7 +46,7 @@ def check_runtime():
     devices = [{"index": i, "name": torch.cuda.get_device_name(i),
                 "memory_gib": torch.cuda.get_device_properties(i).total_memory / 2**30}
                for i in range(torch.cuda.device_count())]
-    return {"vllm": installed, "engine": "V0", "torch": torch.__version__,
+    return {"python": sys.executable, "vllm": installed, "engine": "V0", "torch": torch.__version__,
             "cuda": torch.version.cuda, "devices": devices}
 
 

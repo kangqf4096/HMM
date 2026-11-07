@@ -58,7 +58,7 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
                    for name in ("repo_id", "revision")):
             raise ValueError("Tokenized prompts belong to a different model. Prepare again with the new model.")
     progress("检查 GPU 运行环境")
-    runtime = check_runtime()
+    runtime = check_runtime(model)
     output = new_output(output)
     trace_dir = output / "trace"
     trace_dir.mkdir()

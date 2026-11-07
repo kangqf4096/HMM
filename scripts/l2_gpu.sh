@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source scripts/env.sh
-MODEL_PATH="${1:?usage: bash scripts/l2_gpu.sh /path/to/local/model [run-name]}"
+MODEL_PATH="${1:-/root/models/qwen3-14b-fp8}"
 RUN="${2:-l2a}"
 CONFIG="${CONFIG:-configs/text_l2.json}"
 PROGRESS="${PROGRESS:-runs/l2_progress.json}"
@@ -15,7 +15,7 @@ if [[ -n "${DTYPE:-}" ]]; then
     DTYPE_ARGS=(--dtype "$DTYPE")
 fi
 
-python scripts/run.py check-runtime
+python scripts/run.py check-runtime --model "$MODEL_PATH"
 python scripts/l2_gpu.py --model "$MODEL_PATH" --run "$RUN" --config "$CONFIG" --progress "$PROGRESS" "${DTYPE_ARGS[@]}"
 
 printf 'GPU stages complete for %s. Next: WORKERS=10 bash scripts/l2_cpu.sh %q\n' "$RUN" "$RUN"

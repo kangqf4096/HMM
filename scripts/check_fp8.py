@@ -19,7 +19,7 @@ def generate(model_path, work, tokens):
     from opt_hmm.runtime import check_runtime
     from opt_hmm.vllm_processor import GumbelRequest, validate_sampling_params
 
-    runtime = check_runtime()
+    runtime = check_runtime(model_path)
     config = read_json(model_path / "config.json")
     if (config.get("quantization_config") or {}).get("quant_method") != "fp8":
         raise ValueError("This smoke check expects the downloaded FP8 model.")
