@@ -15,4 +15,6 @@ build/
 # 服务器操作备忘，含本机/服务器路径，不进版本库
 实操说明
 result/
+results/
 tests/
+*.gz
