@@ -22,6 +22,8 @@ def validate_recipe(recipe, where):
 
 def validate_l2(config):
     validate_text({**config, "edits": []})
+    if config.get("dtype", "float16") not in ("float16", "bfloat16", "float32"):
+        raise ValueError("dtype must be float16, bfloat16 or float32.")
     l2 = config.get("l2")
     if not l2 or type(l2.get("global_seed")) is not int:
         raise ValueError("Config needs an l2 section with an integer global_seed.")

@@ -77,7 +77,8 @@ def main(argv=None):
     l2_generate.add_argument("--side", required=True, choices=["train", "test"])
     l2_generate.add_argument("--tensor-parallel", type=int, default=1)
     l2_generate.add_argument("--gpu-memory", type=float, default=.8)
-    l2_generate.add_argument("--dtype", default="float16", choices=["float16", "bfloat16", "float32"])
+    l2_generate.add_argument("--dtype", choices=["float16", "bfloat16", "float32"],
+                             help="Override config.dtype (default: float16 when not configured)")
     l2_generate.add_argument("--progress")
     l2_build = sub.add_parser("l2-build", help="L2 positions: compose W/U, resample replay, pivots and truth")
     l2_build.add_argument("--input", required=True, help="l2-generate run directory")
@@ -119,7 +120,7 @@ def main(argv=None):
     l2_weights.add_argument("--output", required=True)
     l2_stages = sub.add_parser("l2-stages", help="Print the overall progress stage table of an L2 config")
     l2_stages.add_argument("--config", default="configs/text_l2.json")
-    sub.add_parser("check-runtime", help="Check vLLM 0.8.4, CUDA, and the V0 logits processor")
+    sub.add_parser("check-runtime", help="Check vLLM 0.8.4/0.8.5, CUDA, and the V0 logits processor")
     args = parser.parse_args(argv)
     # Resolve resource paths against the project even when a notebook is in /content.
     for name in ("config", "model", "input", "output", "prompts", "frozen", "train", "cache", "mechanism", "progress"):

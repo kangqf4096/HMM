@@ -7,9 +7,10 @@ from .plan import plan_jobs
 from .stages import default_progress_path, install_overall
 
 
-def generate(config, model, prompts_dir, output, side, tensor_parallel=1, gpu_memory=.8, dtype="float16",
+def generate(config, model, prompts_dir, output, side, tensor_parallel=1, gpu_memory=.8, dtype=None,
              progress_path=None):
     validate_l2(config)
+    dtype = dtype if dtype is not None else config.get("dtype", "float16")
     spec = config["l2"]["sides"][side]
     roles = set(spec["roles"])
     stage = "G1" if side == "train" else "G2"

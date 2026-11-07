@@ -25,8 +25,19 @@ class ModelReplay:
             raise RuntimeError('Probability replay requires a CUDA GPU; run on the Linux server.')
         dtype = {'float16': torch.float16, 'bfloat16': torch.bfloat16, 'float32': torch.float32}[metadata['dtype']]
         self.torch, self.device = torch, device
-        self.model = AutoModelForCausalLM.from_pretrained(model_path, local_files_only=True,
-                                                        torch_dtype=dtype).to(device).eval()
+        model_config = read_json(Path(model_path) / 'config.json')
+        fp8 = (model_config.get('quantization_config') or {}).get('quant_method') == 'fp8'
+        if fp8:
+            if device != 'cuda':
+                raise ValueError('FP8 probability replay requires a CUDA GPU.')
+            # Load quantized weights directly on the GPU. Do not cast FP8 weights
+            # through model.to(dtype), which would expand them on a 24 GiB card.
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_path, local_files_only=True, torch_dtype=dtype,
+                device_map={'': device}).eval()
+        else:
+            self.model = AutoModelForCausalLM.from_pretrained(model_path, local_files_only=True,
+                                                            torch_dtype=dtype).to(device).eval()
         self.metadata = metadata
 
     def __call__(self, prompt, tokens):

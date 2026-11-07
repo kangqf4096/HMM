@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install opt-hmm inside the vLLM 0.8.4 / Python 3.10 / CUDA 12.4 image.
+# Install opt-hmm with vLLM 0.8.4/0.8.5 V0 (image baseline: 0.8.4).
 #
 # This script deliberately reuses the image's vLLM, PyTorch and CUDA runtime.
 # It does not install a different vLLM, a new CUDA toolkit, or a new Python.
@@ -61,7 +61,7 @@ fi
 import sys
 if not ((3, 10) <= sys.version_info[:2] < (3, 13)):
     raise SystemExit(
-        f"Python 3.10-3.12 is required for vLLM 0.8.4; found {sys.version.split()[0]}. "
+        f"Python 3.10-3.12 is required for vLLM 0.8.4/0.8.5; found {sys.version.split()[0]}. "
         "Use the server image or pass --python with a compatible interpreter."
     )
 print(f"Python: {sys.version.split()[0]} ({sys.executable})")
@@ -83,8 +83,8 @@ except Exception as error:
     raise SystemExit(1)
 version = metadata.version("vllm")
 print(f"vLLM: {version}")
-if version.split("+", 1)[0] != "0.8.4":
-    print(f"Expected vLLM 0.8.4, found {version}", file=sys.stderr)
+if version.split("+", 1)[0] not in ("0.8.4", "0.8.5"):
+    print(f"Expected vLLM 0.8.4/0.8.5, found {version}", file=sys.stderr)
     raise SystemExit(1)
 try:
     import torch
@@ -93,10 +93,10 @@ except Exception as error:
     raise SystemExit(1)
 print(f"torch: {torch.__version__} (CUDA {torch.version.cuda})")
 if torch.__version__.split("+", 1)[0] != "2.6.0":
-    print("Warning: vLLM 0.8.4 wheels target torch 2.6.0; found a different torch.", file=sys.stderr)
+    print("Warning: vLLM 0.8.4/0.8.5 wheels target torch 2.6.0; found a different torch.", file=sys.stderr)
 PY
     then
-        echo "Selected Python ($PYTHON) cannot use the image's vLLM 0.8.4." >&2
+        echo "Selected Python ($PYTHON) cannot use vLLM 0.8.4/0.8.5." >&2
         echo "Activate the conda env that contains vLLM, or pass --python /path/to/that/python." >&2
         echo "If this is a fresh host, use --with-vllm to install the inference extra." >&2
         exit 1
@@ -139,7 +139,7 @@ if (( IN_VENV )); then
 fi
 
 if (( WITH_VLLM )); then
-    echo "Installing the inference extra, including vLLM 0.8.4 (not the default image mode)."
+    echo "Installing the inference extra with vLLM 0.8.4/0.8.5 (not the default image mode)."
     "$PIP_PY" -m pip install "${PIP_USER[@]}" -e ".[inference]"
 else
     # The image already provides vLLM/torch; only project, data, and tokenizer
@@ -179,7 +179,7 @@ cat <<EOF
 Environment ready.
   project : $PWD
   python  : $PIP_PY
-  vLLM    : 0.8.4 (V0 engine)
+  vLLM    : supported 0.8.4/0.8.5 (V0 engine)
 
 Activate and run:
   $ACTIVATE

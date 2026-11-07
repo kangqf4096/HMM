@@ -1,0 +1,15 @@
+# Qwen3-14B-FP8, Linux x86_64, Python 3.10, CUDA 12.4 wheels, V0 engine.
+# A candidate set checked against upstream requirements, not a remote GPU validation.
+vllm==0.8.5
+torch==2.6.0
+torchaudio==2.6.0
+torchvision==0.21.0
+xformers==0.0.29.post2
+triton==3.2.0
+transformers==4.51.3
+tokenizers==0.21.1
+accelerate==1.6.0
+numpy==2.2.6
+datasets==4.8.5
+pyarrow==25.0.1
+huggingface-hub==0.36.2

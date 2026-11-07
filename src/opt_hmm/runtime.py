@@ -1,4 +1,4 @@
-"""Linux runtime and vLLM 0.8.4 V0 contract checks."""
+"""Linux runtime and vLLM 0.8.4/0.8.5 V0 contract checks."""
 import json
 import os
 import platform
@@ -10,24 +10,24 @@ from pathlib import Path
 # engine choice before vLLM is imported anywhere in this process.
 os.environ.setdefault("VLLM_USE_V1", "0")
 
-SUPPORTED_VLLM = "0.8.4"
+SUPPORTED_VLLM = ("0.8.4", "0.8.5")
 
 
 def _installed_vllm():
     try:
         return version("vllm")
     except PackageNotFoundError as error:
-        raise RuntimeError("vLLM 0.8.4 is not installed; use the server image or scripts/install.sh.") from error
+        raise RuntimeError("vLLM 0.8.4/0.8.5 is not installed; use the server image or scripts/install.sh.") from error
 
 
 def check_runtime():
     if platform.system() != "Linux":
         raise RuntimeError("vLLM generation is intended for the remote Linux host.")
     installed = _installed_vllm()
-    if installed.split("+", 1)[0] != SUPPORTED_VLLM:
-        raise RuntimeError(f"This adapter targets vllm=={SUPPORTED_VLLM}; found {installed}.")
+    if installed.split("+", 1)[0] not in SUPPORTED_VLLM:
+        raise RuntimeError(f"This adapter supports vLLM {', '.join(SUPPORTED_VLLM)}; found {installed}.")
     if os.environ.get("VLLM_USE_V1", "0").strip().lower() not in ("0", "false"):
-        raise RuntimeError("VLLM_USE_V1 must be 0: vLLM 0.8.4 V1 ignores custom logits processors.")
+        raise RuntimeError("VLLM_USE_V1 must be 0: this adapter requires V0 callable logits processors.")
     import torch
     if not torch.cuda.is_available():
         raise RuntimeError("No CUDA GPU available.")
