@@ -12,6 +12,29 @@ bash scripts/l2_gpu.sh models/opt-1.3b l2a
 训练侧先构建，以确定测试侧 `alt_top` 场景使用的 `L_top`。
 此阶段结束后即可释放 GPU。
 
+### 完整阶段恢复
+
+重复执行相同命令即可接着运行，使用同一个 run-name、配置和 `DTYPE`：
+
+```bash
+bash scripts/l2_gpu.sh /root/models/qwen3-14b-fp8 l2a
+```
+
+脚本分别检查 prompt 准备、训练生成、训练构建、测试生成、测试构建。
+生成阶段要求 `sources.jsonl` 和最终 `metadata.json` 完整存在；构建阶段要求
+`positions.jsonl`、`articles.jsonl` 和最终 `manifest.json` 完整存在。
+已完成的阶段显示 `[skip]`，直接复用已有结果，包括此功能加入前生成的完整结果。
+跳过时也会补齐总进度文件中该阶段的计数，已有计时会保留。
+
+未完成的阶段显示 `[restart]`，将原输出目录改名为同一位置的 `.old1`、`.old2` 等，
+然后从头执行该阶段；旧目录中的批次和 trace 都会保留。
+例如训练生成已完成、训练构建中断，重跑会跳过训练生成，只重跑训练构建并继续后续阶段。
+恢复粒度是完整阶段：生成中断时整个训练或测试生成阶段重跑，构建中断时整个对应构建阶段重跑。
+
+恢复会核对保存的配置、模型来源、训练/测试侧及生成 dtype；不一致时停止并要求新 run-name。
+同一固定模型的目录搬迁及本地缓存位置变化允许复用。若上游阶段重新执行，依赖它的构建阶段也会重新执行。
+所有旧目录均保留，不会自动清理 `.oldN`。
+
 ## 2. CPU 阶段
 
 ```bash
@@ -46,4 +69,4 @@ WORKERS=10 bash scripts/l2_full.sh models/opt-1.3b l2a
 
 GPU 脚本沿用 `CONFIG`、`DTYPE`、`PROGRESS` 环境变量；CPU 脚本沿用 `WORKERS`、`PROGRESS`、`WEIGHTS`。
 两步的 run-name 和 `PROGRESS` 应保持一致，默认分别为 `l2a` 和 `runs/l2_progress.json`。
-输出目录命名沿用原流程；已有非空阶段输出时仍会报错，应为新实验选择新的 run-name。
+输出目录命名沿用原流程。GPU 脚本按上述完整阶段恢复；CPU 脚本仍要求阶段输出为空。
