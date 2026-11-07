@@ -40,4 +40,12 @@ def validate_text(config):
         previous = stop
     if not isinstance(config.get("enforce_eager", False), bool):
         raise ValueError("enforce_eager must be a boolean; eager mode is a runtime choice, not a string flag.")
+    memory = config.get("gpu_memory_utilization", .8)
+    if (isinstance(memory, bool) or not isinstance(memory, (int, float))
+            or not isfinite(memory) or not 0 < memory <= 1):
+        raise ValueError("gpu_memory_utilization must be a finite number in (0, 1].")
+    if "max_num_batched_tokens" in config:
+        batched = config["max_num_batched_tokens"]
+        if type(batched) is not int or batched < max(config["max_model_len"], config["max_num_seqs"]):
+            raise ValueError("max_num_batched_tokens must be an integer >= max_model_len and max_num_seqs.")
     return sorted(lengths)

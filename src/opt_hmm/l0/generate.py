@@ -89,10 +89,13 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
     n, m, temperature = config["tokens"], config["context_width"], config.get("temperature", 1.)
     seed = config.get("seed", 20261015)
     started = perf_counter()
+    scheduler_options = {}
+    if "max_num_batched_tokens" in config:
+        scheduler_options["max_num_batched_tokens"] = config["max_num_batched_tokens"]
     llm = LLM(model=model, tokenizer=model, dtype=dtype, tensor_parallel_size=tensor_parallel,
               gpu_memory_utilization=gpu_memory, max_model_len=config["max_model_len"],
               max_num_seqs=config["max_num_seqs"], seed=seed, enforce_eager=config.get("enforce_eager", False),
-              enable_prefix_caching=False, generation_config="vllm")
+              enable_prefix_caching=False, generation_config="vllm", **scheduler_options)
     model_load_seconds = perf_counter() - started
     tokenizer = llm.get_tokenizer()
     vocab_size = int(llm.llm_engine.model_config.get_vocab_size())

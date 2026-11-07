@@ -76,7 +76,8 @@ def main(argv=None):
     l2_generate.add_argument("--output", required=True)
     l2_generate.add_argument("--side", required=True, choices=["train", "test"])
     l2_generate.add_argument("--tensor-parallel", type=int, default=1)
-    l2_generate.add_argument("--gpu-memory", type=float, default=.8)
+    l2_generate.add_argument("--gpu-memory", type=float,
+                             help="Override config.gpu_memory_utilization (default: 0.8 when not configured)")
     l2_generate.add_argument("--dtype", choices=["float16", "bfloat16", "float32"],
                              help="Override config.dtype (default: float16 when not configured)")
     l2_generate.add_argument("--progress")
