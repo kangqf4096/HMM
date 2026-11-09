@@ -6,6 +6,8 @@ per-position score 1 - p(segment) so that the existing null calibration, labelli
 """
 import hashlib
 import math
+import os
+from functools import lru_cache
 from time import perf_counter
 
 import numpy as np
@@ -66,6 +68,35 @@ def ks_scan(p):
 
 def _ks_integers(ps):
     """ps: (R, l). Returns (R, l-1) of max_t |l N_j(t) - j N(t)| for j = 1..l-1 (int)."""
+    fast = _fast_kernels()
+    if fast is not None and np.isfinite(ps).all():
+        return fast.ks_integers(ps)
+    return _ks_numpy(ps)
+
+
+@lru_cache(maxsize=1)
+def _load_fast():
+    try:
+        from . import _seedbs_fast
+    except ImportError:
+        return None
+    return _seedbs_fast
+
+
+def _fast_kernels():
+    backend = os.environ.get("OPT_HMM_SEEDBS_BACKEND", "auto")
+    if backend not in ("auto", "numpy", "numba"):
+        raise ValueError("OPT_HMM_SEEDBS_BACKEND must be auto, numpy or numba.")
+    if backend == "numpy":
+        return None
+    fast = _load_fast()
+    if backend == "numba" and fast is None:
+        raise ImportError("Install the optional CPU accelerator: pip install -r requirements/cpu-fast.txt")
+    return fast
+
+
+def _ks_numpy(ps):
+    """Reference tensor implementation, also used when Numba is unavailable."""
     r, l = ps.shape
     e = ps[:, None, :] <= ps[:, :, None]                    # [rep, t index, position]
     cs = np.cumsum(e, axis=2, dtype=np.int32 if l > 180 else np.int16)
@@ -88,7 +119,12 @@ def block_bootstrap_pvalue(q, block, replicates, rng, observed_max):
         r = min(chunk, replicates - done)
         starts = rng.integers(0, l - block + 1, size=(r, count))
         index = (starts[:, :, None] + offsets).reshape(r, -1)[:, :l]
-        exceed += int((_ks_integers(q[index]).max(axis=1) >= observed_max).sum())
+        samples = q[index]
+        fast = _fast_kernels()
+        if fast is not None and np.isfinite(samples).all():
+            exceed += int(fast.ks_exceeds(samples, observed_max).sum())
+        else:
+            exceed += int((_ks_numpy(samples).max(axis=1) >= observed_max).sum())
         done += r
     return (1. + exceed) / (replicates + 1.)
 

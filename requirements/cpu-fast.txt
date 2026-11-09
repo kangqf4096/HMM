@@ -1,0 +1,2 @@
+# Optional exact SeedBS accelerator; pip selects a release compatible with Python/NumPy.
+numba>=0.61

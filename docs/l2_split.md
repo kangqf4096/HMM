@@ -45,6 +45,9 @@ WORKERS=10 bash scripts/l2_cpu.sh l2a
 脚本将 `CUDA_VISIBLE_DEVICES` 设为空，不检查 GPU 运行时，也不加载语言模型。
 `WORKERS` 传给拟合和测试评价的 SeedBS 进程池，不代表所有 CPU 步骤都会使用 10 个进程。
 
+4 核容器建议 `WORKERS=4`。SeedBS 可安装可选的精确加速内核，保持原实验参数及缓存兼容；
+安装、基准和正在运行任务的切换限制见 [CPU 加速说明](cpu_seedbs_fast.md)。
+
 ### CPU 输入、输出和恢复
 
 运行 `l2_cpu.sh` 时不需要手动清空任何文件或目录，重复执行同一条命令即可恢复。
