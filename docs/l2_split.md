@@ -45,6 +45,31 @@ WORKERS=10 bash scripts/l2_cpu.sh l2a
 脚本将 `CUDA_VISIBLE_DEVICES` 设为空，不检查 GPU 运行时，也不加载语言模型。
 `WORKERS` 传给拟合和测试评价的 SeedBS 进程池，不代表所有 CPU 步骤都会使用 10 个进程。
 
+### CPU 输入、输出和恢复
+
+运行 `l2_cpu.sh` 时不需要手动清空任何文件或目录，重复执行同一条命令即可恢复。
+
+| 路径（以 `l2a` 为例） | 作用与处理 |
+|---|---|
+| `runs/l2a-train-pos/`、`runs/l2a-test-pos/` | GPU 输入，必须完整保留，CPU 不会清空或改名 |
+| `runs/l2a-mechanism/` | 机制结果，完整时跳过，否则保留为 `.oldN` 后重跑 |
+| `runs/l2a-fit/` | 拟合结果，冻结参数及报告均完整时跳过，否则保留为 `.oldN` 后重跑 |
+| `runs/l2a-test/` | 测试结果，报告及全部逐篇指标完整时跳过，否则保留为 `.oldN` 后重跑 |
+| `runs/l2a-cap/` | cap 结果，完整时跳过，否则保留为 `.oldN` 后重跑 |
+| `runs/l2a-cache/fit-seedbs/`、`runs/l2a-cache/test-seedbs/` | 独立的 SeedBS 缓存，可非空，重跑时复用 |
+| 总进度 JSON、权重 JSON | 保留并更新，不需要清空 |
+
+旧版完整 CPU 结果可直接识别并补写 `resume.json`；仅有 `frozen.json`、缺少拟合报告不算整个拟合阶段完成。
+旧版位于 `*-fit/cache/seedbs/`、`*-test/cache/seedbs/` 及其 `.oldN` 目录中的完整 `.pkl` 缓存，
+会自动复制到独立缓存目录，原缓存仍保留。拟合或测试重跑时，已经保存的 SeedBS 预计算可继续复用；
+未保存的 HMM 拟合和 cap 扫描仍按整个阶段重跑。
+
+`resume.json` 记录对应输入清单和上游冻结参数。输入改变时停止并要求新 run-name；
+上游结果重算后，依赖它的测试报告或 cap 分析也会更新。`WORKERS` 可调整，不影响已有结果复用。
+
+底层 `python scripts/run.py l2-fit ...` 等单独命令仍要求其 `--output` 为空，
+但 `--input`、`--frozen` 和 `--cache` 必须指向已有数据或缓存。CPU 脚本会自动完成跳过、保留旧输出和缓存复用。
+
 测试侧数据可按实验计划 §6 提前生成与构建。机制检查、拟合与参数选择仅读取训练侧；
 `l2-fit` 写出 `runs/l2a-fit/frozen.json` 后，才开始读取测试侧进行评价。
 
@@ -69,4 +94,4 @@ WORKERS=10 bash scripts/l2_full.sh models/opt-1.3b l2a
 
 GPU 脚本沿用 `CONFIG`、`DTYPE`、`PROGRESS` 环境变量；CPU 脚本沿用 `WORKERS`、`PROGRESS`、`WEIGHTS`。
 两步的 run-name 和 `PROGRESS` 应保持一致，默认分别为 `l2a` 和 `runs/l2_progress.json`。
-输出目录命名沿用原流程。GPU 脚本按上述完整阶段恢复；CPU 脚本仍要求阶段输出为空。
+输出目录命名沿用原流程。GPU 和 CPU 脚本均按上述完整阶段恢复。

@@ -6,19 +6,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+from l2_stage import archive_incomplete, read_json, restore_progress, same_config
+
 ROOT = Path(os.environ.get("OPT_HMM_PROJECT") or Path(__file__).resolve().parents[1]).resolve()
 sys.path.insert(0, str(ROOT / "src"))
-
-
-def read_json(path):
-    return json.loads(Path(path).read_text(encoding="utf-8"))
-
-
-def same_config(saved, current):
-    # Model relocation and local staging do not change the experiment.
-    ignored = {"model", "generation_storage"}
-    return ({k: v for k, v in saved.items() if k not in ignored} ==
-            {k: v for k, v in current.items() if k not in ignored})
 
 
 def same_model(saved, model):
@@ -51,31 +42,6 @@ def complete(output, files, config, model, side=None, dtype=None):
     if mismatch:
         raise ValueError(f"Saved stage differs in config, model, side or dtype: {output}. Use a new run-name.")
     return True
-
-
-def archive_incomplete(output):
-    if not output.exists() or not any(output.iterdir()):
-        return
-    # Rename within the same data/runs parent; preserve every partial output.
-    index = 1
-    backup = output.with_name(f"{output.name}.old{index}")
-    while backup.exists():
-        index += 1
-        backup = output.with_name(f"{output.name}.old{index}")
-    output.rename(backup)
-    print(f"[restart] Preserved previous output: {backup}", flush=True)
-
-
-def restore_progress(config, progress, stage):
-    from opt_hmm.l2.stages import stage_table
-    from opt_hmm.progress import Overall
-    overall = Overall(stage_table(config), path=str(progress))
-    overall.restore(progress)
-    remaining = overall.stages[stage]["total"] - overall.done[stage]
-    if remaining:
-        progress.parent.mkdir(parents=True, exist_ok=True)
-        overall.advance(stage, remaining, cached=True)
-        overall.finish()
 
 
 def run_stage(name, output, files, args, config, model, progress, *, side=None,
