@@ -112,6 +112,33 @@ def main(argv=None):
     l2_cap.add_argument("--input", required=True, help="Test-side l2-build directory")
     l2_cap.add_argument("--output", required=True)
     l2_cap.add_argument("--progress")
+    l2_derive = sub.add_parser("l2-derive", help="Length study: derive prompts or sources at another text length, "
+                                                 "or check that a longer run's prefix equals a shorter run")
+    l2_derive.add_argument("kind", choices=["prompts", "sources", "prefix"])
+    l2_derive.add_argument("--input", required=True, help="Source run directory (the longer run for 'prefix')")
+    l2_derive.add_argument("--output", help="Derived directory (prompts, sources) or JSON report (prefix)")
+    l2_derive.add_argument("--config", help="Configuration of the derived run (prompts, sources)")
+    l2_derive.add_argument("--short", help="Shorter run's generation directory ('prefix')")
+    l2_degenerate = sub.add_parser("l2-degenerate", help="Length study: degenerate prompt groups in built *-pos directories")
+    l2_degenerate.add_argument("--input", nargs="+", required=True, help="Built *-pos directories (any side, any length)")
+    l2_degenerate.add_argument("--output", required=True, help="JSON file with the union of degenerate groups")
+    l2_filter = sub.add_parser("l2-filter", help="Length study: drop prompt groups from a built side")
+    l2_filter.add_argument("--input", required=True, help="Built *-pos directory")
+    l2_filter.add_argument("--output", required=True)
+    l2_filter.add_argument("--groups", required=True, help="JSON file written by l2-degenerate")
+    l2_filter.add_argument("--config", help="Configuration written into the manifest (same for both sides)")
+    l2_reuse = sub.add_parser("l2-reuse", help="Length study, group B: frozen f1 from another length, refit a, pi, tau (CPU)")
+    l2_reuse.add_argument("--frozen", required=True, help="Fit directory (or frozen.json) whose f1 is reused")
+    l2_reuse.add_argument("--train", required=True, help="Training-side *-pos directory of the new length")
+    l2_reuse.add_argument("--base", required=True, help="Group A fit directory of the new length (SeedBS, keys, L_top)")
+    l2_reuse.add_argument("--output", required=True)
+    l2_lengths = sub.add_parser("l2-lengths", help="Length study report: group A (retrained) against group B (frozen f1)")
+    l2_lengths.add_argument("--runs", nargs="+", required=True, help="Run names, e.g. l2L300f l2q1f l2L800f")
+    l2_lengths.add_argument("--reference-tokens", type=int, default=500)
+    l2_lengths.add_argument("--degenerate", help="JSON file written by l2-degenerate")
+    l2_lengths.add_argument("--window-edges", type=int, nargs="+", default=[150, 300, 500],
+                            help="Token positions that cut the longest text into windows for the f1 position analysis")
+    l2_lengths.add_argument("--output", required=True)
     l2_synth = sub.add_parser("l2-synth", help="L2 pipeline test with a toy language model (not a result about OPT)")
     l2_synth.add_argument("--config", default="configs/text_l2_smoke.json")
     l2_synth.add_argument("--output", required=True)
@@ -125,10 +152,11 @@ def main(argv=None):
     runtime_check.add_argument("--model", help="Also check the local model's vLLM version requirements")
     args = parser.parse_args(argv)
     # Resolve resource paths against the project even when a notebook is in /content.
-    for name in ("config", "model", "input", "output", "prompts", "frozen", "train", "cache", "mechanism", "progress"):
+    for name in ("config", "model", "input", "output", "prompts", "frozen", "train", "cache", "mechanism", "progress",
+                 "short", "base", "groups", "degenerate"):
         value = getattr(args, name, None)
         if value is not None:
-            setattr(args, name, project_path(value))
+            setattr(args, name, [project_path(v) for v in value] if isinstance(value, list) else project_path(value))
     if args.command == "check-runtime":
         from .runtime import adapter_selftest, check_runtime
         result = {**check_runtime(args.model), **adapter_selftest()}
@@ -182,6 +210,30 @@ def main(argv=None):
     elif args.command == "l2-cap":
         from .l2.capsweep import run_cap_sweep
         result = run_cap_sweep(args.frozen, args.train, args.input, args.output, args.progress)
+    elif args.command == "l2-derive":
+        from .l2 import derive
+        if args.kind == "prefix":
+            if not args.short:
+                raise ValueError("prefix needs --short.")
+            result = derive.check_prefix(args.input, args.short, args.output)
+        else:
+            if not args.config or not args.output:
+                raise ValueError(f"{args.kind} needs --config and --output.")
+            run = derive.derive_prompts if args.kind == "prompts" else derive.derive_sources
+            result = run(args.input, args.output, read_json(args.config))
+    elif args.command == "l2-degenerate":
+        from .l2.degenerate import run_degenerate
+        result = run_degenerate(args.input, args.output)
+    elif args.command == "l2-filter":
+        from .l2.filter import filter_side
+        config = read_json(args.config) if args.config else None
+        result = filter_side(args.input, args.output, read_json(args.groups)["groups"], config)
+    elif args.command == "l2-reuse":
+        from .l2.reuse import run_reuse
+        result = run_reuse(args.frozen, args.train, args.base, args.output)
+    elif args.command == "l2-lengths":
+        from .l2.lengths import run_lengths
+        result = run_lengths(args.runs, args.output, args.reference_tokens, args.degenerate, args.window_edges)
     elif args.command == "l2-synth":
         from .l2.synth import run_synth
         result = run_synth(read_json(args.config), args.output, workers=args.workers)

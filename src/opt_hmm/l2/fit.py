@@ -42,23 +42,33 @@ def check_side(side, config):
 
 
 def coverage(trainer, config):
-    """Truth = 1 positions per 0.1-wide bin of e' (plan 3.2); every bin needs min_positions."""
+    """Truth = 1 positions per 0.1-wide bin of e' (plan 3.2); every bin needs min_positions.
+
+    With `coverage.waive_underestimated`, a short bin is waived when it holds articles and every one of them has
+    e' below its true surviving share: the kernel then leans on articles that are weaker than they look, not
+    stronger. An empty bin is never waived.
+    """
     cov = config["l2"]["coverage"]
     lo, step, need = cov["lo"], cov["step"], cov["min_positions"]
+    waive = bool(cov.get("waive_underestimated", False))
     n = config["l2"]["arms"]["fe"]["pure_articles"]
     opt = trainer.arm_stage1["fe"].opt(config["l2"]["cap_k0"])
     pure, r2 = trainer.splits["cal_pure"], trainer.splits["mix_r2"]
     eps = np.concatenate([opt.estimate_many(pure.counts[:n])[0], opt.estimate_many(r2.counts)[0]])
+    truth = np.array([d["eps_true"] for d in pure.docs[:n]] + [d["eps_true"] for d in r2.docs], float)
     size = np.concatenate([pure.counts[:n].sum(axis=1), r2.truth_counts().sum(axis=1)])
     nb = int(np.floor((1. - lo) / step + 1e-9)) + 1
     which = np.clip(np.floor((eps - lo) / step + 1e-9).astype(int), 0, nb - 1)
     rows = []
     for k in range(nb):
         keep = which == k
+        enough = bool(size[keep].sum() >= need)
+        under = bool(keep.any() and (eps[keep] < truth[keep]).all())
         rows.append({"low": lo + k * step, "high": lo + (k + 1) * step, "articles": int(keep.sum()),
-                     "positions": int(size[keep].sum()), "ok": bool(size[keep].sum() >= need)})
-    return {"cap": config["l2"]["cap_k0"], "min_positions": need, "bins": rows,
-            "deficient": [r for r in rows if not r["ok"]]}
+                     "positions": int(size[keep].sum()), "ok": enough, "underestimated": under,
+                     "waived": bool(waive and not enough and under)})
+    return {"cap": config["l2"]["cap_k0"], "min_positions": need, "waive_underestimated": waive, "bins": rows,
+            "deficient": [r for r in rows if not r["ok"] and not r["waived"]]}
 
 
 def f0_check(null_stack, draws=50, seed=0):
