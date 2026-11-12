@@ -28,9 +28,9 @@
 cd /root/blockdata/HMM
 source .venv-q3/bin/activate && source scripts/env.sh
 git pull
-df -h /root /root/cache
+df -h /root/blockdata /dev/shm
 
-bash scripts/l2_len.sh gpu /root/models/qwen3-14b-fp8   # GPU：800 生成、前缀校验、派生 300、两个长度的 build
+bash scripts/l2_len.sh gpu /root/blockdata/models/qwen3-14b-fp8   # GPU：800 生成、前缀校验、派生 300、两个长度的 build
 WORKERS=4 bash scripts/l2_len.sh cpu                    # CPU：退化扫描、过滤、A×3、B×2、报告
 ```
 
@@ -40,7 +40,7 @@ WORKERS=4 bash scripts/l2_len.sh cpu                    # CPU：退化扫描、�
 | 步骤 | 命令 | 输出 |
 |---|---|---|
 | 复制 prompt 清单 | `l2-derive prompts` | `data/l2L800`、`data/l2L300`（选篇与 `tokens` 无关，清单与 `l2q1` 相同） |
-| 生成 800（GPU，`/root/cache` 双批缓存） | `l2_gpu.sh`（`CONFIG=configs/text_l2_L800.json`） | `runs/l2L800-{train,test}-gen`、`-pos` |
+| 生成 800（GPU，`/dev/shm/cache` 双批缓存） | `l2_gpu.sh`（`CONFIG=configs/text_l2_L800.json`） | `runs/l2L800-{train,test}-gen`、`-pos` |
 | 前缀校验 | `l2-derive prefix` | `runs/l2len-prefix-{train,test}.json`：800 生成的前 500 token 是否与 `l2q1` 逐 token 相同 |
 | 派生 300（不生成） | `l2-derive sources`，再 `l2_gpu.sh` | `runs/l2L300-*`：把 800 的 sources 截成前 300 token，只重做 build（熵重放要 GPU） |
 | 退化扫描 | `l2-degenerate` | `runs/l2len-degenerate.json` |
@@ -65,7 +65,7 @@ WORKERS=4 bash scripts/l2_len.sh cpu                    # CPU：退化扫描、�
 
 - **GPU 时间**：l2q1 训练侧生成用了 34086 s。生成量与长度成正比，800 约为其 1.6 倍，训练侧约 15 小时，加评价侧约 6 小时。
   `max_num_seqs=1` 不要改：并发会让数值路径变化，前缀校验可能因此失败。前缀校验失败不算错误，500 仍用原 `l2q1`，但"300 是 500 的前缀"的理由就要重新看。
-- **磁盘**：双批缓存每请求预算 `max(1 MiB, tokens × 4096 B)`，800 token 约 3.3 MB，两批 200 请求约 1.3 GB，另有 1 GiB 预留。生成中断会留下 `/root/cache/g-*/b*`，要手工清理。
+- **磁盘**：双批缓存每请求预算 `max(1 MiB, tokens × 4096 B)`，800 token 约 3.3 MB，两批 200 请求约 1.3 GB，另有 1 GiB 预留。生成中断会留下 `/dev/shm/cache/g-*/b*`，要手工清理。
 - **A 组的 CPU 时间**最长：三个长度各做一次完整拟合与 SeedBS 选择。把 `runs/l2q1-cache` 拷到 `runs/l2q1f-cache` 可复用 500 长度的 SeedBS 预计算（脚本已处理）。
 - **进度条**：剔除后文章数少于配置里的角色篇数，而各阶段的总量按配置算，所以百分比可能到不了 100%，只是显示问题。
 - **null 文章也被剔除**，any-FP 只对非退化文本成立。

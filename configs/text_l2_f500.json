@@ -1,7 +1,7 @@
 {
  "seed": 20261106,
- "model": "/root/models/qwen3-14b-fp8",
- "generation_storage": {"cache_root": "/root/cache", "reserve_gb": 1},
+ "model": "/root/blockdata/models/qwen3-14b-fp8",
+ "generation_storage": {"cache_root": "/dev/shm/cache", "fallback_root": "/root/blockdata/cache", "reserve_gb": 1, "spill_gb": 90},
  "model_repo": "Qwen/Qwen3-14B-FP8",
  "model_revision": "9a283b4a5efbc09ce247e0ae5b02b744739e525a",
  "dtype": "bfloat16",

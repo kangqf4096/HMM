@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
-# Copy weights to the local disk; keep the network copy as a backup.
+# Copy overlay weights to blockdata; keep the source until smoke passes.
 set -euo pipefail
-SRC="${1:-/root/blockdata/HMM/models/qwen3-14b-fp8}"
-DST="${2:-/root/models/qwen3-14b-fp8}"
+SRC="${1:-/root/models/qwen3-14b-fp8}"
+DST="${2:-/root/blockdata/models/qwen3-14b-fp8}"
 [[ -d "$SRC" && -f "$SRC/config.json" ]] || { echo "Invalid model source: $SRC" >&2; exit 1; }
 [[ ! -e "$DST" && ! -e "$DST.part" ]] || { echo "Destination already exists: $DST or $DST.part" >&2; exit 1; }
-mkdir -p "$(dirname "$DST")" /root/cache
+[[ -d /root/blockdata ]] || { echo "blockdata is not mounted" >&2; exit 1; }
+mkdir -p "$(dirname "$DST")"
 need=$(du -sLb "$SRC" | cut -f1)
 free=$(df -B1 --output=avail "$(dirname "$DST")" | tail -1 | tr -d ' ')
 (( free > need + 2 * 1024 * 1024 * 1024 )) || { echo "Need model size plus 2 GiB free space" >&2; exit 1; }
-# Dereference HF snapshot links: the local copy must not read remote weight blobs.
+# Dereference HF snapshot links so the blockdata copy is self contained.
 cp -rL -- "$SRC" "$DST.part"
 mv -- "$DST.part" "$DST"
-echo "Local model ready: $DST (network backup retained)"
-df -h "$DST" /root/cache
+echo "Blockdata model ready: $DST (overlay source retained until smoke passes)"
+df -h "$DST" /dev/shm

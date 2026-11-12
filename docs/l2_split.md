@@ -17,7 +17,7 @@ bash scripts/l2_gpu.sh models/opt-1.3b l2a
 重复执行相同命令即可接着运行，使用同一个 run-name、配置和 `DTYPE`：
 
 ```bash
-bash scripts/l2_gpu.sh /root/models/qwen3-14b-fp8 l2a
+bash scripts/l2_gpu.sh /root/blockdata/models/qwen3-14b-fp8 l2a
 ```
 
 脚本分别检查 prompt 准备、训练生成、训练构建、测试生成、测试构建。

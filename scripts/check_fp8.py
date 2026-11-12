@@ -23,7 +23,8 @@ def generate(model_path, work, tokens):
     config = read_json(model_path / "config.json")
     if (config.get("quantization_config") or {}).get("quant_method") != "fp8":
         raise ValueError("This smoke check expects the downloaded FP8 model.")
-    llm = LLM(model=str(model_path), tokenizer=str(model_path), dtype="bfloat16",
+    from opt_hmm.eager_loader import EagerModelLoader
+    llm = LLM(load_format=EagerModelLoader, model=str(model_path), tokenizer=str(model_path), dtype="bfloat16",
               max_model_len=1024, max_num_seqs=1, gpu_memory_utilization=.8,
               enforce_eager=True, enable_prefix_caching=False, generation_config="vllm")
     tokenizer = llm.get_tokenizer()

@@ -120,6 +120,8 @@ class GumbelRequest:
             logits.fill_(float("-inf"))
             logits[chosen] = 0.
         if self.trace_path:
-            with Path(self.trace_path).open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(audit, separators=(",", ":")) + "\n")
+            from .memory import cache_lock
+            with cache_lock(settings.get("trace_lock")):
+                with Path(self.trace_path).open("a", encoding="utf-8") as handle:
+                    handle.write(json.dumps(audit, separators=(",", ":")) + "\n")
         return logits

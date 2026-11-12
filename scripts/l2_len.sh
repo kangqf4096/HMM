@@ -8,7 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 source scripts/env.sh
 MODE="${1:?usage: bash scripts/l2_len.sh gpu|cpu [model-path]}"
-MODEL="${2:-/root/models/qwen3-14b-fp8}"
+MODEL="${2:-/root/blockdata/models/qwen3-14b-fp8}"
 BASE="${BASE:-l2q1}"
 WORKERS="${WORKERS:-4}"
 R=runs

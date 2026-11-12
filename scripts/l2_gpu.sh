@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source scripts/env.sh
-MODEL_PATH="${1:-/root/models/qwen3-14b-fp8}"
+MODEL_PATH="${1:-/root/blockdata/models/qwen3-14b-fp8}"
 RUN="${2:-l2a}"
 CONFIG="${CONFIG:-configs/text_l2.json}"
 PROGRESS="${PROGRESS:-runs/l2_progress.json}"

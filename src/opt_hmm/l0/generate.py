@@ -92,7 +92,9 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
     scheduler_options = {}
     if "max_num_batched_tokens" in config:
         scheduler_options["max_num_batched_tokens"] = config["max_num_batched_tokens"]
-    llm = LLM(model=model, tokenizer=model, dtype=dtype, tensor_parallel_size=tensor_parallel,
+    from ..eager_loader import EagerModelLoader
+    llm = LLM(load_format=EagerModelLoader, model=model, tokenizer=model, dtype=dtype,
+              tensor_parallel_size=tensor_parallel,
               gpu_memory_utilization=gpu_memory, max_model_len=config["max_model_len"],
               max_num_seqs=config["max_num_seqs"], seed=seed, enforce_eager=config.get("enforce_eager", False),
               enable_prefix_caching=False, generation_config="vllm", **scheduler_options)
@@ -152,7 +154,7 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
         "key": key, "public_research_key": key == PUBLIC_KEY, "vocab_size": vocab_size,
         "blocked_ids": blocked, "tensor_parallel": tensor_parallel, "dtype": dtype,
         "gpu_memory_utilization": gpu_memory, "enforce_eager": config.get("enforce_eager", False),
-        "model_load_seconds": model_load_seconds, "generation_seconds": generation_seconds,
+        "safetensors_load_strategy": "eager", "model_load_seconds": model_load_seconds, "generation_seconds": generation_seconds,
         "audit": "Every active chosen token, pivot, context and seed verified.", "prompt_manifest": manifest})
     return {"articles": article_count, "generation_seconds": generation_seconds}
 
@@ -164,50 +166,57 @@ def _cached_sources(jobs, llm, SamplingParams, GumbelRequest, validate_params,
 
     storage = config["generation_storage"]
     cache = BatchCache(project_path(storage["cache_root"]),
-                       int(storage.get("reserve_gb", 1) * 1024 ** 3))
-    n, m = config["tokens"], config["context_width"]
-    temperature, seed = config.get("temperature", 1.), config.get("seed", 20261015)
-    # Conservative allowance for trace plus inputs and verified source records.
-    budget = max(1024 ** 2, n * 4096)
-    started = perf_counter()
-    count = 0
-    progress("本地双批缓存", detail=str(cache.root))
-    for start, batch, part_jobs in cache.batches(jobs, size, manifest, budget):
-        params, requests = [], []
-        for offset, job in enumerate(part_jobs):
-            number = start + offset
-            settings = {"context_width": m, "key": key, "vocab_size": vocab_size,
-                        "blocked_ids": blocked, "ranges": job["ranges"],
-                        "trace_path": str((batch / "trace" / f"r{number}.jsonl").resolve()),
-                        "pivot_diagnostics": False}
-            job["trace_path"] = settings["trace_path"]
-            param = SamplingParams(n=1, temperature=temperature, top_p=1., top_k=-1, min_p=0.,
-                                   max_tokens=n, ignore_eos=True, detokenize=False,
-                                   seed=seed + number,
-                                   logits_processors=[GumbelRequest(settings, temperature)])
-            validate_params(param)
-            params.append(param)
-            requests.append({"prompt_token_ids": job["doc"]["prompt_ids"]})
-        generated = llm.generate(requests, sampling_params=params, use_tqdm=True)
-        if len(generated) != len(part_jobs):
-            raise RuntimeError("vLLM output count mismatch.")
-        records = []
-        for job, result in zip(part_jobs, generated):
-            tokens = list(result.outputs[0].token_ids)
-            if list(result.prompt_token_ids) != job["doc"]["prompt_ids"] or len(tokens) != n:
-                raise RuntimeError("vLLM prompt mismatch or incomplete generation.")
-            audit = {row["step"]: row for row in read_jsonl(job["trace_path"])}
-            records.append(source_record(job, tokens, audit, key, m))
-        write_jsonl(batch / "sources.jsonl", records)
-        cache.commit(batch, output / "batches" / f"b{start // size}")
-        count += len(records)
-        if tick_stage:
-            tick(tick_stage, len(records))
-        progress("本批已回传并释放本地缓存", count, len(jobs))
-    # Stream the small source shards on network storage into the existing interface.
-    with (output / "sources.jsonl").open("wb") as target:
-        for number in range((len(jobs) + size - 1) // size):
-            with (output / "batches" / f"b{number}" / "sources.jsonl").open("rb") as source:
-                shutil.copyfileobj(source, target)
-    cache.finish()
-    return count, perf_counter() - started
+                       int(storage.get("reserve_gb", 1) * 1024 ** 3),
+                       fallback_root=project_path(storage["fallback_root"]) if storage.get("fallback_root") else None,
+                       spill_bytes=int(storage.get("spill_gb", 90) * 1_000_000_000))
+    try:
+        n, m = config["tokens"], config["context_width"]
+        temperature, seed = config.get("temperature", 1.), config.get("seed", 20261015)
+        # Conservative allowance for trace plus inputs and verified source records.
+        budget = max(1024 ** 2, n * 4096)
+        started = perf_counter()
+        count = 0
+        progress("本地双批缓存", detail=str(cache.root))
+        for start, batch, part_jobs in cache.batches(jobs, size, manifest, budget):
+            params, requests = [], []
+            for offset, job in enumerate(part_jobs):
+                number = start + offset
+                settings = {"context_width": m, "key": key, "vocab_size": vocab_size,
+                            "blocked_ids": blocked, "ranges": job["ranges"],
+                            "trace_path": str((batch / "trace" / f"r{number}.jsonl").resolve()),
+                            "pivot_diagnostics": False, "trace_lock": cache.lock_path}
+                job["trace_path"] = settings["trace_path"]
+                param = SamplingParams(n=1, temperature=temperature, top_p=1., top_k=-1, min_p=0.,
+                                       max_tokens=n, ignore_eos=True, detokenize=False,
+                                       seed=seed + number,
+                                       logits_processors=[GumbelRequest(settings, temperature)])
+                validate_params(param)
+                params.append(param)
+                requests.append({"prompt_token_ids": job["doc"]["prompt_ids"]})
+            generated = llm.generate(requests, sampling_params=params, use_tqdm=True)
+            if len(generated) != len(part_jobs):
+                raise RuntimeError("vLLM output count mismatch.")
+            records = []
+            for job, result in zip(part_jobs, generated):
+                tokens = list(result.outputs[0].token_ids)
+                if list(result.prompt_token_ids) != job["doc"]["prompt_ids"] or len(tokens) != n:
+                    raise RuntimeError("vLLM prompt mismatch or incomplete generation.")
+                with cache.locked():
+                    audit = {row["step"]: row for row in read_jsonl(job["trace_path"])}
+                records.append(source_record(job, tokens, audit, key, m))
+            with cache.locked():
+                write_jsonl(batch / "sources.jsonl", records)
+            cache.commit(batch, output / "batches" / f"b{start // size}")
+            count += len(records)
+            if tick_stage:
+                tick(tick_stage, len(records))
+            progress("本批已回传并释放本地缓存", count, len(jobs))
+        # Stream the small source shards on network storage into the existing interface.
+        with (output / "sources.jsonl").open("wb") as target:
+            for number in range((len(jobs) + size - 1) // size):
+                with (output / "batches" / f"b{number}" / "sources.jsonl").open("rb") as source:
+                    shutil.copyfileobj(source, target)
+        cache.finish()
+        return count, perf_counter() - started
+    finally:
+        cache.close()

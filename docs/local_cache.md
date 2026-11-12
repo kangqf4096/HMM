@@ -1,50 +1,107 @@
-# 网络数据盘与本地双批缓存（2026-11-08）
+# blockdata 模型与内存双批缓存（2026-11-12）
 
-服务器：项目、原始数据与最终结果位于 `/root/blockdata/HMM`；模型位于
-`/root/models/qwen3-14b-fp8`；生成缓存位于 `/root/cache/g-*/b*`。
-这是 `/root/model` 之外的新目录 `/root/models`，不会覆盖已有 OPT 模型。
+服务器只有网络存储；`/root` 是 overlay，不再当作本地缓存盘。
+项目与最终结果保留在 `/root/blockdata/HMM`，模型默认位于
+`/root/blockdata/models/qwen3-14b-fp8`。实际目录若不同，用 `--model` 指定。
+生成双批缓存使用 `/dev/shm/cache/g-*/b*`；压力转存目录为
+`/root/blockdata/cache/g-*/b*`。
 
-先同步补丁，然后在服务器执行：
+## 同步与模型迁移
+
+程序、配置、脚本和说明均通过 GitHub 交付，服务器执行：
 
 ```bash
 cd /root/blockdata/HMM
-bash scripts/local_model.sh
-df -h /root /root/cache
+git pull --ff-only
 source scripts/env.sh
-python scripts/run.py l2-generate --config configs/text_l2.json \
-  --prompts data/l2a --side train --output runs/l2local-train-gen
+# 仅当模型还在 overlay 且目标目录不存在时执行；已有 blockdata 模型直接复用。
+bash scripts/local_model.sh /root/models/qwen3-14b-fp8 /root/blockdata/models/qwen3-14b-fp8
+df -h /root/blockdata /dev/shm
 ```
 
-上例复用 `data/l2a`，请替换为已有 prompts 目录。旧运行目录不能复用。
-要从 prepare 开始执行完整 GPU 链，可使用
-`bash scripts/l2_gpu.sh /root/models/qwen3-14b-fp8 l2local`。
+迁移脚本解引用符号链接，先复制到目标旁 `.part`，成功后改名，保留旧模型，
+待 smoke 成功后自行处理旧副本。若网络盘上已经有完整权重，直接使用它，无需重复复制。
+迁移后仍以模型来源记录 `opt_hmm_source.json` 匹配已经准备的 prompts。
 
-`local_model.sh` 复制实际文件（解引用符号链接），先写入目标旁的 `.part` 目录，
-成功后改名；网络原模型保留作备份，不占本地盘。没有强制哈希校验。
-拷贝前要求空闲容量至少为模型大小加 2 GiB；30 GB 是总容量，系统、环境、
-现有 `/root/model/opt-1.3b.tgz` 等已经占用的部分必须扣除。
+## 100 GB cgroup smoke
 
-正式 `text_l2.json` 已启用 `generation_storage`，模型默认使用上述本地路径。
-其他配置仍按原方式运行。缓存按 `l2.generate_chunk`（默认 200 个生成请求）划分，
-与 `max_num_seqs` 并发数不同。一次模型加载服务全部批次。
+使用 **100,000,000,000 字节（十进制 100 GB）** 上限。
+`scripts/cache_smoke.py` 要求 Linux cgroup v2：若当前 cgroup 的 `memory.max`
+已不高于这个值，直接使用；否则尝试创建受限子组并设置 `memory.swap.max=0`。
+没有 memory controller 委派权限且当前限额过大时，加载模型前退出，
+需要在实验平台把容器/作业的内存硬限额设为上述值，或提供可写的受委派 cgroup。
+脚本不会修改父 cgroup 的限额，也不会仅凭轮询声称实现硬上限。
 
-生成只需要准备好的 `prompts.jsonl`，不再读取原始 Parquet。为保持角色分配和请求顺序，
-prompt 清单只从网络读取一次到内存；后台线程将下一批实际需要的 job/prompt
-写入本地缓存，与本批计算重叠，而不是重复拷贝整个数据集。
-本批 trace 写入本地，生成后立即校验 seed/context/chosen token，写出本批 sources，
-再同步回传到网络结果目录的 `batches/bN`（先 `.part` 后改名），成功后删除本批缓存。
-当前批回传完成后才允许预取再下一批，最多两批同时存在。
-每批 trace 保存在 `batches/bN/trace`；顶层 `sources.jsonl` 在全部成功后流式合并，
-后续 `l2-build` 的输入接口不变。
+复用已有 L2 prompts，例如 `data/l2q1`（换成实际目录）：
 
-空间检查预留 1 GiB，并按每请求 `max(1 MiB, tokens × 4096 B)` 估算缓存预算。
-500 token、200 请求时两批预算约 0.76 GiB，另加 1 GiB 余量；实际大小可能不同。
-这些是保守估计和启动检查，不是文件系统配额。回传失败保留本地批和远端 `.part`；
-下次不会自动删除或续跑它们，检查并归档后再使用新输出目录重跑。
+```bash
+cd /root/blockdata/HMM
+source scripts/env.sh
+python scripts/cache_smoke.py --prompts data/l2q1 --output runs/memsmoke
+# 另一个终端查看生成日志：
+tail -f runs/memsmoke/run.log
+```
 
-随机种子保持 `config.seed + 全局请求序号`，不在每批重置；chunk 边界保持原配置。
-生成的 `generation_seconds` 在缓存模式下包含预取等待、核验和回传时间。
-`l2-build` 和 CPU 分析仍采用现有的内存处理及网络盘批量输出流程，
-没有逐 token 网络 trace 写入；它们未改造成双批缓存。
+默认使用正式 `configs/text_l2.json` 的模型、500 token 长度、并发、CUDA graph
+和 chunk；只取训练侧前 `generate_chunk + 1` 个请求，默认 201，检验满批与跨批回传。
+保留正式 chunk 大小，不用两个短请求替代批次内存测试。
+这是生成/缓存 smoke，不执行后续 HF replay、build 或 CPU 分析；其结论只覆盖本次配置。
+800 token 的实验另运行：
 
-仅同步代码到服务器不会自动搬迁服务器模型，必须执行上述迁移脚本。
+```bash
+python scripts/cache_smoke.py --config configs/text_l2_L800.json \
+  --prompts data/l2L800 --output runs/mem800
+```
+
+已有输出目录会拒绝覆盖。日志与结果保存在 `runs/memsmoke/`：
+`run.log`、`memory.jsonl`、`memory.json`、`gen/`，成功才生成 `passed.json`。
+统计使用 cgroup `memory.current`，包括进程、子进程、tmpfs 和文件缓存，
+而不是只看主 Python RSS。`memory.events` 的前后值用于判断 OOM/oom_kill 是否增加；
+已有 cgroup 的 `memory.peak` 可能含本次测试之前的历史，`peak_sampled_bytes` 为本次轮询峰值。
+
+## 先释放缓存，再停止
+
+默认达到 **90 GB** 时暂停 trace 写入，将本次会话的两批缓存转存到
+`/root/blockdata/cache`，然后用原路径的符号链接继续读写；后续批次直接写网络盘。
+不足双批预算的 `/dev/shm` 容量也会触发同一路径，不会因为常见的小 shm 挂载直接失败。
+所有 trace 写入、缓存转存、核验读取和批次提交共用会话级 flock。
+转存时先完成磁盘副本，再释放 tmpfs，避免删除仍在写入的审计记录。
+网络写出后 fsync，并请求 Linux 丢弃对应文件页缓存；实际回收受内核和文件系统影响。
+压力转存发生一次后不再回切内存，避免反复抖动。
+
+**97 GB** 为 smoke 的提前停止线，**100 GB** 由 cgroup 硬限制兜底。
+若现有限额更低，脚本自动降低转存/停止阈值。模型加载阶段没有双批缓存可释放；
+若主要占用来自 eager 权重/运行时，转存不能保证避免 OOM。
+转存和网络写出需要时间，轮询不能保证在瞬时峰值前完成；必须保留 cgroup 硬限制。
+异常时保留未提交批次和 `.part`，不自动清空整个 `/dev/shm/cache`，也不影响其他会话。
+进程被 cgroup 强杀时不会自动恢复，先检查日志与残留，再换输出目录重跑。
+
+可在正式 smoke 后单独降低阈值来验证转存机制（此命令会很早切到网络盘，
+因此不能用来代表默认内存缓存的峰值）：
+
+```bash
+python scripts/cache_smoke.py --prompts data/l2q1 --output runs/memspill --spill-gb 0.001
+```
+
+正式 `l2_gpu.sh` 和长度实验已经接入相同的 90 GB 缓存转存逻辑；
+**100 GB 的硬限额必须由平台配置，或通过本 smoke 的受限子组提供**。
+普通 `l2_gpu.sh` 不负责改变平台 cgroup 限额。
+
+## 权重 eager 与结果回传
+
+项目固定 vLLM 0.8.4/0.8.5 V0，保留 callable logits processor。
+这些版本没有新版 `--safetensors-load-strategy eager` 参数。
+项目通过其自定义 loader 扩展，逐个 safetensors 分片完整读入 CPU 内存后解析，
+实现 eager 读取；保留 vLLM 的分片筛选、模型加载和 FP8 后处理，不升级到 V1。
+所有三处 `LLM(...)` 入口均使用此 loader；`.bin/.pt` 仍走原始 PyTorch loader。
+这里的 eager 是**权重加载策略**，与 `enforce_eager`（是否关闭 CUDA graph）无关。
+官方新版参数说明：<https://docs.vllm.ai/en/stable/configuration/engine_args/>。
+0.8.5 接口依据：<https://github.com/vllm-project/vllm/blob/v0.8.5/vllm/model_executor/model_loader/loader.py>。
+
+每批生成后校验 seed/context/chosen token，写 sources，再回传结果目录
+`batches/bN`（先 `.part` 后改名），成功后释放本批缓存；最多两批同时存在。
+全部完成后流式合并 `sources.jsonl`，后续 `l2-build` 接口不变。
+种子仍为 `config.seed + 全局请求序号`，不会在批次边界重置。
+预算仍为每请求 `max(1 MiB, tokens × 4096 B)`，另预留 1 GiB shm 空间；
+这是估计，不是实际 cgroup 内存配额。网络盘可能比 overlay 更适合顺序读取，
+实际收益由 smoke 的模型加载耗时与运行日志判断。

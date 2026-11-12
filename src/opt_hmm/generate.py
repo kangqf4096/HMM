@@ -90,7 +90,9 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
     # an implementation choice rather than part of the protocol.
     eager = config.get("enforce_eager", False)
     max_num_seqs = config.get("max_num_seqs", 8)
-    llm = LLM(model=model, tokenizer=model, dtype=dtype, tensor_parallel_size=tensor_parallel,
+    from .eager_loader import EagerModelLoader
+    llm = LLM(load_format=EagerModelLoader, model=model, tokenizer=model, dtype=dtype,
+              tensor_parallel_size=tensor_parallel,
               gpu_memory_utilization=gpu_memory, max_model_len=max_model_len,
               max_num_seqs=max_num_seqs, seed=config.get("seed", 20261015),
               enforce_eager=eager, enable_prefix_caching=False, generation_config="vllm")
@@ -196,7 +198,7 @@ def generate(config, model, prompts_dir, output, tensor_parallel=1, gpu_memory=.
                                         "tensor_parallel": tensor_parallel, "dtype": dtype,
                                         "gpu_memory_utilization": gpu_memory, "max_num_seqs": max_num_seqs,
                                         "enforce_eager": eager,
-                                        "model_load_seconds": model_load_seconds,
+                                        "safetensors_load_strategy": "eager", "model_load_seconds": model_load_seconds,
                                         "generation_seconds": generation_seconds,
                                         "pivot_diagnostics": pivot_diagnostics,
                                         "audit": "Every active chosen token, pivot, context and seed verified.",
