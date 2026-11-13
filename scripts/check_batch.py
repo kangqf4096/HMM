@@ -17,6 +17,18 @@ def save(path, data):
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def checked_audit(ids, rows, expected_tokens, label):
+    audit = {r["step"]: r for r in rows}
+    expected = set(range(len(ids)))
+    missing = sorted(expected - set(audit))
+    extra = sorted(set(audit) - expected)
+    # V0 may invoke the processor after the final token; this draw is discarded.
+    if len(ids) != expected_tokens or missing or set(extra) - {len(ids)}:
+        raise RuntimeError(f"{label}: tokens={len(ids)}, expected={expected_tokens}, "
+                           f"trace_steps={len(audit)}, missing={missing[:10]}, extra={extra[:10]}")
+    return {t: audit[t] for t in range(len(ids))}
+
+
 def worker(args):
     from vllm import LLM, SamplingParams
     from opt_hmm.eager_loader import EagerModelLoader
@@ -63,13 +75,16 @@ def worker(args):
         outputs = llm.generate([{"prompt_token_ids": j["prompt_ids"]} for j in jobs],
                                sampling_params=params, use_tqdm=True)
         seconds = perf_counter() - started
+        save(directory / "raw.json", {"seconds": seconds,
+             "outputs": [{"token_ids": list(o.outputs[0].token_ids)} for o in outputs]})
+        if len(outputs) != len(jobs):
+            raise RuntimeError(f"Expected {len(jobs)} outputs, got {len(outputs)}")
         records = []
         for i, (job, output) in enumerate(zip(jobs, outputs)):
             ids = list(output.outputs[0].token_ids)
-            audit = {r["step"]: r for r in map(json.loads, (directory / f"{i}.jsonl").read_text().splitlines())}
+            rows = list(map(json.loads, (directory / f"{i}.jsonl").read_text().splitlines()))
+            audit = checked_audit(ids, rows, args.tokens, f"{label}/{i}")
             contexts = generation_contexts(job["prompt_ids"], ids, cfg["context_width"])
-            if len(ids) != args.tokens or set(audit) != set(range(args.tokens)):
-                raise RuntimeError("Incomplete tokens or callback trace")
             if any(audit[t]["context"] != contexts[t] for t in range(args.tokens)):
                 raise RuntimeError("Callback history mismatch")
             if job["source"] == "W" and any(audit[t]["chosen"] != ids[t] for t in range(args.tokens)):
