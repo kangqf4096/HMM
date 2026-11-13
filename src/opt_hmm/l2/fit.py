@@ -15,7 +15,7 @@ from ..paths import project_path
 from ..progress import progress, tick
 from .config import validate_l2
 from .data import load_side
-from .methods import DEV_CLASSES, HMM_ARMS, Trainer, cap_key, method_names, params_from, parse
+from .methods import DEV_CLASSES, HMM_ARMS, KERNEL_ARMS, Trainer, cap_key, method_names, params_from, parse
 from .seedbs_run import SeedBSRunner
 from .stages import default_progress_path, install_overall
 
@@ -93,7 +93,7 @@ def fit_method(trainer, name):
     """One method end to end: A at K0 per bandwidth, joint (h, cap) selection on dev, refit, tau, uncertainty."""
     l2 = trainer.l2
     mode, arm = parse(name)
-    hs = l2["h_grid"] if arm == "fe" else [None]
+    hs = l2["h_grid"] if arm in KERNEL_ARMS else [None]
     k0, fits, table = l2["cap_k0"], {}, []
     for h in hs:
         base = trainer.method(name, k0, h)

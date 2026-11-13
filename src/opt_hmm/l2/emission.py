@@ -158,6 +158,65 @@ class KernelGrid:
         return cls(data["grid"], data["density"], data["neff"])
 
 
+class BetaGrid(KernelGrid):
+    """Same e'-kernel weights as KernelGrid, but each grid density is a Beta(a, b) fitted by moments.
+
+    The weighted mean and variance are taken on the bin midpoints (variance minus the bin-width term), the Beta is
+    averaged over each bin on a fine sub-grid and rescaled to mean one, so the result is again a hist200 density that
+    the HMM code reads like any other. Interpolation between grid points is still the convex combination of densities.
+    """
+    SUB = 50
+
+    def __init__(self, grid, density, neff, params):
+        super().__init__(grid, density, neff)
+        self.params = np.asarray(params, float)
+
+    @staticmethod
+    def beta_bins(a, b, bins=BINS):
+        u = (np.arange(bins * BetaGrid.SUB) + .5) / (bins * BetaGrid.SUB)
+        log_pdf = (a - 1.) * np.log(u) + (b - 1.) * np.log1p(-u)
+        pdf = np.exp(log_pdf - log_pdf.max())
+        dens = pdf.reshape(bins, BetaGrid.SUB).mean(axis=1)
+        return dens / dens.mean()
+
+    @classmethod
+    def fit(cls, counts, eps, grid, h, pseudocount=.5):
+        counts, eps = np.asarray(counts, float), np.asarray(eps, float)
+        bins = counts.shape[1]
+        mid = (np.arange(bins) + .5) / bins
+        size = counts.sum(axis=1)
+        density, neff, params = [], [], []
+        for e in grid:
+            if h is None:
+                w = np.ones(len(eps))
+            else:
+                z = (eps - e) / h
+                w = np.where(np.abs(z) <= SIGMA, np.exp(-.5 * z * z), 0.)
+            total = (w * size).sum()
+            if total <= 0:
+                raise ValueError(f"No training positions within {SIGMA:g} bandwidths of e = {e:g}; add data, do not widen h.")
+            n_eff = total ** 2 / (w * w * size).sum()
+            weighted = (w[:, None] * counts).sum(axis=0)
+            mean = float((weighted * mid).sum() / weighted.sum())
+            var = float((weighted * (mid - mean) ** 2).sum() / weighted.sum()) - 1. / (12. * bins * bins)
+            common = mean * (1. - mean) / max(var, 1e-9) - 1.
+            if not np.isfinite(common) or common <= 0:
+                a = b = 1.
+            else:
+                a, b = max(mean * common, .05), max((1. - mean) * common, .05)
+            density.append(cls.beta_bins(a, b, bins))
+            neff.append(n_eff)
+            params.append((a, b))
+        return cls(grid, np.array(density), np.array(neff), params)
+
+    def to_dict(self):
+        return {**super().to_dict(), "params": self.params.tolist()}
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(data["grid"], data["density"], data["neff"], data["params"])
+
+
 def ratios(index, per_article_density, cap=None):
     """Density ratios g[d, t] = f(y[d, t]) from per-article bin densities (D, bins) or one shared (bins,)."""
     dens = capped(per_article_density, cap)

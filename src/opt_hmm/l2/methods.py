@@ -8,10 +8,11 @@ from ..hmm import forward_backward_two_state
 from ..l0 import em as em_module
 from ..l0.decide import build_rules, decide
 from ..l0.metrics import position_metrics
-from .emission import HistOpt, KernelGrid, capped, hist_density, ratios
+from .emission import BetaGrid, HistOpt, KernelGrid, hist_density, ratios
 
 MODES = ("pd", "pe")
 HMM_ARMS = ("m100", "m400", "fe")
+KERNEL_ARMS = ("fe", "fb")      # fb (Beta-shaped f1(e')) is only fitted by the l2-extra stage, not by l2-fit
 DEV_CLASSES = ("paper", "alt", "r2")
 TRAIN_A_SPLITS = ("mix_r2", "mix_splice", "mix_alt")
 
@@ -26,7 +27,7 @@ def method_names():
 
 def parse(name):
     mode, arm = name.split("_", 1)
-    if mode not in MODES or arm not in HMM_ARMS:
+    if mode not in MODES or arm not in HMM_ARMS + ("fb",):
         raise ValueError(f"Unknown method {name!r}.")
     return mode, arm
 
@@ -63,8 +64,8 @@ class HistMethod:
         self.name, (self.mode, self.arm) = name, parse(name)
         self.stage1, self.cap, self.kernel, self.h = stage1, cap, kernel, h
         self.params, self.rules = params, rules
-        if (self.arm == "fe") != (kernel is not None):
-            raise ValueError("Only the fe arm carries a kernel grid.")
+        if (self.arm in KERNEL_ARMS) != (kernel is not None):
+            raise ValueError("Only the fe and fb arms carry a kernel grid.")
 
     def proportions(self, counts):
         return self.stage1.opt(self.cap).estimate_many(counts)
@@ -121,21 +122,24 @@ class Trainer:
 
     # ---------------------------------------------------------------- e' and the kernel grid
     def kernel(self, arm, cap, h):
-        """f1(.; e) fitted on cal_pure and mix_r2 truth=1 positions, weighted by each article's e'."""
+        """f1(.; e) fitted on cal_pure and mix_r2 truth=1 positions, weighted by each article's e'.
+
+        fe: kernel-weighted hist200. fb: a Beta fitted by weighted moments at every grid point (same weights)."""
         key = (arm, cap_key(cap), h)
         if key not in self._kernel:
             stage1 = self.arm_stage1[arm]
             pure, r2 = self.splits["cal_pure"], self.splits["mix_r2"]
             n = self.l2["arms"][arm]["pure_articles"]
+            grid_class = BetaGrid if arm == "fb" else KernelGrid
             counts = np.vstack([pure.counts[:n], r2.truth_counts()])
             eps = np.concatenate([stage1.opt(cap).estimate_many(pure.counts[:n])[0],
                                   stage1.opt(cap).estimate_many(r2.counts)[0]])
-            self._kernel[key] = KernelGrid.fit(counts, eps, self.l2["kernel_grid"], h, self.config["pseudocount"])
+            self._kernel[key] = grid_class.fit(counts, eps, self.l2["kernel_grid"], h, self.config["pseudocount"])
         return self._kernel[key]
 
     def method(self, name, cap, h=None, params=None, rules=None):
         mode, arm = parse(name)
-        kernel = self.kernel(arm, cap, h) if arm == "fe" else None
+        kernel = self.kernel(arm, cap, h) if arm in KERNEL_ARMS else None
         return HistMethod(name, self.arm_stage1[arm], cap, kernel, h, params, rules)
 
     # ---------------------------------------------------------------- EM on the A-training split

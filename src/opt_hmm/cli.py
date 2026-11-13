@@ -106,6 +106,12 @@ def main(argv=None):
     l2_test.add_argument("--cache")
     l2_test.add_argument("--mechanism", help="mechanism.json of the training side")
     l2_test.add_argument("--progress")
+    l2_extra = sub.add_parser("l2-extra", help="Beta-shaped f1(e') (fb) and the SPOT baseline on a finished L2 run (CPU)")
+    l2_extra.add_argument("--frozen", required=True, help="Reference l2-fit directory (or frozen.json)")
+    l2_extra.add_argument("--train", required=True, help="Training-side l2-build directory")
+    l2_extra.add_argument("--input", required=True, help="Test-side l2-build directory")
+    l2_extra.add_argument("--reference", required=True, help="Reference l2-test directory (metrics.jsonl)")
+    l2_extra.add_argument("--output", required=True)
     l2_cap = sub.add_parser("l2-cap", help="m100 cap sensitivity after the test run")
     l2_cap.add_argument("--frozen", required=True)
     l2_cap.add_argument("--train", required=True)
@@ -207,6 +213,9 @@ def main(argv=None):
         from .l2.evaluate import run_test
         result = run_test(args.frozen, args.input, args.output, args.workers, args.cache, args.progress,
                           mechanism=args.mechanism)
+    elif args.command == "l2-extra":
+        from .l2.extra import run_extra
+        result = run_extra(args.frozen, args.train, args.input, args.reference, args.output)
     elif args.command == "l2-cap":
         from .l2.capsweep import run_cap_sweep
         result = run_cap_sweep(args.frozen, args.train, args.input, args.output, args.progress)
