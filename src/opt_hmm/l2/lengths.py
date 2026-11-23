@@ -25,7 +25,7 @@ METRICS = (("iou", "IoU"), ("recall", "recall"), ("precision", "precision"), ("f
            ("segment_recall", "段召回"), ("rand_sb", "Rand(S−B)"), ("rand_paper", "Rand(论文)"))
 COUNTS = (("sb_true_changepoints", "真值切点"), ("predicted_changepoints", "预测切点"))
 TAILS = (.99, .9)
-READING = ("先看 IoU：B（冻结 f1，只在新长度重估 a、π、τ）相对 A（在新长度整体重训）的配对差，以及 fe 相对 seedbs 的配对差；"
+READING = ("先看 IoU：B（冻结 f1、a、π，只在新长度重标 τ）相对 A（在新长度整体重训）的配对差，以及 fe 相对 seedbs 的配对差；"
            "再看细化指标（recall、precision、F1、段召回、Rand index、切点数）和后验健康指标（τ、Setting 1 的假切点、误报），"
            "弄清差异来自哪里；最后看 f1 本身（hist200、尾部质量、e'、核网格）。不设数值红线。区间是按 prompt 配对的 bootstrap 95% 区间，"
            "* 表示区间不含 0。不同长度的绝对分数不直接比较（切点数与 SeedBS 最小段长都随长度变化），跨长度只读配对差。")
@@ -412,7 +412,7 @@ def render(report):
     out += ["## 6 局限", "",
             "- 不同长度的文本是同一批 prompt、同一生成的前缀，评价侧是同一批文章；500 长度的评价结果此前已被看过，本报告全部是描述性的，"
             "不据此回头修改任何冻结规则。",
-            "- B 组沿用的是参考长度的 f1（stage 1、核网格、cap、h），a、π、τ 在新长度重估；SeedBS 的 (B, ζ) 与 c 用 A 组在该长度的结果。",
+            "- B 组沿用的是参考长度的 f1（stage 1、核网格、cap、h）与转移/初始参数（a00、a11、π1），只在新长度重标 τ；SeedBS 的 (B, ζ) 与 c 用 A 组在该长度的结果。",
             "- 剔除退化 prompt 组后 null 文章也被剔除，any-FP 只对非退化文本成立。评价侧只扫描水印文本与 null 文本，U 文本的退化不在规则内。",
             "- 区间假定 prompt 之间独立；同一 prompt 的不同场景共享来源文本，已按 prompt 配对。", ""]
     return "\n".join(out)

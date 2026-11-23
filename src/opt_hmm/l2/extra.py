@@ -1,15 +1,15 @@
-"""Extra arms on an existing L2 run: `fb` (Beta-shaped f1(e')) and the SPOT baseline (docs/2608.14906v2, Algorithm 1).
+"""Extra arms and literature baselines on a finished L2 run (CPU): train side first, test side read once afterwards.
 
-Both are fitted on the training side only (dev selection, null_cal calibration), written to `frozen_extra.json`, and
-only then run once on the test side. `fe`, `m400` and `seedbs` are not recomputed: their per-article rows are read
-from the reference run's `metrics.jsonl`, so every difference is a paired bootstrap on the same test articles.
+HMM arms, fitted like l2-fit but without the bootstrap: fb = Beta-shaped f1(e') with fe's kernel weights, bm = one fixed
+Beta of the pure articles. Baselines (pivots only, see baselines.py): spot_opt, spot_ini, win_trgof, win_ars.
 
-SPOT here is the plug-in variant: eps_hat is eps_opt under the frozen stage-1 hist200 (as in the paper's real-LLM
-experiments), the tail grid is u in [0.005, 0.98] with M = max(20, ceil(3.5 ln(n)^1.5)) points, eta = 0, and the
-calibration constant C (lambda = C / ln n) is chosen on dev among the values whose null_cal any-FP is at most alpha.
+Two operating points. Document level (the project protocol): tau on null_cal so that any-FP <= alpha (rule M). Token
+level (suffix _tok): tau on null_cal so that at most alpha of the pooled null positions are flagged, a looser criterion
+reported with both false-positive rates. fe, m400 and the HMM arms enter it with their frozen parameters (only tau is
+recalibrated); baselines are tuned on dev under each criterion separately. The reference rows of fe, m400 and seedbs come
+from the reference test run, so every difference is a paired bootstrap over the same test articles.
 """
 import copy
-from math import ceil, log
 from pathlib import Path
 from time import perf_counter
 
@@ -17,98 +17,188 @@ import numpy as np
 
 from ..calibration import Threshold
 from ..detector import Detection
-from ..io import new_output, provenance, read_jsonl, write_json
-from ..l0.decide import rules_to_dict
-from ..l0.metrics import position_metrics
+from ..io import new_output, provenance, read_jsonl, write_json, write_jsonl
+from ..l0.decide import build_rules, decide, rules_to_dict
 from ..paths import project_path
+from . import baselines as bl
 from .config import validate_l2
 from .data import load_side
-from .evaluate import BLOCK_ORDER, TEST_SPLITS, Blocks, check_gate, load_frozen, rate_cell, score_rows
+from .evaluate import TEST_SPLITS, check_gate, load_frozen, rebuild_methods, score_rows
 from .fit import check_side, fit_method
-from .methods import DEV_CLASSES, MODES, Trainer
+from .methods import EXTRA_ARMS, MODES, Trainer
 
-SPOT_C = np.logspace(-2, 1, 60)
-U_MIN, U_MAX = .005, .98
+NEW_HMM = tuple(f"{mode}_{arm}" for arm in EXTRA_ARMS for mode in MODES)
 REFERENCE = ("pd_m400", "pe_m400", "pd_fe", "pe_fe", "seedbs")
+TOKEN_HMM = ("pd_m400", "pe_m400", "pd_fe", "pe_fe", "pd_fb", "pe_fb")
+BASELINES = ("spot_opt", "spot_ini", "win_trgof", "win_ars")
+WINDOWS = (10, 20, 40, 60)
 
 
-def beta_names():
-    return tuple(f"{mode}_fb" for mode in MODES)
+def memoized(fn):
+    cache = {}
+
+    def run(stack):
+        if id(stack) not in cache:
+            cache[id(stack)] = fn(stack)
+        return cache[id(stack)]
+    return run
 
 
-class Spot:
-    """SPOT (Algorithm 1) on the pivots only; F0(y) = y, so the tail test is Y > 1 - n^-u."""
-
-    def __init__(self, stage1, cap, C=None):
-        self.stage1, self.cap, self.C = stage1, cap, C
-
-    def grid(self, n):
-        m = max(20, ceil(3.5 * log(n) ** 1.5))
-        return np.linspace(U_MIN, U_MAX, m)
-
-    def tail_curve(self, y):
-        """T_hat(u) on the grid for one article, and eps_hat, identifiable."""
-        n = len(y)
-        value, ident, _ = self.stage1.opt(self.cap).estimate_many(np.bincount(
-            np.minimum((y * 200).astype(int), 199), minlength=200)[None, :])
-        eps = float(np.clip(value[0], 0., 1.))
-        u = self.grid(n)
-        cut = 1. - n ** -u
-        s = np.array([(y > c).mean() for c in cut])
-        return (1. - eps) * n ** -u / np.maximum(s, 1. / n), eps, bool(ident[0]), cut
-
-    def prepare(self, docs):
-        return [self.tail_curve(d["y"]) for d in docs]
-
-    def detections(self, docs, prepared, C):
-        out = []
-        for doc, (curve, eps, ident, cut) in zip(docs, prepared):
-            n = len(doc["y"])
-            lam = C / log(n)
-            ok = np.flatnonzero(curve <= lam)
-            # Deviation from Algorithm 1: when no scanned u meets the criterion the paper falls back to the largest u;
-            # here the article gets an empty output, otherwise C cannot control the null any-FP at all.
-            threshold = cut[ok[0]] if len(ok) else None
-            scores = (doc["y"] > threshold).astype(float) if ident and threshold is not None else np.zeros(n)
-            out.append(Detection(scores, eps, 0., ident, 0., info={"threshold": threshold}))
-        return out
+# ------------------------------------------------ scorers: stack -> (scores (D, n), eps (D,) or None, identifiable (D,))
+def spot_scorer(kind, stage1, cap):
+    def run(stack):
+        if kind == "ini":
+            eps, ident = bl.tail_eps(stack.y), np.ones(len(stack), bool)
+        else:
+            value, ident, _ = stage1.opt(cap).estimate_many(stack.counts)
+            eps = np.clip(value, 0., 1.)
+        return np.where(ident[:, None], bl.SpotCurve(stack.y, eps).scores(), 0.), eps, ident
+    return memoized(run)
 
 
-def fixed_rules(alpha, n):
-    """Rule dict for a method whose scores are already 0/1 decisions: flag when score > .5."""
-    t = Threshold(.5, n, n, alpha, True)
-    return {"tau_fraction": .5, "group_sizes": {}, "M": {"pooled": t}, "P": {"pooled": t}, "P_same": {"pooled": t}}
+def window_scorer(family, B, s=None):
+    def run(stack):
+        score = bl.window_trgof(stack.y, B, s) if family == "win_trgof" else bl.window_aaronson(stack.y, B)
+        return score, None, np.ones(len(stack), bool)
+    return memoized(run)
 
 
-def select_spot(spot, splits, config):
-    """C per criterion: 'doc' = null_cal any-FP <= alpha, 'position' = null_cal flagged-position share <= alpha.
+def hmm_scorer(method):
+    def run(stack):
+        gamma, eps, ident, _ = method.scores(stack)
+        return gamma, eps, ident
+    return memoized(run)
 
-    Returns {criterion: best row or None} and the full table; None means no C on the grid satisfies the criterion.
-    """
-    null, dev = splits["null_cal"], splits["dev"]
-    prep_null, prep_dev = spot.prepare(null.docs), spot.prepare(dev.docs)
-    alpha, table = config["alpha"], []
-    best = {"doc": None, "position": None}
-    for C in SPOT_C:
-        dets = spot.detections(null.docs, prep_null, C)
-        fp = float(np.mean([bool(d.scores.any()) for d in dets]))
-        fpr = float(np.mean([float((d.scores > .5).mean()) for d in dets]))
-        by_class = {}
-        for doc, det in zip(dev.docs, spot.detections(dev.docs, prep_dev, C)):
-            iou = position_metrics(doc["truth"], det.scores > .5)["iou"]
-            if iou is not None and doc["cls"] in DEV_CLASSES:
-                by_class.setdefault(doc["cls"], []).append(iou)
-        classes = {c: float(np.mean(v)) for c, v in by_class.items()}
-        iou = float(np.mean([classes[c] for c in DEV_CLASSES])) if len(classes) == len(DEV_CLASSES) else 0.
-        row = {"C": float(C), "null_any_fp": fp, "null_position_fpr": fpr, "iou": iou, "iou_by_class": classes}
+
+def candidates(stage1, config):
+    """Baseline families -> [(params, scorer)]; SPOT-opt's cap is tuned on dev like the HMM arms'."""
+    return {"spot_opt": [({"cap": c}, spot_scorer("opt", stage1, c)) for c in config["l2"]["cap_grid"]],
+            "spot_ini": [({}, spot_scorer("ini", None, None))],
+            "win_trgof": [({"B": B, "s": s}, window_scorer("win_trgof", B, s)) for B in WINDOWS for s in (1, 2)],
+            "win_ars": [({"B": B}, window_scorer("win_ars", B)) for B in WINDOWS]}
+
+
+# ------------------------------------------------ calibration on null_cal and selection on dev
+def token_rules(null_scores, alpha):
+    """tau with at most alpha of the pooled null positions strictly above it."""
+    flat = np.sort(np.asarray(null_scores, float).ravel())
+    t = Threshold(float(flat[len(flat) - 1 - int(np.floor(alpha * len(flat)))]), len(flat), len(flat), alpha, True)
+    return {"tau_fraction": "same", "group_sizes": {}, "M": {"pooled": t}, "P": {"pooled": t}, "P_same": {"pooled": t}}
+
+
+def calibrate(scorer, null, config, criterion):
+    scores = scorer(null)[0]
+    if criterion == "doc":
+        return build_rules([(null.n_eff, row) for row in scores], config)
+    return token_rules(scores, config["alpha"])
+
+
+def tau_of(rules):
+    return rules["M"]["pooled"].value
+
+
+def dev_row(scorer, rules, dev):
+    labels = [decide(row, dev.n_eff, rules)[0] for row in scorer(dev)[0]]
+    classes, value, flagged = Trainer.dev_scores(labels, dev)
+    tau = tau_of(rules)
+    return {"tau": tau, "iou": value, "iou_by_class": classes, "flagged_positions": flagged,
+            "ok": bool(tau < 1 and flagged > 0)}
+
+
+def select(options, null, dev, config, criterion):
+    """Best usable configuration by dev IoU (the first one wins a tie); None when no configuration is usable."""
+    table, best = [], None
+    for params, scorer in options:
+        rules = calibrate(scorer, null, config, criterion)
+        row = {"params": params, **dev_row(scorer, rules, dev)}
         table.append(row)
-        for name, value in (("doc", fp), ("position", fpr)):
-            if value <= alpha and (best[name] is None or iou > best[name]["iou"]):
-                best[name] = row
+        if row["ok"] and (best is None or round(row["iou"], 12) > round(best["row"]["iou"], 12)):
+            best = {"row": row, "scorer": scorer, "rules": rules}
     return best, table
 
 
+# ------------------------------------------------ reference check, diagnostics, test rows
+def with_extra_arms(config):
+    out = copy.deepcopy(config)
+    for arm in EXTRA_ARMS:
+        out["l2"]["arms"][arm] = dict(config["l2"]["arms"]["fe"])
+    return out
+
+
+def check_reference(frozen, trainer):
+    """The training side and the estimation code are the ones behind the reference fit: stage 1 and the fe kernel match."""
+    key = trainer.l2["arms"]["fe"]["pure_articles"]
+    if trainer.stage1[key].counts.tolist() != frozen["stage1"][str(key)]["counts"]:
+        raise ValueError("The training side differs from the one behind the reference fit (stage-1 counts).")
+    entry = frozen["methods"]["pd_fe"]
+    kernel = trainer.kernel("fe", entry["cap"], entry["h"])
+    diff = float(np.abs(kernel.density - np.array(entry["kernel"]["density"])).max())
+    if diff > 1e-6:
+        raise ValueError(f"The fe kernel is not reproduced by the current code (max density difference {diff:.3g}).")
+    return {"stage1_counts_equal": True, "fe_kernel_max_abs_diff": diff}
+
+
+def beta_vs_hist(trainer, method):
+    """Per grid point: n_eff, Beta (a, b) and the total-variation distance to the kernel hist200 with the same weights."""
+    hist, beta = trainer.kernel("fe", method.cap, method.h), method.kernel
+    return [{"e": float(e), "neff": float(n), "a": float(p[0]), "b": float(p[1]), "tv": float(.5 * np.abs(d - f).mean())}
+            for e, n, p, d, f in zip(beta.grid, hist.neff, beta.params, hist.density, beta.density)]
+
+
+def detections(scorer, stack):
+    scores, eps, ident = scorer(stack)
+    return [Detection(scores[i], float("nan") if eps is None else float(eps[i]), 0., bool(ident[i]), 0.)
+            for i in range(len(stack))]
+
+
+def evaluate(name, scorer, rules, splits):
+    """Rows of the four test blocks and of null_test for one calibrated scorer."""
+    rows = []
+    for split in TEST_SPLITS:
+        rows += score_rows(name, splits[split].docs, detections(scorer, splits[split]), rules)
+    null = score_rows(name, splits["null_test"].docs, detections(scorer, splits["null_test"]), rules)
+    if scorer(splits["null_test"])[1] is None:
+        for r in rows + null:
+            r["eps_hat"] = r["eps_error"] = None
+    return rows, null
+
+
+def check_same_articles(new_rows, ref_rows):
+    """Paired differences need every method on the same test articles."""
+    ids = lambda rows: {(r["split"], r["article_id"]) for r in rows}
+    differ = ids(new_rows) ^ ids(ref_rows)
+    if differ:
+        raise ValueError(f"The reference test run covers other articles than this test side ({len(differ)} differ).")
+
+
+def null_rates(scorer, rules, null):
+    """Calibration-set rates of a frozen rule: documents with any flagged position, and flagged share of all positions."""
+    scores = scorer(null)[0]
+    flagged = scores > tau_of(rules)
+    return {"any_fp": float(flagged.any(axis=1).mean()), "position_fpr": float(flagged.mean())}
+
+
+def final_methods(fitted, reference, chosen_doc, chosen_token, null, config):
+    """name -> {scorer, rules, criterion, family, config}: everything that is evaluated on the test side."""
+    final = {}
+    for name, fit in fitted.items():
+        final[name] = {"scorer": hmm_scorer(fit["method"]), "rules": fit["method"].rules, "criterion": "doc",
+                       "family": "hmm", "config": {"cap": fit["method"].cap, "h": fit["method"].h}}
+    methods = {**{n: f["method"] for n, f in fitted.items()}, **{n: reference[n] for n in TOKEN_HMM if n in reference}}
+    for name in TOKEN_HMM:
+        scorer = hmm_scorer(methods[name])
+        final[f"{name}_tok"] = {"scorer": scorer, "rules": token_rules(scorer(null)[0], config["alpha"]),
+                                "criterion": "token", "family": "hmm", "config": {"cap": methods[name].cap, "h": methods[name].h}}
+    for suffix, chosen in (("", chosen_doc), ("_tok", chosen_token)):
+        for family, c in chosen.items():
+            final[family + suffix] = {"scorer": c["scorer"], "rules": c["rules"], "family": family,
+                                      "criterion": "token" if suffix else "doc", "config": c["row"]["params"]}
+    return final
+
+
 def run_extra(frozen_path, train_dir, test_dir, reference_dir, output):
+    from .extra_report import build_report, render_extra
+    from .report import jsonable
     started = perf_counter()
     frozen = load_frozen(frozen_path)
     train = load_side(train_dir)
@@ -116,82 +206,53 @@ def run_extra(frozen_path, train_dir, test_dir, reference_dir, output):
     validate_l2(config)
     check_side(train, config)
     out = new_output(project_path(output))
-    inject = copy.deepcopy(config)
-    inject["l2"]["arms"]["fb"] = dict(config["l2"]["arms"]["fe"])
-    trainer = Trainer(inject, train)
-    fitted = {name: fit_method(trainer, name) for name in beta_names()}
-    stage1 = trainer.arm_stage1["fe"]
-    spot = Spot(stage1, config["l2"]["cap_k0"])
-    best, spot_table = select_spot(spot, train["splits"], config)
-    spot_variants = {name: row for name, row in (("spot", best["doc"]), ("spot_fpr", best["position"])) if row}
-    extra = {"stage": "extra", "train_key_id": train["manifest"]["key_id"], "reference_fit": str(project_path(frozen_path)),
-             "methods": {n: {**f["method"].to_dict(), "rules": rules_to_dict(f["method"].rules)}
-                         for n, f in fitted.items()},
-             "spot": {"cap": spot.cap, "variants": {n: {"C": r["C"], "selection": r} for n, r in spot_variants.items()},
-                      "infeasible": [n for n in ("spot", "spot_fpr") if n not in spot_variants]}}
-    write_json(out / "frozen_extra.json", extra)
-    write_json(out / "fit_extra.json", {
-        "fb": {n: {"cap": f["method"].cap, "h": f["method"].h, "params": f["method"].params,
-                   "tau": f["method"].rules["M"]["pooled"].value, "selection": f["selection"],
-                   "beta_params": f["method"].kernel.params.tolist(), "neff": f["neff"]} for n, f in fitted.items()},
-        "spot": {"selected": best, "table": spot_table}})
+    null, dev = train["splits"]["null_cal"], train["splits"]["dev"]
+    trainer = Trainer(with_extra_arms(config), train)
+    check = check_reference(frozen, trainer)
+    fitted = {name: fit_method(trainer, name, uncertainty=False) for name in NEW_HMM}
+    reference = rebuild_methods(frozen)
+    chosen, tables = {"doc": {}, "token": {}}, {}
+    options = candidates(trainer.arm_stage1["fe"], config)
+    for criterion in chosen:
+        for family, opts in options.items():
+            best, table = select(opts, null, dev, config, criterion)
+            tables[f"{family}/{criterion}"] = table
+            if best:
+                chosen[criterion][family] = best
+    final = final_methods(fitted, reference, chosen["doc"], chosen["token"], null, config)
+    write_json(out / "frozen_extra.json", jsonable({
+        "stage": "extra", "reference_fit": str(project_path(frozen_path)), "train_key_id": train["manifest"]["key_id"],
+        "reference_check": check,
+        "methods": {n: {"criterion": m["criterion"], "family": m["family"], "config": m["config"],
+                        "null_cal": null_rates(m["scorer"], m["rules"], null), "rules": rules_to_dict(m["rules"])}
+                    for n, m in final.items()},
+        "hmm": {n: {**f["method"].to_dict(), "rules": rules_to_dict(f["method"].rules)} for n, f in fitted.items()}}))
+    selection = {"hmm": {n: {"selection": f["selection"], "em": f["em"], "dev_eps_error": f["dev_eps_error"],
+                            "beta_vs_hist": beta_vs_hist(trainer, f["method"]) if f["method"].arm == "fb" else None,
+                            "params": f["method"].params, "tau": tau_of(f["method"].rules)} for n, f in fitted.items()},
+                 "baselines": tables, "infeasible": [f"{f}/{c}" for c in chosen for f in options if f not in chosen[c]]}
+    write_json(out / "fit_extra.json", jsonable(selection))
 
     test = load_side(test_dir)
-    check_gate(frozen, test["manifest"]["config"], test["manifest"])
-    splits = test["splits"]
+    test_config = test["manifest"]["config"]
+    validate_l2(test_config)
+    check_gate(frozen, test_config, test["manifest"])
     rows, null_rows = [], []
-    for name, fit in fitted.items():
-        method = fit["method"]
-        for split in TEST_SPLITS:
-            rows += score_rows(name, splits[split].docs, method.detections(splits[split]), method.rules)
-        null_rows += score_rows(name, splits["null_test"].docs, method.detections(splits["null_test"]), method.rules)
-    rules = fixed_rules(config["alpha"], len(train["splits"]["null_cal"]))
-    for split in TEST_SPLITS + ("null_test",):
-        docs = splits[split].docs
-        prepared = spot.prepare(docs)
-        for name, row in spot_variants.items():
-            dets = spot.detections(docs, prepared, row["C"])
-            (null_rows if split == "null_test" else rows).extend(score_rows(name, docs, dets, rules))
-    reference = [r for r in read_jsonl(Path(project_path(reference_dir)) / "metrics.jsonl") if r["method"] in REFERENCE]
-    ref_main = [r for r in reference if r["split"] != "null_test"]
-    ref_null = [r for r in reference if r["split"] == "null_test"]
-    all_rows, all_null = rows + ref_main, null_rows + ref_null
-    names = list(beta_names()) + list(spot_variants) + list(REFERENCE)
-    blocks = Blocks(all_rows, names, config["bootstrap"], config["l2"]["global_seed"])
-    report = {"methods": names, "iou": {b: {m: blocks.summary(m, b, "iou") for m in names} for b in BLOCK_ORDER},
-              "deltas": {}, "any_fp": {}}
-    pairs = [(f"{mode}_fb", f"{mode}_fe") for mode in MODES] + [(f"{mode}_fb", f"{mode}_m400") for mode in MODES] + [
-        ("pd_fb", "seedbs"), ("pe_fb", "seedbs")]
-    pairs += [(v, ref) for v in spot_variants for ref in ("pd_fe", "pe_fe", "seedbs")]
-    for a, b in pairs:
-        report["deltas"][f"{a} - {b}"] = {blk: blocks.delta(a, b, blk) for blk in BLOCK_ORDER}
-    for m in names:
-        nulls = [r for r in all_null if r["method"] == m]
-        report["any_fp"][m] = rate_cell(sum(r["M"] for r in nulls), len(nulls))
+    for name, item in final.items():
+        r, n = evaluate(name, item["scorer"], item["rules"], test["splits"])
+        rows, null_rows = rows + r, null_rows + n
+    ref = [r for r in read_jsonl(Path(project_path(reference_dir)) / "metrics.jsonl") if r["method"] in REFERENCE]
+    check_same_articles(rows + null_rows, ref)
+    split_null = lambda rs, keep: [r for r in rs if (r["split"] == "null_test") == keep]
+    meta = {n: {"criterion": "doc", "config": {"cap": m["cap"], "h": m["h"]}} for n, m in frozen["methods"].items()}
+    meta["seedbs"] = {"criterion": "doc", "config": {k: frozen["seedbs"]["seedbs"][k] for k in ("B", "zeta")}}
+    meta.update({n: {k: m[k] for k in ("criterion", "family", "config")} for n, m in final.items()})
+    report = build_report(config, rows + split_null(ref, False), null_rows + split_null(ref, True), meta, selection)
+    report["reference_check"] = check
     report["seconds"] = perf_counter() - started
-    from .report import jsonable
     report = jsonable(report)
     write_json(out / "report.json", report)
-    (out / "report.md").write_text(render_extra(report, extra), encoding="utf-8")
+    (out / "report.md").write_text(render_extra(report), encoding="utf-8")
+    write_jsonl(out / "metrics.jsonl", [{k: v for k, v in r.items() if k != "boundary_errors"} for r in rows + null_rows])
     write_json(out / "provenance.json", provenance())
     return {"report": str(out / "report.md"), "seconds": report["seconds"]}
-
-
-def render_extra(report, extra):
-    from .report import ci_text, table
-    names = report["methods"]
-    out = ["# L2 补充臂：Beta 自适应 f1(e′)（fb）与 SPOT 基线", "",
-           "fb 与 SPOT 在训练侧拟合、冻结后才读测试侧，只跑一次。fe、m400、seedbs 的逐篇结果取自参照运行，"
-           "所有差值都是按 prompt 配对的 bootstrap。SPOT 是 plug-in 版本（ε̂ 用冻结的 hist200 做 ε_opt；无阈值满足准则时输出空，论文原为回退到最大 u），"
-           "校准常数 C 在 dev 上选，限制 null_cal 的误报（两个口径，见下）；它不走后验阈值 τ，不是论文原协议的复现。", "",
-           "SPOT 两个口径：`spot` 用 null_cal 文档级 any-FP ≤ α 选 C；`spot_fpr` 用 null_cal 逐位置误报"
-           "（null 文章被标记位置的比例）≤ α 选 C。" + "；".join(f"{n}: C = {v['C']:.4g}" for n, v in extra["spot"]["variants"].items())
-           + ("。无可行 C：" + "、".join(extra["spot"]["infeasible"]) if extra["spot"]["infeasible"] else "。"), "", "## IoU", "",
-           table(["方法"] + list(BLOCK_ORDER), [[m] + [ci_text(report["iou"][b][m]) for b in BLOCK_ORDER] for m in names]), "",
-           "## 配对差值（ΔIoU）", "",
-           table(["对比"] + list(BLOCK_ORDER), [[k] + [ci_text(v[b]) for b in BLOCK_ORDER] for k, v in report["deltas"].items()]), "",
-           "## null_test any-FP（冻结阈值）", "",
-           table(["方法", "误报数/篇数", "any-FP", "Wilson 95%"],
-                 [[m, f"{c['count']}/{c['n']}", f"{c['rate']:.3f}", f"[{c['wilson95'][0]:.3f}, {c['wilson95'][1]:.3f}]"]
-                  for m, c in report["any_fp"].items()]), ""]
-    return "\n".join(out)

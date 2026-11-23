@@ -1,0 +1,116 @@
+{
+  "b1r1": {
+    "output_tokens_per_second": 26.726981066093156,
+    "speedup": 0.96912543583345,
+    "rows": [
+      {
+        "id": "arxiv-train-61180#W",
+        "source": "W",
+        "identical": true,
+        "common_prefix_tokens": 128,
+        "first_difference_1based": null,
+        "position_match_rate": 1.0
+      },
+      {
+        "id": "arxiv-train-61180#U",
+        "source": "U",
+        "identical": true,
+        "common_prefix_tokens": 128,
+        "first_difference_1based": null,
+        "position_match_rate": 1.0
+      },
+      {
+        "id": "arxiv-train-68751#W",
+        "source": "W",
+        "identical": true,
+        "common_prefix_tokens": 128,
+        "first_difference_1based": null,
+        "position_match_rate": 1.0
+      },
+      {
+        "id": "arxiv-train-68751#U",
+        "source": "U",
+        "identical": true,
+        "common_prefix_tokens": 128,
+        "first_difference_1based": null,
+        "position_match_rate": 1.0
+      }
+    ]
+  },
+  "b2r0": {
+    "output_tokens_per_second": 55.89529145769149,
+    "speedup": 2.02677393907741,
+    "rows": [
+      {
+        "id": "arxiv-train-61180#W",
+        "source": "W",
+        "identical": true,
+        "common_prefix_tokens": 128,
+        "first_difference_1based": null,
+        "position_match_rate": 1.0
+      },
+      {
+        "id": "arxiv-train-61180#U",
+        "source": "U",
+        "identical": false,
+        "common_prefix_tokens": 112,
+        "first_difference_1based": 113,
+        "position_match_rate": 0.8828125
+      },
+      {
+        "id": "arxiv-train-68751#W",
+        "source": "W",
+        "identical": true,
+        "common_prefix_tokens": 128,
+        "first_difference_1based": null,
+        "position_match_rate": 1.0
+      },
+      {
+        "id": "arxiv-train-68751#U",
+        "source": "U",
+        "identical": true,
+        "common_prefix_tokens": 128,
+        "first_difference_1based": null,
+        "position_match_rate": 1.0
+      }
+    ]
+  },
+  "b4r0": {
+    "output_tokens_per_second": 106.2379928786749,
+    "speedup": 3.8522099033935806,
+    "rows": [
+      {
+        "id": "arxiv-train-61180#W",
+        "source": "W",
+        "identical": true,
+        "common_prefix_tokens": 128,
+        "first_difference_1based": null,
+        "position_match_rate": 1.0
+      },
+      {
+        "id": "arxiv-train-61180#U",
+        "source": "U",
+        "identical": false,
+        "common_prefix_tokens": 112,
+        "first_difference_1based": 113,
+        "position_match_rate": 0.8828125
+      },
+      {
+        "id": "arxiv-train-68751#W",
+        "source": "W",
+        "identical": true,
+        "common_prefix_tokens": 128,
+        "first_difference_1based": null,
+        "position_match_rate": 1.0
+      },
+      {
+        "id": "arxiv-train-68751#U",
+        "source": "U",
+        "identical": true,
+        "common_prefix_tokens": 128,
+        "first_difference_1based": null,
+        "position_match_rate": 1.0
+      }
+    ]
+  }
+}

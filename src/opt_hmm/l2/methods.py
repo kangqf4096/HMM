@@ -12,7 +12,10 @@ from .emission import BetaGrid, HistOpt, KernelGrid, hist_density, ratios
 
 MODES = ("pd", "pe")
 HMM_ARMS = ("m100", "m400", "fe")
-KERNEL_ARMS = ("fe", "fb")      # fb (Beta-shaped f1(e')) is only fitted by the l2-extra stage, not by l2-fit
+# Arms outside l2-fit, run by l2-extra: fb = Beta-shaped f1(e') with fe's kernel weights, bm = one fixed Beta of the pure articles.
+EXTRA_ARMS = ("fb", "bm")
+ADAPTIVE_ARMS = ("fe", "fb")
+KERNEL_ARMS = ("fe", "fb", "bm")
 DEV_CLASSES = ("paper", "alt", "r2")
 TRAIN_A_SPLITS = ("mix_r2", "mix_splice", "mix_alt")
 
@@ -27,7 +30,7 @@ def method_names():
 
 def parse(name):
     mode, arm = name.split("_", 1)
-    if mode not in MODES or arm not in HMM_ARMS + ("fb",):
+    if mode not in MODES or arm not in HMM_ARMS + EXTRA_ARMS:
         raise ValueError(f"Unknown method {name!r}.")
     return mode, arm
 
@@ -65,7 +68,7 @@ class HistMethod:
         self.stage1, self.cap, self.kernel, self.h = stage1, cap, kernel, h
         self.params, self.rules = params, rules
         if (self.arm in KERNEL_ARMS) != (kernel is not None):
-            raise ValueError("Only the fe and fb arms carry a kernel grid.")
+            raise ValueError("Only the fe, fb and bm arms carry a kernel grid.")
 
     def proportions(self, counts):
         return self.stage1.opt(self.cap).estimate_many(counts)
@@ -124,17 +127,24 @@ class Trainer:
     def kernel(self, arm, cap, h):
         """f1(.; e) fitted on cal_pure and mix_r2 truth=1 positions, weighted by each article's e'.
 
-        fe: kernel-weighted hist200. fb: a Beta fitted by weighted moments at every grid point (same weights)."""
+        fe: kernel-weighted hist200. fb: a Beta fitted by weighted moments at every grid point (same weights).
+        bm: one Beta of the pure articles alone (no e' dependence), the fixed-f1 control of fb."""
         key = (arm, cap_key(cap), h)
         if key not in self._kernel:
             stage1 = self.arm_stage1[arm]
+            if arm == "bm":
+                self._kernel[key] = BetaGrid.constant(stage1.counts, self.l2["kernel_grid"])
+                return self._kernel[key]
             pure, r2 = self.splits["cal_pure"], self.splits["mix_r2"]
             n = self.l2["arms"][arm]["pure_articles"]
             grid_class = BetaGrid if arm == "fb" else KernelGrid
             counts = np.vstack([pure.counts[:n], r2.truth_counts()])
             eps = np.concatenate([stage1.opt(cap).estimate_many(pure.counts[:n])[0],
                                   stage1.opt(cap).estimate_many(r2.counts)[0]])
-            self._kernel[key] = grid_class.fit(counts, eps, self.l2["kernel_grid"], h, self.config["pseudocount"])
+            clamp = bool(self.l2.get("coverage", {}).get("waive_underestimated", False))
+            min_neff = self.l2.get("min_neff") if clamp else None
+            self._kernel[key] = grid_class.fit(counts, eps, self.l2["kernel_grid"], h, self.config["pseudocount"],
+                                               clamp_sparse=clamp, min_neff=min_neff)
         return self._kernel[key]
 
     def method(self, name, cap, h=None, params=None, rules=None):
@@ -174,7 +184,8 @@ class Trainer:
         det = method.detections(null)
         return build_rules([(null.n_eff, d.scores) for d in det], self.config), det
 
-    def dev_scores(self, labels_by_doc, stack):
+    @staticmethod
+    def dev_scores(labels_by_doc, stack):
         by_class = defaultdict(list)
         flagged = 0
         for doc, labels in zip(stack.docs, labels_by_doc):

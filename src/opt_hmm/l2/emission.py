@@ -106,6 +106,43 @@ class HistOpt:
         return value, ident, boundary
 
 
+def _kernel_weights(eps, e, h):
+    """Truncated Gaussian kernel weights of per-article e' around target e (uniform when h is None)."""
+    if h is None:
+        return np.ones(len(eps))
+    z = (eps - e) / h
+    return np.where(np.abs(z) <= SIGMA, np.exp(-.5 * z * z), 0.)
+
+
+def _fill_unsupported(grid, rows, supported):
+    """Interpolate interior unsupported grid entries and constant-clamp edges from supported entries."""
+    grid = np.asarray(grid, float)
+    out = np.array(rows, float, copy=True)
+    idx = np.flatnonzero(supported)
+    for i in np.flatnonzero(~supported):
+        pos = int(np.searchsorted(grid[idx], grid[i]))
+        if pos <= 0:
+            out[i] = out[idx[0]]
+        elif pos >= len(idx):
+            out[i] = out[idx[-1]]
+        else:
+            left, right = idx[pos - 1], idx[pos]
+            lam = (grid[i] - grid[left]) / (grid[right] - grid[left])
+            out[i] = (1. - lam) * out[left] + lam * out[right]
+    return out
+
+
+def _supported_mask(total, neff, min_neff):
+    has_data = np.asarray(total, float) > 0
+    if not has_data.any():
+        return has_data
+    if min_neff is not None:
+        enough = has_data & (np.asarray(neff, float) >= float(min_neff))
+        if enough.any():
+            return enough
+    return has_data
+
+
 class KernelGrid:
     """f1(.; e): kernel-weighted hist200 on a grid of target proportions, linearly interpolated in e.
 
@@ -122,26 +159,33 @@ class KernelGrid:
             raise ValueError("Each grid density must integrate to one.")
 
     @classmethod
-    def fit(cls, counts, eps, grid, h, pseudocount=.5):
+    def fit(cls, counts, eps, grid, h, pseudocount=.5, clamp_sparse=False, min_neff=None):
         """counts: (articles, bins) truth=1 pivot counts; eps: (articles,) e' of each article."""
         counts, eps = np.asarray(counts, float), np.asarray(eps, float)
         size = counts.sum(axis=1)
-        density, neff = [], []
+        bins = counts.shape[1]
+        density, totals, neff = [], [], []
         for e in grid:
-            if h is None:
-                w = np.ones(len(eps))
-            else:
-                z = (eps - e) / h
-                w = np.where(np.abs(z) <= SIGMA, np.exp(-.5 * z * z), 0.)
-            total = (w * size).sum()
+            w = _kernel_weights(eps, e, h)
+            total = float((w * size).sum())
+            totals.append(total)
             if total <= 0:
-                raise ValueError(f"No training positions within {SIGMA:g} bandwidths of e = {e:g}; add data, do not widen h.")
-            n_eff = total ** 2 / (w * w * size).sum()
+                if not clamp_sparse:
+                    raise ValueError(f"No training positions within {SIGMA:g} bandwidths of e = {e:g}; add data, do not widen h.")
+                density.append(np.ones(bins))
+                neff.append(0.)
+                continue
+            n_eff = float(total ** 2 / (w * w * size).sum())
             weighted = (w[:, None] * counts).sum(axis=0) * (n_eff / total)
-            bins = counts.shape[1]
             density.append(bins * (weighted + pseudocount) / (n_eff + bins * pseudocount))
             neff.append(n_eff)
-        return cls(grid, np.array(density), np.array(neff))
+        supported = _supported_mask(totals, neff, min_neff if clamp_sparse else None)
+        if not supported.any():
+            raise ValueError(f"No training positions within {SIGMA:g} bandwidths of e = {grid[0]:g}; add data, do not widen h.")
+        dens_arr = np.array(density)
+        if clamp_sparse and not supported.all():
+            dens_arr = _fill_unsupported(grid, dens_arr, supported)
+        return cls(grid, dens_arr, np.array(neff))
 
     def densities(self, eps):
         """Interpolated bin densities for each article's e': (articles, bins)."""
@@ -159,55 +203,73 @@ class KernelGrid:
 
 
 class BetaGrid(KernelGrid):
-    """Same e'-kernel weights as KernelGrid, but each grid density is a Beta(a, b) fitted by moments.
+    """KernelGrid whose grid densities are Beta(a, b) fitted by weighted moments instead of weighted histograms.
 
-    The weighted mean and variance are taken on the bin midpoints (variance minus the bin-width term), the Beta is
-    averaged over each bin on a fine sub-grid and rescaled to mean one, so the result is again a hist200 density that
-    the HMM code reads like any other. Interpolation between grid points is still the convex combination of densities.
+    Weights are exactly those of KernelGrid (so the family is the only difference). The mean and variance come from
+    the bin midpoints (variance minus the bin-width term); the Beta is averaged over every bin on a fine sub-grid and
+    rescaled to mean one, so the result is again a hist200 density that the HMM code reads like any other.
     """
-    SUB = 50
+    SUB = 200
 
     def __init__(self, grid, density, neff, params):
         super().__init__(grid, density, neff)
         self.params = np.asarray(params, float)
 
     @staticmethod
-    def beta_bins(a, b, bins=BINS):
+    def moments(weighted_counts):
+        """(a, b) of the Beta with the weighted mean and variance of binned pivots; (1, 1) if the variance is degenerate."""
+        w = np.asarray(weighted_counts, float)
+        bins = len(w)
+        mid = (np.arange(bins) + .5) / bins
+        mean = float((w * mid).sum() / w.sum())
+        var = float((w * (mid - mean) ** 2).sum() / w.sum()) - 1. / (12. * bins * bins)
+        common = mean * (1. - mean) / var - 1. if var > 0 else 0.
+        return (1., 1.) if not np.isfinite(common) or common <= 0 else (mean * common, (1. - mean) * common)
+
+    @staticmethod
+    def bins(a, b, bins=BINS):
         u = (np.arange(bins * BetaGrid.SUB) + .5) / (bins * BetaGrid.SUB)
         log_pdf = (a - 1.) * np.log(u) + (b - 1.) * np.log1p(-u)
-        pdf = np.exp(log_pdf - log_pdf.max())
-        dens = pdf.reshape(bins, BetaGrid.SUB).mean(axis=1)
-        return dens / dens.mean()
+        density = np.exp(log_pdf - log_pdf.max()).reshape(bins, BetaGrid.SUB).mean(axis=1)
+        return density / density.mean()
 
     @classmethod
-    def fit(cls, counts, eps, grid, h, pseudocount=.5):
+    def fit(cls, counts, eps, grid, h, pseudocount=.5, clamp_sparse=False, min_neff=None):
         counts, eps = np.asarray(counts, float), np.asarray(eps, float)
-        bins = counts.shape[1]
-        mid = (np.arange(bins) + .5) / bins
         size = counts.sum(axis=1)
-        density, neff, params = [], [], []
+        bins = counts.shape[1]
+        density, totals, neff, params = [], [], [], []
         for e in grid:
-            if h is None:
-                w = np.ones(len(eps))
-            else:
-                z = (eps - e) / h
-                w = np.where(np.abs(z) <= SIGMA, np.exp(-.5 * z * z), 0.)
-            total = (w * size).sum()
+            w = _kernel_weights(eps, e, h)
+            total = float((w * size).sum())
+            totals.append(total)
             if total <= 0:
-                raise ValueError(f"No training positions within {SIGMA:g} bandwidths of e = {e:g}; add data, do not widen h.")
-            n_eff = total ** 2 / (w * w * size).sum()
-            weighted = (w[:, None] * counts).sum(axis=0)
-            mean = float((weighted * mid).sum() / weighted.sum())
-            var = float((weighted * (mid - mean) ** 2).sum() / weighted.sum()) - 1. / (12. * bins * bins)
-            common = mean * (1. - mean) / max(var, 1e-9) - 1.
-            if not np.isfinite(common) or common <= 0:
-                a = b = 1.
-            else:
-                a, b = max(mean * common, .05), max((1. - mean) * common, .05)
-            density.append(cls.beta_bins(a, b, bins))
-            neff.append(n_eff)
+                if not clamp_sparse:
+                    raise ValueError(f"No training positions within {SIGMA:g} bandwidths of e = {e:g}; add data, do not widen h.")
+                density.append(np.ones(bins))
+                neff.append(0.)
+                params.append((1., 1.))
+                continue
+            a, b = cls.moments((w[:, None] * counts).sum(axis=0))
+            density.append(cls.bins(a, b, bins))
+            neff.append(float(total ** 2 / (w * w * size).sum()))
             params.append((a, b))
-        return cls(grid, np.array(density), np.array(neff), params)
+        supported = _supported_mask(totals, neff, min_neff if clamp_sparse else None)
+        if not supported.any():
+            raise ValueError(f"No training positions within {SIGMA:g} bandwidths of e = {grid[0]:g}; add data, do not widen h.")
+        dens_arr, params_arr = np.array(density), np.array(params, float)
+        if clamp_sparse and not supported.all():
+            dens_arr = _fill_unsupported(grid, dens_arr, supported)
+            params_arr = _fill_unsupported(grid, params_arr, supported)
+        return cls(grid, dens_arr, np.array(neff), params_arr)
+
+    @classmethod
+    def constant(cls, counts, grid):
+        """One Beta of the pooled counts at every grid point: the fixed-f1 control of the adaptive Beta."""
+        a, b = cls.moments(np.asarray(counts, float))
+        n = float(np.asarray(counts).sum())
+        return cls(grid, np.tile(cls.bins(a, b, len(counts)), (len(grid), 1)), np.full(len(grid), n),
+                   np.tile([a, b], (len(grid), 1)))
 
     def to_dict(self):
         return {**super().to_dict(), "params": self.params.tolist()}

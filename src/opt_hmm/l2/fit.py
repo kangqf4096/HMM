@@ -15,7 +15,7 @@ from ..paths import project_path
 from ..progress import progress, tick
 from .config import validate_l2
 from .data import load_side
-from .methods import DEV_CLASSES, HMM_ARMS, KERNEL_ARMS, Trainer, cap_key, method_names, params_from, parse
+from .methods import ADAPTIVE_ARMS, DEV_CLASSES, Trainer, cap_key, method_names, params_from, parse
 from .seedbs_run import SeedBSRunner
 from .stages import default_progress_path, install_overall
 
@@ -45,8 +45,8 @@ def coverage(trainer, config):
     """Truth = 1 positions per 0.1-wide bin of e' (plan 3.2); every bin needs min_positions.
 
     With `coverage.waive_underestimated`, a short bin is waived when it holds articles and every one of them has
-    e' below its true surviving share: the kernel then leans on articles that are weaker than they look, not
-    stronger. An empty bin is never waived.
+    e' below its true surviving share, and leading empty bins below the covered domain are marked for edge clamping
+    when covered bins exist above them. Interior empty bins are never waived or interpolated.
     """
     cov = config["l2"]["coverage"]
     lo, step, need = cov["lo"], cov["step"], cov["min_positions"]
@@ -66,9 +66,14 @@ def coverage(trainer, config):
         under = bool(keep.any() and (eps[keep] < truth[keep]).all())
         rows.append({"low": lo + k * step, "high": lo + (k + 1) * step, "articles": int(keep.sum()),
                      "positions": int(size[keep].sum()), "ok": enough, "underestimated": under,
-                     "waived": bool(waive and not enough and under)})
+                     "waived": bool(waive and not enough and under), "interpolated": False})
+    if waive and any(r["ok"] for r in rows):
+        for r in rows:
+            if r["articles"] > 0:
+                break
+            r["interpolated"] = True
     return {"cap": config["l2"]["cap_k0"], "min_positions": need, "waive_underestimated": waive, "bins": rows,
-            "deficient": [r for r in rows if not r["ok"] and not r["waived"]]}
+            "deficient": [r for r in rows if not r["ok"] and not r["waived"] and not r["interpolated"]]}
 
 
 def f0_check(null_stack, draws=50, seed=0):
@@ -89,11 +94,11 @@ def f0_check(null_stack, draws=50, seed=0):
                                   "p95": float(np.quantile([r[k] for r in ref], .95))} for k in ("sup_dev", "chi2")}}
 
 
-def fit_method(trainer, name):
+def fit_method(trainer, name, uncertainty=True):
     """One method end to end: A at K0 per bandwidth, joint (h, cap) selection on dev, refit, tau, uncertainty."""
     l2 = trainer.l2
     mode, arm = parse(name)
-    hs = l2["h_grid"] if arm in KERNEL_ARMS else [None]
+    hs = l2["h_grid"] if arm in ADAPTIVE_ARMS else [None]
     k0, fits, table = l2["cap_k0"], {}, []
     for h in hs:
         base = trainer.method(name, k0, h)
@@ -118,7 +123,7 @@ def fit_method(trainer, name):
     rules, null = trainer.null_rules(method)
     method.rules = rules
     tick("T1")
-    uncertainty = trainer.uncertainty(method, result)
+    intervals = trainer.uncertainty(method, result) if uncertainty else None
     tick("E1")
     tick("BS", l2["em"]["bootstrap_draws"])
     dev = trainer.splits["dev"]
@@ -127,7 +132,7 @@ def fit_method(trainer, name):
     for doc, e in zip(dev.docs, eps):
         by_class[doc["cls"]].append(abs(e - doc["eps_true"]))
     return {"method": method, "selection": {"table": table, "best": best, "fallback": fallback},
-            "em": result["fit"], "uncertainty": uncertainty, "null_cal_max": [float(d.scores.max()) for d in null],
+            "em": result["fit"], "uncertainty": intervals, "null_cal_max": [float(d.scores.max()) for d in null],
             "dev_eps_error": {c: float(np.mean(v)) for c, v in by_class.items()},
             "e_prime_identifiable": float(np.mean(ident)),
             "neff": None if method.kernel is None else

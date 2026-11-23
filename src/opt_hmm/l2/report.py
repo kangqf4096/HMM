@@ -82,7 +82,8 @@ def render_fit(r):
     out += ["## e' 覆盖（truth=1 位置数）", "",
             table(["e' 区间", "文章数", "位置数", "达标"],
                   [[f"[{b['low']:.2f}, {b['high']:.2f})", b["articles"], b["positions"],
-                    "是" if b["ok"] else ("豁免（e' 全部低于真值）" if b.get("waived") else "否")]
+                    "是" if b["ok"] else ("豁免（e' 全部低于真值）" if b.get("waived") else
+                                         ("边缘插值（低于覆盖域）" if b.get("interpolated") else "否"))]
                    for b in r["coverage"]["bins"]]), ""]
     out += ["## 方法冻结结果", "",
             table(["方法", "cap", "h", "a00", "a11", "π1(PE)", "τ", "dev 3 类均值 IoU", "回退"],
