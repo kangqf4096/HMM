@@ -1,5 +1,7 @@
 # OPT-HMM 水印片段定位实验
 
+> **📌 中期报告撰写入口**：已整理可直接用于中期报告的全部实验结果、数据表、图表与目录导航，请直接查看 **[`midterm_results/README.md`](midterm_results/README.md)**（clone 本仓库即可直接阅读与引用）。
+
 当前共享项目以 Git 为准，Colab 负责执行实验。Colab 使用 **OPT-1.3B + arXiv 正文**，入口为 `configs/colab_arxiv.json`，完整的克隆、安装、下载与运行单元格见 [Colab 运行说明](docs/colab.md)。模型下载到 `models/opt-1.3b/`，数据缓存、提示词和结果分别留在项目内 `.cache/hf/`、`data/` 和 `runs/`；这些目录均由 Git 忽略。
 
 可直接上传 [Colab Notebook](notebooks/colab_arxiv.ipynb)；先挂载 Google Drive，将项目、模型、数据和结果保存在 `/content/drive/MyDrive/opt-hmm`。Python 环境与进程临时文件在运行时的 `/content/opt-hmm` 中重建。第 4 步起显示阶段进度和实时日志，私有仓库通过每次输入 token 的 `github_sync()` 克隆或拉取更新，不保存凭据。
